@@ -1,0 +1,162 @@
+# The one-shot's small check (check-run/1).
+# Written by one-shot-check.sh --record: the results are /prototype's reading of
+# evidence/self-check.tsv; never edited by hand.
+kind: check-run/1
+engine: web
+browser: "HeadlessChrome/158.0.0.0"
+time: "2026-11-25 23:13:53"
+checks:
+  - id: boots
+    result: pass
+    evidence:
+      - "evidence/self-check.tsv"
+  - id: shot
+    result: pass
+    evidence:
+      - "evidence/play.png"
+  - id: outlines
+    result: pass
+    evidence:
+      - "evidence/figures.png"
+  - id: brief-words
+    result: pass
+    evidence:
+      - "evidence/brief-words.tsv"
+  - id: emoji
+    result: pass
+    evidence:
+      - "evidence/self-check.tsv"
+  - id: nearest-game
+    result: pass
+    evidence:
+      - "evidence/nearest-game.txt"
+brief_checklist:
+  - id: L1
+    result: pass
+    evidence: "evidence/play.png"
+    item: "Look: voxel 3D isometrico, deserto di ruggine: sabbia ocra e terra bruciata (terreno), canyon di roccia rossastra, acqua verde-torbida (laghi e fiumi), metallo arrugginito e lamiere (edifici, veicoli), cielo polveroso color pesca, fiamme e traccianti arancioni; i tuoi mezzi con strisce di vernice verde militare, i predoni rosso sangue e giallo. Dettaglio distintivo: ogni colpo stacca voxel che volano via come detriti cubici e si posano a terra; il cerchio radio è un anello tratteggiato ciano attorno al carro. Ogni figura disegnata in voxel (soldati, carri, edifici): niente emoji, niente cerchi semplici. *(provisional)*"
+  - id: L2
+    result: pass
+    evidence: "evidence/play.png"
+    item: "References: un RTS isometrico classico (la camera e le selezioni), un gioco a voxel distruttibile alla Teardown (i muri che cedono), un action roguelite alla Hades (il run e la valuta che resta) *(guessed)*."
+  - id: L3
+    result: pass
+    evidence: "evidence/play.png"
+    item: "View: 3D · Camera: isometrica angolata (circa 55°) che segue il carro, con zoom e rotazione a scatti di 90° *(inferred (strong))*."
+  - id: F1
+    result: pass
+    evidence: "sim.js:479"
+    item: "Carro con controlli tank e torretta a rotazione limitata che insegue il mouse; precisione da fermi che peggiora in movimento (cerchio di dispersione visibile)"
+  - id: F2
+    result: pass
+    evidence: "world.js:80"
+    item: "Mondo voxel generato a ogni run (colline, montagne, canyon, laghi, fiumi) con muri, edifici e rocce distruttibili dai colpi"
+  - id: F3
+    result: pass
+    evidence: "sim.js:324"
+    item: "Modalità Comando: selezione squadre e ordini movimento / attacco / copertura, solo per le squadre dentro il raggio radio"
+  - id: F4
+    result: pass
+    evidence: "evidence/shop-caserma.png"
+    item: "Squadre minuscole e personalizzabili: fucilieri, cecchini, mitraglieri, medici, mortaio, autoblindo; soldati assoldati per rimpiazzare i singoli caduti"
+  - id: F5
+    result: pass
+    evidence: "evidence/figures.png"
+    item: "Predoni con pattuglie, campi e fortezza finale: 4 tipi di nemici, ognuno attacca diversamente (fuciliere, mitragliere, razziere, veicolo/carro)"
+  - id: F6
+    result: pass
+    evidence: "evidence/shop-officina.png"
+    item: "Avamposti con officina: pezzi per cannone, cingoli, corazza, radio, motore che cambiano i numeri del carro"
+  - id: F7
+    result: pass
+    evidence: "sim.js:875"
+    item: "Piastrine tra i run per miglioramenti permanenti (thin stand-in)"
+  - id: S1
+    result: pass
+    evidence: "sim.js:479"
+    item: "carro con controlli tank e torretta che si allinea con ritardo · in the slice"
+  - id: S2
+    result: pass
+    evidence: "sim.js:487"
+    item: "precisione da fermo e in movimento · in the slice"
+  - id: S3
+    result: pass
+    evidence: "world.js:583"
+    item: "campo di battaglia distruttibile in voxel · in the slice"
+  - id: S4
+    result: pass
+    evidence: "world.js:80"
+    item: "mappa generata proceduralmente · in the slice"
+  - id: S5
+    result: pass
+    evidence: "sim.js:273"
+    item: "truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice"
+  - id: S6
+    result: pass
+    evidence: "sim.js:259"
+    item: "raggio radio limitato e migliorabile · in the slice"
+  - id: S7
+    result: pass
+    evidence: "sim.js:885"
+    item: "pezzi da comprare per moddare il carro · in the slice"
+  - id: S8
+    result: pass
+    evidence: "sim.js:909"
+    item: "assoldare soldati e creare team personalizzati · in the slice"
+  - id: S9
+    result: pass
+    evidence: "sim.js:100"
+    item: "valuta permanente tra un run e l'altro · thin stand-in *(guessed)*"
+  - id: M1
+    result: fail
+    why: broken
+    evidence: "sim.js:228"
+    item: "Il carro parte in un avamposto ai margini di una valle di canyon; un messaggio radio dice \"Muovi il carro: W/S, A/D\"."
+  - id: M2
+    result: pass
+    evidence: "evidence/play.png"
+    item: "Esci dal cancello, muovi il mouse e vedi la torretta girare lenta verso il cursore, il reticolo largo mentre ti muovi."
+  - id: M3
+    result: pass
+    evidence: "world.js:252"
+    item: "Un vecchio muro di predoni blocca la strada: lo prendi a cannonate e lo vedi esplodere in voxel."
+  - id: M4
+    result: pass
+    evidence: "world.js:267"
+    item: "\"Tab: comando\" — selezioni la tua squadra di 3 fucilieri e il cecchino e li mandi dietro una roccia."
+  - id: M5
+    result: pass
+    evidence: "world.js:266"
+    item: "Una pattuglia di 3 predoni a piedi spunta dalla collina: ti fermi, il cerchio si stringe, il colpo ne spazza via due insieme alla roccia dietro cui stavano; il cecchino finisce il terzo."
+  - id: M6
+    result: pass
+    evidence: "sim.js:838"
+    item: "Raccogli i rottami."
+  - id: M7
+    result: not_run
+    mark: not assessed
+    why: "a mark on the brief (guessed), not a line of play"
+    item: "*(guessed)*"
+  - id: C1
+    result: pass
+    evidence: "sim.js:183"
+    item: "I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker, un mitragliere dietro sacchi di sabbia, un tecnico con razzi) arriva verso il minuto 3–5 e lì serve usare truppe e terreno, non solo il cannone."
+  - id: C2
+    result: pass
+    evidence: "world.js:175"
+    item: "Più ti allontani dall'avamposto di partenza, più i campi sono grossi e con veicoli; la fortezza del capo predone ha mura e un carro pesante."
+  - id: C3
+    result: pass
+    evidence: "sim.js:875"
+    item: "Se il carro viene distrutto il run finisce: tieni solo le piastrine permanenti e ricominci su una mappa nuova."
+  - id: C4
+    result: not_run
+    mark: not assessed
+    why: "a mark on the brief (provisional), not a line of play"
+    item: "*(provisional)*"
+measures:
+  - id: step-time
+    value: 84.700
+    unit: ms
+    by: browser
+    detail: "mean 0.454 ms, slowest 84.700 ms, 438 steps"

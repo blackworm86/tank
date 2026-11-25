@@ -1,0 +1,13 @@
+3D	three.js scene: voxel terrain chunks, voxel-built tank, soldiers and raiders, lit by a sun with shadows	evidence/play.png
+isometrico	angled perspective camera (pitch 55 deg, narrow fov 32) on one of four 45-degree bearings, Q/E rotate 90 deg	evidence/play.png
+isometrico con grafica 3D	the same camera over the full 3D voxel world	evidence/play.png
+isometrico alla real time strategy	RTS-style angled view with zoom on the wheel, box/click selection of squads, right-click orders, order rings, minimap	evidence/play.png
+post-apocalittica	rust desert palette (ochre sand, red rock strata, rusted sheet metal, dusty peach sky), ruined concrete buildings, wrecks, raiders in red and yellow	evidence/play.png
+voxel	the whole map is a voxel grid (1 m cubes) built into chunk meshes with a rim on every face; debris flies off as voxel cubes	evidence/play.png
+distruttibile	shells, rockets and mortar rounds blow voxels out of walls, buildings, rocks and terrain; unsupported pieces collapse; bullets chip sandbags	evidence/play.png
+muri, edifici, formazioni rocciose	ruined walls and buildings, rock pillars and arches, camp bunkers and towers, the fortress walls: all voxels, all destructible	evidence/play.png
+canyon, laghi, fiumi, montagne e colline	generated per run: a mesa band cut by a canyon, two lakes, a meandering river with bridges, ridged mountains, rolling hills	evidence/play.png
+mappa generata proceduralmente	a new map from the seed each run (js/world.js genWorld)	evidence/play.png
+carro armato / APC	the command tank drawn in voxels with the commander in the hatch and a radio antenna	evidence/figures.png
+isometric	angled RTS-style perspective camera on four 45-degree bearings over the 3D voxel world	evidence/play.png
+nel quale il	the premise: the player is the commander of the tank, seen riding in its hatch	evidence/figures.png

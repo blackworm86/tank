@@ -1,0 +1,30 @@
+L1	pass	evidence/play.png	isometric voxel world in the rust-desert palette (ochre sand, red rock strata, rusted metal, peach sky); voxel debris cubes fly from every hit (js/sim.js:792); the radio is a dashed cyan ring around the tank (js/view.js:79)
+L2	pass	evidence/play.png	the three references' parts are there: RTS camera and selection, walls that give way (js/world.js:583), a run with currency kept after death (js/sim.js:875)
+L3	pass	evidence/play.png	angled 55 deg camera following the tank, wheel zoom, Q/E rotate in 90 deg steps (js/view.js updateCamera)
+F1	pass	sim.js:479	WASD hull, turret turns toward the mouse at turret_speed deg/s; dispersion widens moving and closes standing still, drawn as a circle (js/view.js:80)
+F2	pass	world.js:80	a new voxel map each run: hills, ridged mountains, a mesa cut by a canyon, two lakes, a river with bridges; ruins, rocks and walls all blow apart (js/world.js:583)
+F3	pass	sim.js:324	Tab to command mode, click/box select, right-click move into cover or attack, F+right-click attack area; squads outside the radio radius refuse (js/sim.js:259)
+F4	pass	evidence/shop-caserma.png	squads of 1-4: rifle, sniper, MG, medic, mortar picked one by one, plus the armoured car; fallen soldiers replaced one by one (js/sim.js:896)
+F5	pass	evidence/figures.png	patrols, 5 camps and the fortress; raider rifleman, MG behind sandbags, rocket man, technical truck and the chief's tank each attack differently
+F6	pass	evidence/shop-officina.png	workshop slots: cannon, tracks, engine, armour, radio, turret ring, stabiliser; each changes the tank's numbers and some its look
+F7	pass	sim.js:875	piastrine paid at the end of a run, spent on 4 permanent upgrades on the title and end screens (js/sim.js:100), kept in localStorage
+S1	pass	sim.js:479	turret lags the mouse at its own speed
+S2	pass	sim.js:487	spread from speed, hull turn and turret turn; settles with aim_time while still
+S3	pass	world.js:583	sphere blast by material hardness, then unsupported voxels collapse (js/world.js:601)
+S4	pass	world.js:80	seeded generation per run; every restart takes a new seed
+S5	pass	sim.js:273	move order finds cover cells facing the nearest threat; hotkeys 1-6, G follow, H hold
+S6	pass	sim.js:259	orders reach only squads inside the radio radius; radio parts and a perk widen it
+S7	pass	sim.js:885	parts bought with scrap at outposts
+S8	pass	sim.js:909	custom squads built soldier by soldier, replacements per fallen soldier
+S9	pass	sim.js:100	piastrine buy permanent upgrades between runs (thin: 4 upgrades)
+M1	broken	sim.js:228	the tank starts in an outpost and the radio gives W/S A/D, but the start is not reliably at the edge of a canyon valley: the canyon sits mid-map
+M2	pass	evidence/play.png	the outpost has gates; the turret swings slowly after the mouse and the circle is wide while driving
+M3	pass	world.js:252	an old raider wall of junk and red metal stands across the road a short drive out; shells blow it to voxels
+M4	pass	world.js:267	the tutorial line asks for Tab and a move order; a rock stands beside the road for the squad (3 riflemen + a lone sniper)
+M5	pass	world.js:266	a patrol of 3 raiders waits further along the road; the radio says to stop so the circle closes
+M6	pass	sim.js:838	scrap from kills, wrecks and cleared camps, shown as floating numbers
+M7	not_assessed	-	a mark on the brief (guessed), not a line of play
+C1	pass	sim.js:183	the first camp sits 54-62 m out along the road: bunker, MG behind sandbags, a rocket man, a tower guard; the patrols before it are light
+C2	pass	world.js:175	camps get tiers by distance (more raiders, more hp, technicals at tier 3); the fortress has walls, towers, 2 technicals and the chief's heavy tank (js/sim.js:218)
+C3	pass	sim.js:875	tank destroyed ends the run on the game-over screen; only piastrine carry over; R starts a new run on a new seed
+C4	not_assessed	-	a mark on the brief (provisional), not a line of play

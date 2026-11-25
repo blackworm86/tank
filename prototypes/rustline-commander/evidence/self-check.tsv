@@ -1,0 +1,82 @@
+time	2026-11-25 23:13:53
+keep	lines	0	pinned	0
+briefword	nel quale il	shown	evidence/figures.png
+briefword	3D	shown	evidence/play.png
+briefword	isometric	shown	evidence/play.png
+briefword	voxel	shown	evidence/play.png
+checklist	L1	unlisted	-	Look: voxel 3D isometrico, deserto di ruggine: sabbia ocra e terra bruciata (terreno), canyon di roccia rossastra, acqua verde-torbida (laghi e fiumi), metallo arrugginito e lamiere (edifici, veicoli), cielo polveroso color pesca, fiamme e traccianti arancioni; i tuoi mezzi con strisce di vernice verde militare, i predoni rosso sangue e giallo. Dettaglio distintivo: ogni colpo stacca voxel che volano via come detriti cubici e si posano a terra; il cerchio radio è un anello tratteggiato ciano attorno al carro. Ogni figura disegnata in voxel (soldati, carri, edifici): niente emoji, niente cerchi semplici. *(provisional)*	
+checklist	L2	unlisted	-	References: un RTS isometrico classico (la camera e le selezioni), un gioco a voxel distruttibile alla Teardown (i muri che cedono), un action roguelite alla Hades (il run e la valuta che resta) *(guessed)*.	
+checklist	L3	unlisted	-	View: 3D · Camera: isometrica angolata (circa 55°) che segue il carro, con zoom e rotazione a scatti di 90° *(inferred (strong))*.	
+checklist	F1	unlisted	-	Carro con controlli tank e torretta a rotazione limitata che insegue il mouse; precisione da fermi che peggiora in movimento (cerchio di dispersione visibile)	
+checklist	F2	unlisted	-	Mondo voxel generato a ogni run (colline, montagne, canyon, laghi, fiumi) con muri, edifici e rocce distruttibili dai colpi	
+checklist	F3	unlisted	-	Modalità Comando: selezione squadre e ordini movimento / attacco / copertura, solo per le squadre dentro il raggio radio	
+checklist	F4	unlisted	-	Squadre minuscole e personalizzabili: fucilieri, cecchini, mitraglieri, medici, mortaio, autoblindo; soldati assoldati per rimpiazzare i singoli caduti	
+checklist	F5	unlisted	-	Predoni con pattuglie, campi e fortezza finale: 4 tipi di nemici, ognuno attacca diversamente (fuciliere, mitragliere, razziere, veicolo/carro)	
+checklist	F6	unlisted	-	Avamposti con officina: pezzi per cannone, cingoli, corazza, radio, motore che cambiano i numeri del carro	
+checklist	F7	unlisted	-	Piastrine tra i run per miglioramenti permanenti (thin stand-in)	
+checklist	S1	unlisted	-	carro con controlli tank e torretta che si allinea con ritardo · in the slice	
+checklist	S2	unlisted	-	precisione da fermo e in movimento · in the slice	
+checklist	S3	unlisted	-	campo di battaglia distruttibile in voxel · in the slice	
+checklist	S4	unlisted	-	mappa generata proceduralmente · in the slice	
+checklist	S5	unlisted	-	truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice	
+checklist	S6	unlisted	-	raggio radio limitato e migliorabile · in the slice	
+checklist	S7	unlisted	-	pezzi da comprare per moddare il carro · in the slice	
+checklist	S8	unlisted	-	assoldare soldati e creare team personalizzati · in the slice	
+checklist	S9	unlisted	-	valuta permanente tra un run e l'altro · thin stand-in *(guessed)*	
+checklist	M1	unlisted	-	Il carro parte in un avamposto ai margini di una valle di canyon; un messaggio radio dice "Muovi il carro: W/S, A/D".	
+checklist	M2	unlisted	-	Esci dal cancello, muovi il mouse e vedi la torretta girare lenta verso il cursore, il reticolo largo mentre ti muovi.	
+checklist	M3	unlisted	-	Un vecchio muro di predoni blocca la strada: lo prendi a cannonate e lo vedi esplodere in voxel.	
+checklist	M4	unlisted	-	"Tab: comando" — selezioni la tua squadra di 3 fucilieri e il cecchino e li mandi dietro una roccia.	
+checklist	M5	unlisted	-	Una pattuglia di 3 predoni a piedi spunta dalla collina: ti fermi, il cerchio si stringe, il colpo ne spazza via due insieme alla roccia dietro cui stavano; il cecchino finisce il terzo.	
+checklist	M6	unlisted	-	Raccogli i rottami.	
+checklist	M7	unlisted	-	*(guessed)*	
+checklist	C1	unlisted	-	I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker, un mitragliere dietro sacchi di sabbia, un tecnico con razzi) arriva verso il minuto 3–5 e lì serve usare truppe e terreno, non solo il cannone.	
+checklist	C2	unlisted	-	Più ti allontani dall'avamposto di partenza, più i campi sono grossi e con veicoli; la fortezza del capo predone ha mura e un carro pesante.	
+checklist	C3	unlisted	-	Se il carro viene distrutto il run finisce: tieni solo le piastrine permanenti e ricominci su una mappa nuova.	
+checklist	C4	unlisted	-	*(provisional)*	
+webgl	ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+browser	HeadlessChrome/158.0.0.0
+console	play	962	[.WebGL-0x54ac003e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+scene	play	0	title
+scene	play	1	play
+digits	log	14px "Trebuchet MS", "Segoe UI", sans-serif	tabular	0
+digits	log	18px "Trebuchet MS", "Segoe UI", sans-serif	tabular	0
+digits	log	13px "Trebuchet MS", "Segoe UI", sans-serif	tabular	0
+digits	log	15px "Trebuchet MS", "Segoe UI", sans-serif	tabular	0
+measure	step-time	play	0.454	84.700	438
+lane	play	stop	7.3	898
+console	play	0	[.WebGL-0x54ac003e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+console	play	0	[.WebGL-0x54ac003e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+uncaught	play	0
+text	play	canvas	26,25,143,36	21.0	9.30	inside	CARRO COMANDO
+text	play	canvas	26,47,81,61	19.5	14.49	inside	Integrità
+text	play	canvas	174,49,230,58	18.0	10.82	inside	300 / 300
+text	play	canvas	26,70,80,80	19.5	14.49	inside	Cannone
+text	play	canvas	175,71,230,80	18.0	7.81	inside	RICARICA
+text	play	canvas	26,92,131,105	19.5	12.12	inside	Dispersione 2.4%
+text	play	canvas	230,92,300,102	19.5	11.62	inside	Radio 28 m
+text	play	canvas	49,115,126,126	21.0	12.82	inside	120 rottami
+text	play	canvas	210,116,277,129	19.5	9.30	inside	0 piastrine
+text	play	canvas	568,16,711,34	25.5	10.76	inside	MODALITÀ CARRO
+text	play	canvas	588,40,691,53	18.0	7.35	inside	Tab per cambiare
+text	play	canvas	1084,224,1208,237	19.5	14.49	inside	Obiettivo: Campo A
+text	play	canvas	1084,243,1215,256	18.0	9.30	inside	52 m · campi rimasti 5
+text	play	canvas	28,165,33,176	21.0	12.48	inside	1
+text	play	canvas	50,164,104,175	21.0	14.49	inside	Fucilieri
+text	play	canvas	198,191,232,203	18.0	9.30	inside	Segue
+text	play	canvas	27,229,35,240	21.0	12.48	inside	2
+text	play	canvas	50,228,170,239	21.0	14.49	inside	Cecchino solitario
+text	play	canvas	198,255,232,267	18.0	9.30	inside	Segue
+text	play	canvas	292,626,332,637	19.5	12.62	inside	Radio:
+text	play	canvas	338,626,755,640	19.5	15.10	inside	Comandante, il carro è tuo. W/S avanti e indietro, A/D per g
+text	play	canvas	292,648,332,659	19.5	12.62	inside	Radio:
+text	play	canvas	338,649,962,662	19.5	15.10	inside	Il mouse punta il cannone, ma la torretta gira lenta. Da fer
+text	play	canvas	292,670,332,681	19.5	12.62	inside	Radio:
+text	play	canvas	338,670,977,685	19.5	15.10	inside	Bel colpo. Tab: modalità Comando. Seleziona una squadra (cli
+text	play	canvas	989,623,1108,636	18.0	9.30	inside	WASD: guida il carro
+text	play	canvas	989,643,1149,656	18.0	9.30	inside	Mouse: punta   Click: fuoco
+text	play	canvas	990,663,1180,676	18.0	9.30	inside	Click destro: ordine alle squadre
+text	play	canvas	990,683,1192,695	18.0	9.30	inside	Q/E: ruota camera   Rotella: zoom
+screen	play	drawn
+shot	play	prototypes/rustline-commander/evidence/play.png
+responds	changed	64
