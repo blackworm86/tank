@@ -347,6 +347,18 @@ window.CONFIG = {
   plateau_height: { value: 10, min: 3, max: 16, step: 1 },      // the plateaus' cliff height
   hills_k: { value: 1.8, min: 1, max: 3, step: 0.1 },           // the hills geography: how much taller the mountains grow
   cache_bonus: { value: 15, min: 0, max: 200, step: 5 },        // extra scrap in a mission's cache
+  cap_apc: { value: 9, min: 2, max: 30, step: 1 },              // the load the APC's hardpoints carry
+  cap_light: { value: 5, min: 2, max: 30, step: 1 },            // the light tank's
+  cap_mbt: { value: 10, min: 2, max: 30, step: 1 },             // the battle tank's
+  module_cost_k: { value: 1, min: 0.2, max: 4, step: 0.05 },     // every module's price, times this
+  module_refund: { value: 0.5, min: 0, max: 1, step: 0.05 },     // share of a module's price a sale pays back
+  ws_none: { value: 0.15, min: 0, max: 1, step: 0.05 },          // chance a workshop has no module to sell
+  ws_offers_max: { value: 3, min: 1, max: 6, step: 1 },          // otherwise it offers 1 to this many
+  mod_rare_w: { value: 0.4, min: 0, max: 3, step: 0.05 },        // weight of a rare module (a common one is 1; grows along the campaign)
+  mod_exc_w: { value: 0.12, min: 0, max: 3, step: 0.02 },        // weight of an exceptional one
+  plate_wear: { value: 1, min: 0, max: 5, step: 0.1 },           // how fast plates wear (damage over their durability)
+  plate_wear_bullet: { value: 0.15, min: 0, max: 1, step: 0.05 },  // bullets wear them this much less
+  plate_repair_k: { value: 0.45, min: 0, max: 2, step: 0.05 },   // a wrecked plate costs this share of its price to make whole
   part_refund: { value: 0.7, min: 0, max: 1, step: 0.05 },      // share of a part's cost paid back when it is taken off
 
 

@@ -1,6 +1,6 @@
 # Piano: mezzi modulari visibili
 
-> Rustline Commander · piano per l'iteration 17 · scritto nell'iteration 16, non ancora costruito.
+> Rustline Commander · scritto nell'iteration 16 · costruito nell'iteration 18 (vedi "Deciso e costruito" in fondo).
 > Richiesta: "voglio che una modifica si veda sul mezzo (una torretta nuova, un doppio cannone,
 > placche di corazzatura, cingoli più ampi ecc.)".
 
@@ -77,3 +77,35 @@ montando i moduli sui punti, così ogni acquisto si vede.
   scelte difficili.
 - **Il doppio cannone.** Un modulo da trovare (raro, nei campi dei predoni) o da comprare in officina?
 - **Le placche perse.** Solo estetica, o anche meno protezione fino alla riparazione (più survival)?
+
+## Deciso e costruito (iteration 18)
+
+Risposte: "i punti di attacco variano a seconda dello scafo", schema **B: 6 / 4 / 5**; "l'officina a
+fine mappa propone da 0 a 3 moduli nuovi da comprare, generati casualmente", **tutto casuale**; "le
+placche danneggiate riducono la loro efficacia fino a 0 finché non vengono riparate; e esteticamente
+degradano".
+
+- **Punti di attacco** (`HARDPOINTS` in `js/modules.js`), con un carico massimo:
+
+  | Scafo | Punti | Carico |
+  |---|---|---|
+  | APC | fronte, fianchi, trazione, torretta (meccanica o coassiale), tetto, vano | 9 |
+  | Carro leggero | corazza (fronte o fianchi), trazione, torretta (meccanica, coassiale o cannone), tetto | 5 |
+  | Carro da battaglia | fronte, fianchi, trazione, torretta (anche cannone e torretta pesante), tetto | 10 |
+
+  Un punto prende un modulo solo; un punto vuoto vale la dotazione di serie.
+- **Moduli:** 31, in tre rarità, con peso, prezzo, bonus e malus. `PARTS` non esiste più: motore,
+  cingoli, corazza, radio, sensori, vano e telaio sono moduli come gli altri.
+- **Officina:** a ogni visita 0-3 offerte a caso (`ws_none`, `ws_offers_max`); i rari e gli
+  eccezionali crescono con la colonna della campagna. Un click su un punto sceglie dove montare. I
+  moduli tolti vanno in un magazzino, da cui si rimontano o si vendono (`module_refund`). Il mezzo
+  gira in un'anteprima al centro della tab Moduli (la camera di gioco, ravvicinata).
+- **Modelli:** i tre modelli scritti a mano restano come scafo base. `dressTank()` ci aggiunge la
+  `MODEL_BUILD` di ogni modulo montato, sullo scafo, sulla torretta o sulla canna.
+- **Placche:** fronte e fianchi (la corazza a strati copre anche il retro). Ogni colpo sul lato
+  coperto ferma `k × integrità` del danno e consuma la placca (`plate_wear`, i proiettili molto meno).
+  A 4 gradini di integrità il modello si rifà: ruggine, pezzi piegati e mancanti, bruciature; a 0
+  restano monconi neri e la protezione è nulla. Si riparano in officina (`plate_repair_k`).
+
+Non fatto: la gabbia anti-razzo resta un sistema avanzato; una scena separata per l'anteprima non
+serviva.

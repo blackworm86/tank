@@ -405,7 +405,7 @@ function makeATGunModel() {
   return g;
 }
 /** The support tank: a smaller tank in the player's paint, short gun, no commander. */
-function makeLightTankModel() {
+function makeLightTankModel(L = 2.0) {
   const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
   for (const s of [-1, 1]) {
     bx(hull, 0.75, 0.85, 4.2, PC.track, s * 1.2, 0.43, 0);
@@ -420,14 +420,14 @@ function makeLightTankModel() {
   bx(tur, 1.7, 0.65, 1.9, PC.olive, 0, 0.33, 0); bx(tur, 1.4, 0.2, 1.5, PC.drab, 0, 0.75, -0.1);
   bx(tur, 0.7, 0.5, 0.35, PC.drab, 0, 0.33, 1.05);
   const gun = new THREE.Group(); gun.position.set(0, 0.35, 1.1); tur.add(gun);
-  bx(gun, 0.24, 0.24, 2.0, PC.metal, 0, 0, 1.0); bx(gun, 0.34, 0.34, 0.3, PC.black, 0, 0, 2.0);
+  bx(gun, 0.24, 0.24, L, PC.metal, 0, 0, L / 2); bx(gun, 0.34, 0.34, 0.3, PC.black, 0, 0, L);
   bx(tur, 0.06, 1.1, 0.06, PC.black, -0.55, 1.1, -0.6); bx(tur, 0.12, 0.12, 0.12, PC.cyan, -0.55, 1.66, -0.6);
   g.userData = { turret: tur, gun, hull, gunZ: 1.1 };
   selRing(g, 3.0);
   return g;
 }
 /** The troop carrier: a long boxy hull on tracks, a small machine-gun turret, a rear door. */
-function makeAPCModel() {
+function makeAPCModel(L = 1.4) {
   const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
   for (const s of [-1, 1]) {
     bx(hull, 0.8, 0.9, 5.2, PC.track, s * 1.45, 0.45, 0);
@@ -442,7 +442,7 @@ function makeAPCModel() {
   const tur = new THREE.Group(); tur.position.set(0.3, 1.82, 0.4); g.add(tur);
   bx(tur, 1.0, 0.45, 1.0, PC.olive2, 0, 0.22, 0); bx(tur, 0.7, 0.4, 0.1, PC.drab, 0, 0.55, 0.45);
   const gun = new THREE.Group(); gun.position.set(0, 0.32, 0.5); tur.add(gun);
-  bx(gun, 0.12, 0.12, 1.4, PC.metal, 0, 0, 0.7); bx(gun, 0.2, 0.2, 0.3, PC.black, 0, 0, 0.1);
+  bx(gun, 0.12 * Math.max(1, L / 2), 0.12 * Math.max(1, L / 2), L, PC.metal, 0, 0, L / 2); bx(gun, 0.2, 0.2, 0.3, PC.black, 0, 0, 0.1);
   bx(tur, 0.42, 0.44, 0.3, 0x6b6a45, -0.25, 0.55, -0.35); bx(tur, 0.28, 0.28, 0.28, PC.skin, -0.25, 0.9, -0.35); bx(tur, 0.34, 0.12, 0.34, PC.helmet, -0.25, 1.08, -0.35);
   bx(tur, 0.06, 1.6, 0.06, PC.black, 0.4, 1.0, -0.4); bx(tur, 0.14, 0.14, 0.14, PC.cyan, 0.4, 1.8, -0.4);
   g.userData = { turret: tur, gun, hull, gunZ: 0.5 };
@@ -464,7 +464,7 @@ function makeCrateModel(body, band) {
   return g;
 }
 function modelFor(e) {
-  if (e.kind === 'tank') { const L = tankLook(); return L.hull === 'apc' ? makeAPCModel() : L.hull === 'light' ? makeLightTankModel() : makeTankModel(L); }
+  if (e.kind === 'tank') { const L = tankLook(), g = L.hull === 'apc' ? makeAPCModel(L.barrel) : L.hull === 'light' ? makeLightTankModel(L.barrel) : makeTankModel(L); dressTank(g, L.hull); return g; } // modules.js: the fitted modules
   if (e.kind === 'apc') return makeAPCModel();
   if (e.kind === 'car') return makeCarModel();
   if (e.kind === 'ltank') return makeLightTankModel();
@@ -600,9 +600,17 @@ function updateFogMesh() {
   }
   P.needsUpdate = true; C.needsUpdate = true;
 }
+/** The workshop's Moduli tab looks at the command vehicle up close, turning; the play camera comes back after. */
+function previewCam() {
+  const tk = state.tank; if (!tk) return;
+  if (!state.camSave) state.camSave = { x: cam.x, y: cam.y, z: cam.z, dist: cam.dist, yaw: cam.yaw, yawT: cam.yawT };
+  cam.x = tk.x; cam.z = tk.z; cam.y = tk.y + 1.2; cam.dist = 22; cam.yaw = cam.yawT = state.camSave.yaw + performance.now() / 1000 * 0.35;
+}
+function restoreCam() { if (state.camSave) { Object.assign(cam, state.camSave); state.camSave = null; } }
 /** Draws the play world: chunks, figures, effects, rings, camera. */
 function renderWorld() {
   if (!R3.ready || !state.ents) return;
+  if (typeof scene !== 'undefined' && scene === 'shop' && state.shopTab === 0) previewCam(); else restoreCam();
   if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
   if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();
@@ -613,6 +621,7 @@ function renderWorld() {
     if (e.inside) { if (e.model) e.model.visible = false; continue; }
     if (e.kind === 'tank' && e.lookKey !== state.lookKey) { if (e.model) R3.units.remove(e.model); e.model = null; e.lookKey = state.lookKey; }
     syncModel(e);
+    if (e.model && e.model.userData.radar) e.model.userData.radar.rotation.y += 0.04; // a radar dish turns
     if (e.model) e.model.visible = !hiddenFoe(e); // the fog of war: a raider nobody sees is not drawn
   }
   for (const p of state.npcs || []) {

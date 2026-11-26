@@ -51,65 +51,7 @@ function weapon(k) {
   return extraWeapon(k); // enemies.js: the Horde's other weapons
 }
 
-// ---- Tank parts (the workshop) --------------------------------------------------------------------
-const PARTS = {
-  frame: { label: 'Telaio', apcOnly: true, opts: [
-    { name: 'Telaio di serie', cost: 0, desc: '3 slot per i sistemi avanzati.', mod: {} },
-    { name: 'Telaio rinforzato', cost: 220, desc: '+1 slot sistemi avanzati (4).', bad: 'Più pesante: -0.4 velocità.', mod: { slots: 1, speedAdd: -0.4 } },
-    { name: 'Telaio modulare', cost: 420, desc: '+2 slot sistemi avanzati (5).', bad: '-0.8 velocità, -30 integrità.', mod: { slots: 2, speedAdd: -0.8, hp: -30 } },
-  ] },
-  engine: { label: 'Motore', opts: [
-    { name: 'Diesel stanco', cost: 0, desc: 'Fuma, tossisce, va.', mod: {} },
-    { name: 'Diesel rifatto', cost: 130, desc: '+15% velocità, accelera il doppio.', bad: 'Vibra: +10% dispersione.', mod: { speed: 1.15, accel: 2, spread: 1.1 } },
-    { name: 'Turbina da camion', cost: 260, desc: '+30% velocità, accelera x2.5, retro veloce.', bad: '+25% dispersione, -40 integrità.', mod: { speed: 1.3, accel: 2.5, reverse: 1.6, spread: 1.25, hp: -40 } },
-  ] },
-  tracks: { label: 'Cingoli', opts: [
-    { name: 'Cingoli di serie', cost: 0, desc: 'Lenti ma onesti.', mod: {} },
-    { name: 'Cingoli larghi', cost: 120, desc: '+25% rotazione, sale gradini più alti.', bad: '-8% velocità.', mod: { turn: 1.25, climb: 0.5, speed: 0.92 } },
-    { name: 'Cingoli da corsa', cost: 200, desc: '+40% velocità, +15% rotazione.', bad: 'Sale meno, -30 integrità.', mod: { speed: 1.4, turn: 1.15, climb: -0.4, hp: -30 } },
-  ] },
-  armor: { label: 'Corazza', opts: [
-    { name: 'Lamiera di serie', cost: 0, desc: 'Ferma i proiettili, non i razzi.', mod: {} },
-    { name: 'Lamiere saldate', cost: 150, desc: '+100 integrità, +5% protezione.', bad: '-0.5 velocità.', mod: { hp: 100, armor: 0.05, speedAdd: -0.5 } },
-    { name: 'Corazza composita', cost: 300, desc: '+150 integrità, +20% protezione.', bad: '-1 velocità, -15% rotazione.', mod: { hp: 150, armor: 0.2, speedAdd: -1, turn: 0.85 } },
-  ] },
-  turret: { label: 'Torretta', opts: [
-    { name: 'Anello arrugginito', cost: 0, desc: 'Gira piano.', mod: {} },
-    { name: 'Anello oliato', cost: 110, desc: 'Torretta x1.5 più rapida.', mod: { turret: 1.5 } },
-    { name: 'Servomotore elettrico', cost: 240, desc: 'Torretta x2.2 più rapida.', bad: 'Assorbe corrente: -15% radio.', mod: { turret: 2.2, radio: 0.85 } },
-  ] },
-  stab: { label: 'Stabilizzatore', opts: [
-    { name: 'Nessuno', cost: 0, desc: 'In movimento il tiro si allarga molto.', mod: {} },
-    { name: 'Giroscopio', cost: 150, desc: '-40% dispersione in movimento.', bad: 'Torretta -10%.', mod: { moveSpread: 0.6, turret: 0.9 } },
-    { name: 'Stabilizzatore attivo', cost: 300, desc: '-70% dispersione in movimento, mira più rapida.', bad: '-0.3 velocità.', mod: { moveSpread: 0.3, aim: 0.7, speedAdd: -0.3 } },
-  ] },
-  radio: { label: 'Radio', opts: [
-    { name: 'Radio da carro', cost: 0, desc: 'Raggio corto.', mod: {} },
-    { name: 'Radio militare', cost: 120, desc: 'Raggio radio x1.45.', mod: { radio: 1.45 } },
-    { name: 'Ripetitore a traliccio', cost: 220, desc: 'Raggio radio x2.', bad: 'Antenna ingombrante: torretta -10%.', mod: { radio: 2.0, turret: 0.9 } },
-    { name: 'Radio a lungo raggio', cost: 380, desc: 'Raggio radio x2.7.', bad: 'Torretta -15%, -0.3 velocità.', mod: { radio: 2.7, turret: 0.85, speedAdd: -0.3 } },
-  ] },
-  sensor: { label: 'Sensori', opts: [
-    { name: 'Nessun sensore', cost: 0, desc: 'La mappa si scopre solo guardando.', mod: {} },
-    { name: 'Sensori sismici', cost: 130, desc: 'Rivela la mappa fino a 70 attorno al mezzo.', mod: { sensor: 70 } },
-    { name: 'Radar di scoperta', cost: 260, desc: 'Mappa fino a 95, blip dei nemici entro 85 ogni 5 s.', bad: 'Disturba la radio: -10%.', mod: { sensor: 95, radar: 85, radarT: 5, radio: 0.9 } },
-    { name: 'Radar tattico', cost: 420, desc: 'Mappa fino a 125, blip entro 115 ogni 2.5 s.', bad: '-15% radio, -30 integrità.', mod: { sensor: 125, radar: 115, radarT: 2.5, radio: 0.85, hp: -30 } },
-  ] },
-  seats: { label: 'Vano truppe', opts: [
-    { name: 'Solo il telaio', cost: 0, desc: 'I posti che il mezzo ha già.', mod: {} },
-    { name: 'Maniglie esterne', cost: 90, desc: '+2 posti: fanti aggrappati allo scafo.', mod: { seats: 2 } },
-    { name: 'Vano ampliato', cost: 220, desc: '+4 posti.', bad: '-0.3 velocità.', mod: { seats: 4, speedAdd: -0.3 } },
-  ] },
-  coax: { label: 'Coassiale', opts: [ // its heat: how long a burst lasts before it locks (loadout.js tankSystems)
-    { name: 'MG di serie', cost: 0, desc: 'Scalda in fretta: raffiche brevi.', mod: {} },
-    { name: 'Canna pesante', cost: 110, desc: 'Regge il calore x1.7.', mod: { mgHeat: 1.7 } },
-    { name: 'Raffreddata ad acqua', cost: 220, desc: 'Calore x2.6, si raffredda x1.8.', bad: 'Manicotto esposto: -20 integrità.', mod: { mgHeat: 2.6, mgCool: 1.8, hp: -20 } },
-    { name: 'Binata a nastro', cost: 360, desc: 'Fuoco quasi continuo: calore x4, cadenza +30%.', bad: '-0.3 velocità, +10% dispersione.', mod: { mgHeat: 4, mgCool: 2, mgRate: 0.77, speedAdd: -0.3, spread: 1.1 } },
-  ] },
-};
-const SLOTS = ['frame', 'engine', 'tracks', 'armor', 'turret', 'stab', 'coax', 'radio', 'sensor', 'seats'];
-/** The base systems this hull can change (the frame is the modular APC's alone). */
-function hullSlots() { return SLOTS.filter(s => !PARTS[s].apcOnly || state.hull === 'apc'); }
+// ---- Tank parts: the hardpoints and modules live in modules.js ----------------------------------------
 /**
  * The hulls the run can start with. Numbers live in config.js as hull_<id>_* multipliers on the
  * tank's own values (the battle tank is the 1.0 of everything).
@@ -140,9 +82,9 @@ function tankStats() {
     reload: tune.cannon_reload, dmg: tune.cannon_damage, blast: tune.cannon_blast, spread: 1, moveSpread: 1, aim: 1, accel: tune.tank_accel,
     radio: tune.radio_range, barrel: 2.6, seats: 0, hullArmor: 1, sensor: 0, radar: 0, radarT: 0, slots: 0, mgHeat: 1, mgCool: 1, mgRate: 1,
   };
-  const p = state.parts || {};
-  for (const slot of SLOTS) {
-    const m = PARTS[slot].opts[p[slot] || 0].mod;
+  const G = { dmg: 1, reload: 1, spread: 1, barrel: 1 };
+  for (const m of fittedMods()) { // modules.js: what is mounted on the hardpoints
+    if (m.gunDmg) G.dmg *= m.gunDmg; if (m.gunReload) G.reload *= m.gunReload; if (m.gunSpread) G.spread *= m.gunSpread; if (m.gunBarrel) G.barrel *= m.gunBarrel;
     if (m.slots) s.slots += m.slots;
     if (m.dmg) s.dmg *= m.dmg; if (m.blast) s.blast *= m.blast; if (m.reload) s.reload += m.reload; if (m.reloadSet) s.reload = m.reloadSet;
     if (m.spread) s.spread *= m.spread; if (m.barrel) s.barrel *= m.barrel; if (m.turn) s.turn *= m.turn; if (m.climb) s.climb += m.climb;
@@ -167,12 +109,13 @@ function tankStats() {
   s.wname = WEAPONS[wid].name; s.wkind = W.kind;
   if (W.kind === 'bullet') { s.dmg = W.dmg; s.reload = W.reload; s.range = W.range; s.fireSpread = tune.spread_fire * 0.06; }
   else { s.dmg = W.dmg; s.reload = W.reload; s.blast = W.blast; s.fireSpread = tune.spread_fire * W.spreadK; s.barrel = W.barrel; s.vsHeavy = W.vsHeavy; }
+  s.dmg *= G.dmg; s.reload *= G.reload; s.fireSpread *= G.spread; s.barrel *= G.barrel; // the gun's own modules
   const wk = W.weight * HULLS[h].weightK; s.speed = Math.max(2, s.speed - wk); s.reverse = Math.max(1, s.reverse - wk * 0.5);
   applyMods(s);
   state.stats = s; state.statsStep = state.stepN;
   return s;
 }
-function tankLook() { const p = state.parts || {}; return { hull: state.hull || 'apc', barrel: tankStats().barrel, antenna: 1.4 + (p.radio || 0) * 0.9, armor: p.armor || 0, radio: p.radio || 0 }; }
+function tankLook() { return { hull: state.hull || 'apc', barrel: tankBarrel(state.hull || 'apc'), antenna: 1.4, armor: 0, radio: 0 }; }
 
 // ---- Entities -------------------------------------------------------------------------------------------
 function spawn(kind, x, z, extra) {
@@ -289,7 +232,7 @@ function newRun(carry) {
   genWorld();
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
-    parts: { frame: 0, tracks: 0, engine: 0, armor: 0, radio: 0, sensor: 0, turret: 0, stab: 0, seats: 0, coax: 0 }, lookKey: 1, blips: [], radarT: 0,
+    fit: {}, depot: [], hpSel: null, lookKey: 1, blips: [], radarT: 0,
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapon, stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
     hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 0, shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
@@ -298,7 +241,7 @@ function newRun(carry) {
     techKills: 0, crushes: 0, newAch: [], turboUntil: 0, repairUntil: 0, salvo: null, relayL: null,
   });
   // the next sector: the tank, its parts and its scrap come along
-  if (carry) Object.assign(state, { parts: Object.assign({ sensor: 0, frame: 0, coax: 0 }, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
+  if (carry) Object.assign(state, { fit: JSON.parse(JSON.stringify(carry.fit || {})), depot: (carry.depot || []).map(f => Object.assign({}, f)), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
     systems: carry.systems.slice(), owned: carry.owned.slice(), weaponsOwned: carry.weaponsOwned.slice(), shell: carry.shell, techKills: carry.techKills, crushes: carry.crushes, newAch: carry.newAch.slice() });
   state.ammo = carry && carry.ammo ? Object.assign({}, carry.ammo) : freshAmmo();
   const s = world.sites, rm = s.roadMain;
@@ -1749,7 +1692,7 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.veh && kind !== 'crush' && kind !== 'drown') {
     const side = armorSide(e, hit, src);
     amt *= tune['armor_' + side];
-    if (e.kind === 'tank') amt *= tankModDmg(side, kind, src);
+    if (e.kind === 'tank') amt *= tankModDmg(side, kind, src) * platesTake(side, kind, amt); // modules.js: the plates on that side
     if (kind !== 'bullet' && kind !== 'heavy') {
       e.lastHit = { side, t: state.t };
       if (e.kind === 'tank' || (src && src.team === 0)) floatText(e.x, e.y + 3.4, e.z, SIDE_NAME[side] + ' x' + tune['armor_' + side].toFixed(1), side === 'front' ? '#c8c8c8' : side === 'side' ? '#ffd36a' : '#ff8a4a');
@@ -1932,29 +1875,6 @@ function endRun() {
 }
 
 // ---- The workshop and the barracks ------------------------------------------------------------------
-/** Scrap back for taking off the part mounted in a slot (part_refund of what it cost). */
-function partRefund(slot) { return Math.floor(PARTS[slot].opts[state.parts[slot]].cost * tune.part_refund); }
-/**
- * Mounts option i in a slot. The part taken off pays back part_refund of its cost; when it cost
- * anything the player confirms first ("Sei sicuro?").
- */
-function buyPart(slot, i) {
-  const o = PARTS[slot].opts[i], cur = PARTS[slot].opts[state.parts[slot]], back = partRefund(slot);
-  if (state.parts[slot] === i) { state.shopMsg = 'Già montato.'; return; }
-  if (state.scrap + back < o.cost) { state.shopMsg = 'Servono ' + o.cost + ' rottami.'; return; }
-  const mount = () => {
-    const hpBefore = tankStats().hp;
-    state.scrap += back - o.cost; state.parts[slot] = i; state.lookKey++; state.stats = null;
-    if (slot === 'frame') trimSystems();
-    const hpAfter = tankStats().hp; if (hpAfter > hpBefore) state.tank.hp += hpAfter - hpBefore;
-    state.shopMsg = cur.cost ? cur.name + ' smontato (+' + back + '), ' + o.name + ' montato.' : o.name + ' montato.'; sfx('coin');
-  };
-  if (cur.cost > 0) {
-    state.confirm = { title: 'Sei sicuro?', text: 'Smonti ' + cur.name + ' e recuperi ' + back + ' rottami (' + Math.round(tune.part_refund * 100) + '% dei ' + cur.cost + ' spesi). ' + (o.cost ? 'Monti ' + o.name + ' per ' + o.cost + '.' : 'Torna ' + o.name + '.'), yes: mount };
-    return;
-  }
-  mount();
-}
 function missingIn(sq) { return sq.slots.map((k, i) => (!sq.members[i] || !sq.members[i].alive) ? k : null).filter(Boolean); }
 function reinforceCost(sq) { return missingIn(sq).reduce((a, k) => a + tune[UT[k].cost], 0); }
 function reinforce(sq) {
