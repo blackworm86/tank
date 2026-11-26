@@ -11,6 +11,15 @@ window.CONFIG = {
   map_size: { value: 160, min: 96, max: 224, step: 16 },        // voxels per side
   water_level: { value: 4, min: 2, max: 8, step: 1 },           // water surface height, voxels
   mountain_amount: { value: 1, min: 0, max: 2, step: 0.1 },     // how tall the ridges grow
+  terrain_look: { value: 1, min: 0, max: 1, step: 1 },          // 1 = smooth detailed ground (grass, mud, rock, asphalt), 0 = the old voxel blocks
+  terrain_detail: { value: 3, min: 1, max: 4, step: 1 },        // ground mesh subdivisions per voxel: more = finer relief
+  terrain_grain: { value: 0.16, min: 0, max: 0.6, step: 0.02 }, // small bumps in the ground, metres
+  mud_patches: { value: 0.4, min: 0, max: 1, step: 0.05 },      // how much mud lies in hollows away from water
+  forest_amount: { value: 0.6, min: 0, max: 1, step: 0.05 },    // share of the map under woods and forests
+  forest_density: { value: 0.34, min: 0.05, max: 0.5, step: 0.01 }, // trees per cell inside a forest
+  tree_scatter: { value: 0.006, min: 0, max: 0.05, step: 0.002 }, // lone trees per cell elsewhere
+  grass_tufts: { value: 1.4, min: 0, max: 3, step: 0.1 },       // dry grass tufts per grassy cell (looks only)
+  stone_density: { value: 0.08, min: 0, max: 0.4, step: 0.01 }, // loose stones and boulders (looks only)
   terrain_smooth: { value: 2, min: 0, max: 5, step: 1 },        // blur passes over the hills: more = gentler ramps (cliffs stay)
   road_half_width: { value: 2, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide
   road_shoulder: { value: 6, min: 2, max: 10, step: 1 },        // how far the 1-per-voxel ramp beside a road reaches

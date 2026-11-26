@@ -5,17 +5,17 @@
 'use strict';
 
 /** Voxel kinds. */
-const V = { AIR: 0, BED: 1, SAND: 2, DIRT: 3, ROCK: 4, RED: 5, ROAD: 6, CONC: 7, RUST: 8, BAG: 9, JUNK: 10, WOOD: 11, GREEN: 12, RAID: 13, YEL: 14 };
+const V = { AIR: 0, BED: 1, SAND: 2, DIRT: 3, ROCK: 4, RED: 5, ROAD: 6, CONC: 7, RUST: 8, BAG: 9, JUNK: 10, WOOD: 11, GREEN: 12, RAID: 13, YEL: 14, TREE: 15 };
 /** Base colour of each kind (sRGB hex), the rust-desert palette. */
-const VCOL = [0, 0x3b2b22, 0xd8a560, 0x9e6c47, 0x91624a, 0xb4573b, 0x7c6652, 0x9e968b, 0x8e4b27, 0xb99d6c, 0x5f5347, 0x7c5535, 0x56693a, 0xa62f28, 0xdab33d];
+const VCOL = [0, 0x3b2b22, 0xd8a560, 0x9e6c47, 0x91624a, 0xb4573b, 0x7c6652, 0x9e968b, 0x8e4b27, 0xb99d6c, 0x5f5347, 0x7c5535, 0x56693a, 0xa62f28, 0xdab33d, 0x55603a];
 /** How hard each kind is to blow away (multiplies the blast radius). */
-const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 0.78, 0.78];
+const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 0.78, 0.78, 1.3];
 /** Soft kinds: chipped by bullets and crushed by tracks. */
-const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD]);
+const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD, V.TREE]);
 const VH = 40; // world height in voxels
 
 /** The one world of the current run. */
-const world = { N: 0, WL: 4, vox: null, hmap: null, road: null, dirty: new Set(), sites: null, gen: 0, mapDirty: true };
+const world = { N: 0, WL: 4, vox: null, hmap: null, road: null, scorch: null, dirty: new Set(), sites: null, gen: 0, mapDirty: true };
 
 // ---- Noise (seeded hash, value noise) -----------------------------------------------------
 function hash2(x, z, s) {
@@ -46,11 +46,12 @@ function getV(x, y, z) {
 }
 function markDirty(x, z) {
   const cx = x >> 4, cz = z >> 4, d = world.dirty;
+  // the drawn ground reads four columns past a chunk edge: near an edge, the neighbour chunk redraws too
+  const lx = x & 15, lz = z & 15, ox = lx <= 4 && cx > 0 ? -1 : lx >= 11 ? 1 : 0, oz = lz <= 4 && cz > 0 ? -1 : lz >= 11 ? 1 : 0;
   d.add(cx + cz * 64);
-  if ((x & 15) === 0 && cx > 0) d.add(cx - 1 + cz * 64);
-  if ((x & 15) === 15) d.add(cx + 1 + cz * 64);
-  if ((z & 15) === 0 && cz > 0) d.add(cx + (cz - 1) * 64);
-  if ((z & 15) === 15) d.add(cx + (cz + 1) * 64);
+  if (ox) d.add(cx + ox + cz * 64);
+  if (oz) d.add(cx + (cz + oz) * 64);
+  if (ox && oz) d.add(cx + ox + (cz + oz) * 64);
   world.mapDirty = true;
 }
 function setV(x, y, z, t) {
@@ -90,6 +91,7 @@ function genWorld() {
   world.vox = new Uint8Array(N * N * VH);
   world.hmap = new Uint8Array(N * N);
   world.road = new Uint8Array(N * N);
+  world.scorch = new Uint8Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
   const flipX = rng() < 0.5, flipZ = rng() < 0.5;
@@ -328,6 +330,8 @@ function genWorld() {
     buildWreck(s); sites.wrecks.push({ x: s.x + 1, z: s.z + 1, value: tune.scrap_wreck, taken: false });
   }
   recomputeAll();
+  plantTrees(placed, ns);
+  recomputeAll();
   // roaming patrols, away from the start
   for (let k = 0; k < Math.round(tune.patrol_count); k++) {
     for (let tries = 0; tries < 40; tries++) {
@@ -343,6 +347,33 @@ function genWorld() {
   return sites;
 }
 
+/**
+ * Woods and forests: trunks two voxels tall (TREE) on open grass and dirt, thick where the forest
+ * noise is high, a few lone trees elsewhere. Never on roads, water, slopes or near a site.
+ * A tank crushes them (soft kind), shells blow them down, infantry hides behind them.
+ */
+function plantTrees(placed, ns) {
+  const N = world.N, WL = world.WL;
+  for (let z = 2; z < N - 2; z++) for (let x = 2; x < N - 2; x++) {
+    const i = x + N * z, h = world.hmap[i];
+    if (h < WL + 1) continue;
+    const t = world.vox[vi(x, h - 1, z)]; if (t !== V.SAND && t !== V.DIRT && t !== V.ROCK && t !== V.RED) continue;
+    let bad = false;
+    for (let dz = -2; dz <= 2 && !bad; dz++) for (let dx = -2; dx <= 2; dx++) {
+      const j = x + dx + N * (z + dz);
+      if (world.road[j] || (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && Math.abs(world.hmap[j] - h) > 1)) { bad = true; break; }
+      if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && (dx || dz) && world.vox[vi(x + dx, world.hmap[j], z + dz)] === V.TREE) { bad = true; break; }
+    }
+    if (bad) continue;
+    for (const s of placed) { const r = s.kind === 'fortress' ? 24 : 16; if ((s.x - x) * (s.x - x) + (s.z - z) * (s.z - z) < r * r) { bad = true; break; } }
+    if (bad) continue;
+    const f = fbm(x / 26, z / 26, ns + 21, 3);
+    const forest = smooth(0.62 - tune.forest_amount * 0.22, 0.66 - tune.forest_amount * 0.22, f);
+    const p = forest * tune.forest_density + tune.tree_scatter;
+    if (hash2(x, z, ns + 23) >= p) continue;
+    put(x, h, z, V.TREE); put(x, h + 1, z, V.TREE);
+  }
+}
 function recomputeAll() { for (let z = 0; z < world.N; z++) for (let x = 0; x < world.N; x++) recomputeColumn(x, z); world.mapDirty = true; }
 
 /** A* across the raw heights for a road: gentle slopes cheap, water costly (it gets a bridge). */
@@ -626,6 +657,12 @@ function blastVoxels(cx, cy, cz, r) {
       const rr = r * VHARD[t] * (0.85 + rng() * 0.3);
       if (ddx * ddx + ddy * ddy + ddz * ddz <= rr * rr) { world.vox[k] = 0; removed.push(x, y, z, t); markDirty(x, z); }
     }
+  // scorched ground around the blast (drawn darker, the grass burnt off)
+  if (world.scorch) for (let z = z0 - 1; z <= z1 + 1; z++) for (let x = x0 - 1; x <= x1 + 1; x++) {
+    if (!inMap(x, z)) continue;
+    const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz); if (d > r + 1.2) continue;
+    const j = x + world.N * z; world.scorch[j] = Math.min(255, world.scorch[j] + Math.round(90 * (1 - d / (r + 1.2)) + 20)); markDirty(x, z);
+  }
   if (removed.length) {
     collapse(Math.floor(cx), Math.floor(cz), R + 6, removed);
     for (let z = z0 - 6; z <= z1 + 6; z++) for (let x = x0 - 6; x <= x1 + 6; x++) if (inMap(x, z)) recomputeColumn(x, z);

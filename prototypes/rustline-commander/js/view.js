@@ -23,11 +23,11 @@ function initView() {
   r.shadowMap.enabled = !CHEAP; r.shadowMap.type = THREE.PCFSoftShadowMap;
   R3.renderer = r; R3.gl = gl;
   const sc = new THREE.Scene();
-  sc.background = new THREE.Color(0xe9b58c);
-  sc.fog = new THREE.Fog(0xe9b58c, 120, 320);
+  sc.background = new THREE.Color(0xd9c9a8);
+  sc.fog = new THREE.Fog(0xd9c9a8, 120, 320);
   R3.scene = sc;
   R3.camera = new THREE.PerspectiveCamera(tune.cam_fov, W / H, 1, 1500);
-  sc.add(new THREE.HemisphereLight(0xffe6c8, 0x6b4a36, 1.35));
+  sc.add(new THREE.HemisphereLight(0xffeedd, 0x5e5238, 1.35));
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.5);
   sun.castShadow = !CHEAP;
   sun.shadow.mapSize.set(2048, 2048);
@@ -47,9 +47,10 @@ function initView() {
   R3.vlin = VCOL.map(h => new THREE.Color(h || 0));
   R3.chunks = new Map(); R3.chunkGroup = new THREE.Group(); sc.add(R3.chunkGroup);
 
-  R3.water = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ color: 0x5a7a56, transparent: true, opacity: 0.78, depthWrite: false }));
+  initTerrain(); // terrain.js: ground textures, ground material, trees, tufts, stones
+  R3.water = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshPhongMaterial({ color: 0x3d5a50, specular: 0x9fb0a6, shininess: 90, transparent: true, opacity: 0.84, depthWrite: false, normalMap: R3.terTex.wn, normalScale: new THREE.Vector2(0.55, 0.55) }));
   R3.water.rotation.x = -Math.PI / 2; R3.water.receiveShadow = !CHEAP; sc.add(R3.water);
-  R3.outer = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: 0xc8956a }));
+  R3.outer = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: 0x8c7f58 }));
   R3.outer.rotation.x = -Math.PI / 2; sc.add(R3.outer);
 
   R3.units = new THREE.Group(); sc.add(R3.units);
@@ -131,26 +132,32 @@ function buildChunkGeo(cx, cz) {
   const N = world.N, x0 = cx * 16, z0 = cz * 16;
   const pos = [], nor = [], col = [], uv = [], idx = [];
   let vcount = 0;
+  const sm = smoothLook();
+  // smooth look: a neighbour that is ground below the drawn surface, or a tree, counts as open
+  const solidN = (x, y, z) => { const t = getV(x, y, z); if (!t || t === V.TREE) return false; if (!sm || !GROUNDV.has(t) || !inMap(x, z)) return true; return y >= TER.ground[x + N * z]; };
   for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
     if (!inMap(x, z)) continue;
-    const top = world.hmap[x + N * z], base = VH * (x + N * z);
-    for (let y = 0; y < top; y++) {
-      const t = world.vox[base + y]; if (!t) continue;
+    const top = world.hmap[x + N * z], base = VH * (x + N * z), gtop = sm ? TER.ground[x + N * z] : 0;
+    // a building's walls reach down past the drawn ground so no gap shows under them
+    let skirt = 0;
+    if (sm && top > gtop) { let lo = gtop; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, z + dz)) lo = Math.min(lo, TER.gs[x + dx + N * (z + dz)]); skirt = gtop - lo + 0.6; }
+    for (let y = sm ? gtop : 0; y < top; y++) {
+      const t = world.vox[base + y]; if (!t || t === V.TREE) continue;
       const bc = R3.vlin[t];
       const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
       // the surface voxel of natural ground bends its top corners up toward a 1-voxel step: a ramp
-      const ramp = y === top - 1 && NATURAL.has(t);
+      const ramp = !sm && y === top - 1 && NATURAL.has(t);
       const rise = ramp ? [cornerRise(x, z, top, 0, 0), cornerRise(x, z, top, 1, 0), cornerRise(x, z, top, 0, 1), cornerRise(x, z, top, 1, 1)] : null;
       for (let f = 0; f < 6; f++) {
         const F = FACES[f];
-        if (f === 3 && y === 0) continue;
-        if (getV(x + F.n[0], y + F.n[1], z + F.n[2])) continue;
+        if (f === 3 && (y === 0 || (sm && y === gtop))) continue;
+        if (solidN(x + F.n[0], y + F.n[1], z + F.n[2])) continue;
         let k = v;
         if (f === 2 && NATURAL.has(t)) k *= 0.92 + vnoise(x / 6, z / 6, 5) * 0.16;
         if (f !== 2 && f !== 3) k *= 0.8 + 0.2 * Math.min(1, y / 14);
         for (let i = 0; i < 4; i++) {
           const c = F.c[i];
-          pos.push(x + c[0], y + c[1] + (rise && c[1] ? rise[c[0] + 2 * c[2]] : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
+          pos.push(x + c[0], y + c[1] + (rise && c[1] ? rise[c[0] + 2 * c[2]] : 0) - (skirt && y === gtop && !c[1] && f !== 2 ? skirt : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
           col.push(bc.r * k, bc.g * k, bc.b * k); uv.push(UVS[i][0], UVS[i][1]);
         }
         idx.push(vcount, vcount + 1, vcount + 2, vcount, vcount + 2, vcount + 3);
@@ -171,19 +178,26 @@ function setChunk(key) {
   const cx = key % 64, cz = Math.floor(key / 64);
   if (cx * 16 >= world.N || cz * 16 >= world.N) return;
   let m = R3.chunks.get(key);
+  if (smoothLook()) terrainCells(cx * 16 - 2, cz * 16 - 2, cx * 16 + 17, cz * 16 + 17);
   const g = buildChunkGeo(cx, cz);
   if (m) { m.geometry.dispose(); m.geometry = g; }
   else { m = new THREE.Mesh(g, R3.voxMat); m.castShadow = !CHEAP; m.receiveShadow = !CHEAP; R3.chunks.set(key, m); R3.chunkGroup.add(m); }
+  setTerrainChunk(key);
+  TER.decorDirty = true;
 }
 /** Throws away every chunk and builds the new world's. */
 function rebuildWorldView() {
   if (!R3.ready) return;
   for (const m of R3.chunks.values()) { m.geometry.dispose(); R3.chunkGroup.remove(m); }
-  R3.chunks.clear();
+  R3.chunks.clear(); clearTerrainChunks();
+  R3.look = smoothLook(); terrainReset();
   const n = world.N / 16;
   for (let cz = 0; cz < n; cz++) for (let cx = 0; cx < n; cx++) setChunk(cx + cz * 64);
   world.dirty.clear();
-  R3.water.scale.set(world.N, world.N, 1); R3.water.position.set(world.N / 2, world.WL - 0.2, world.N / 2);
+  rebuildDecor(); buildOuterRing();
+  const WS = smoothLook() ? world.N + 96 : world.N;
+  R3.terTex.wn.repeat.set(WS / 9, WS / 9);
+  R3.water.scale.set(WS, WS, 1); R3.water.position.set(world.N / 2, world.WL - 0.2, world.N / 2);
   R3.outer.position.set(world.N / 2, world.WL - 1.2, world.N / 2);
   for (const c of R3.units.children.slice()) R3.units.remove(c);
   R3.worldGen = world.gen;
@@ -485,7 +499,7 @@ function ringPoints(line, cx, cz, r, lift, dashed) {
 function syncModel(e) {
   if (!e.model) { e.model = modelFor(e); R3.units.add(e.model); }
   const m = e.model, u = m.userData;
-  m.position.set(e.x, e.vy, e.z);
+  m.position.set(e.x, e.vy + (e.kind === 'tank' ? 0 : surfaceY(e.x, e.z) - hAt(e.x, e.z)), e.z);
   m.rotation.set(0, e.heading, 0);
   if (u.hull) { u.hull.rotation.x = e.pitch || 0; u.hull.rotation.z = e.roll || 0; }
   if (u.turret) u.turret.rotation.y = (e.turretYaw ?? e.heading) - e.heading;
@@ -501,8 +515,10 @@ function syncModel(e) {
 /** Draws the play world: chunks, figures, effects, rings, camera. */
 function renderWorld() {
   if (!R3.ready || !state.ents) return;
-  if (R3.worldGen !== world.gen) rebuildWorldView();
+  if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
+  if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();
+  R3.terTex.wn.offset.set((state.t || 0) * 0.011, (state.t || 0) * 0.006);
   updateCamera();
   for (const e of state.ents) {
     if (e.gone) { if (e.model) { R3.units.remove(e.model); e.model = null; } continue; }

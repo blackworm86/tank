@@ -18,6 +18,8 @@ After play: Dovresti rivedere la logica dei movimenti e il pathfinding dei solda
 
 After play: Prima aggiungi la possibilità di far salire un certo numero di soldati all'interno del carro armato se il carro armato ha posto. Il carro può essere un main battle tank, un APC, può essere modificato, può essere aumentata la portata dei soldati che può portare, eccetera. E a inizio partita nel test fammi selezionare o il main battle tank o il carro leggero con la possibilità di passare da cannoncino a mitragliatrice e un APC.
 
+After play: Non sono soddisfatto del terreno voxel, vorrei un terreno più "granulare", con maggior dettaglio/definizione, e senza vedere i bordi dei voxel, un terreno più realistico. Fammi vedere come potrebbe essere - il terreno deve mostrare prati secchi, fango, acqua, pietre, strade in asfalto, boschi e foreste.
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
@@ -31,7 +33,7 @@ After play: Prima aggiungi la possibilità di far salire un certo numero di sold
 **Intent:** payoff builds (the build grows through the run) *(provisional)*
 
 ## Look and references
-- Look: voxel 3D isometrico, deserto di ruggine: sabbia ocra e terra bruciata (terreno), canyon di roccia rossastra, acqua verde-torbida (laghi e fiumi), metallo arrugginito e lamiere (edifici, veicoli), cielo polveroso color pesca, fiamme e traccianti arancioni; i tuoi mezzi con strisce di vernice verde militare, i predoni rosso sangue e giallo. Dettaglio distintivo: ogni colpo stacca voxel che volano via come detriti cubici e si posano a terra; il cerchio radio è un anello tratteggiato ciano attorno al carro. Ogni figura disegnata in voxel (soldati, carri, edifici): niente emoji, niente cerchi semplici. *(provisional)*
+- Look: 3D isometrico; il terreno è una superficie liscia e dettagliata senza bordi di voxel (prati secchi, fango, roccia, strade in asfalto, terra, ciuffi d'erba, pietre, boschi e foreste, acqua increspata) *(you said)*; edifici, coperture e figure restano in voxel; prima era un deserto di ruggine: sabbia ocra e terra bruciata (terreno), canyon di roccia rossastra, acqua verde-torbida (laghi e fiumi), metallo arrugginito e lamiere (edifici, veicoli), cielo polveroso color pesca, fiamme e traccianti arancioni; i tuoi mezzi con strisce di vernice verde militare, i predoni rosso sangue e giallo. Dettaglio distintivo: ogni colpo stacca voxel che volano via come detriti cubici e si posano a terra; il cerchio radio è un anello tratteggiato ciano attorno al carro. Ogni figura disegnata in voxel (soldati, carri, edifici): niente emoji, niente cerchi semplici. *(provisional)*
 - References: un RTS isometrico classico (la camera e le selezioni), un gioco a voxel distruttibile alla Teardown (i muri che cedono), un action roguelite alla Hades (il run e la valuta che resta) *(guessed)*.
 - View: 3D · Camera: isometrica angolata (circa 55°) che segue il carro, con zoom e rotazione a scatti di 90° *(inferred (strong))*.
 
@@ -54,6 +56,8 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 
 ## Features
 - [x] Carro con controlli tank e torretta a rotazione limitata che insegue il mouse; precisione da fermi che peggiora in movimento (cerchio di dispersione visibile)
+- [x] Terreno realistico disegnato liscio sopra i voxel: prati secchi, fango vicino all'acqua e nelle conche, roccia sui pendii ripidi, strade in asfalto crepato, terra e pietre, acqua con riflessi; i crateri anneriscono il terreno e bruciano l'erba (config terrain_look 0 torna ai blocchi)
+- [x] Boschi e foreste: alberi (conifere, latifoglie secche, alberi morti) che il carro abbatte passando, i colpi spezzano e la fanteria usa come copertura
 - [x] Mondo voxel generato a ogni run (colline, montagne, canyon, laghi, fiumi) con muri, edifici e rocce distruttibili dai colpi
 - [x] Terreno percorribile: colline in pendii e rampe che il carro sale, strade larghe con sponde in rampa; scogliere, creste ripide e acqua profonda restano invalicabili
 - [x] Pausa tattica con Spazio: ordini a tempo fermo (vai, attacca, copertura, percorso a tappe disegnato)
@@ -85,6 +89,8 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - tipi di scafo (MBT, leggero, APC) scelti a inizio run · in the slice
 - fanteria trasportata a bordo, capienza migliorabile · in the slice
 - terreno a pendii e rampe percorribile dal carro · in the slice
+- terreno realistico liscio (erba secca, fango, roccia, asfalto, acqua) · in the slice
+- boschi e foreste abbattibili · in the slice
 - pezzi da comprare per moddare il carro · in the slice
 - assoldare soldati e creare team personalizzati · in the slice
 - valuta permanente tra un run e l'altro · thin stand-in *(guessed)*
