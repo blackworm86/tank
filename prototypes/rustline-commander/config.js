@@ -87,6 +87,62 @@ window.CONFIG = {
   car_rate: { value: 0.5, min: 0.1, max: 3, step: 0.05 },
   cover_factor: { value: 0.35, min: 0, max: 1, step: 0.05 },    // hit chance multiplier when in cover
   cover_chip: { value: 0.15, min: 0, max: 1, step: 0.05 },      // chance a miss chips a soft cover voxel
+  cover_light: { value: 0.65, min: 0, max: 1, step: 0.05 },     // hit chance multiplier behind light cover (sandbags, junk, a 1-voxel ledge)
+  cover_blast: { value: 0.55, min: 0, max: 1, step: 0.05 },     // blast damage multiplier for infantry in heavy cover from the blast side
+  unstick_time: { value: 1.6, min: 0.5, max: 6, step: 0.1 },    // seconds without headway before a unit looks for another way
+
+  // ---- Directional armour (damage multipliers on vehicles) ----
+  armor_front: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
+  armor_side: { value: 1, min: 0.1, max: 3, step: 0.05 },
+  armor_rear: { value: 1.7, min: 0.1, max: 4, step: 0.05 },
+  armor_top: { value: 1.4, min: 0.1, max: 4, step: 0.05 },      // mortar rounds and plunging hits
+  armor_front_arc: { value: 45, min: 10, max: 80, step: 5 },    // half-angle of the front face, degrees
+  armor_rear_arc: { value: 45, min: 10, max: 80, step: 5 },     // half-angle of the rear face, degrees
+  hull_turn_boss: { value: 22, min: 5, max: 120, step: 1 },     // deg/s a still hull turns to face its enemy
+  hull_turn_technical: { value: 80, min: 5, max: 200, step: 5 },
+  hull_turn_car: { value: 100, min: 5, max: 200, step: 5 },
+  hull_turn_ltank: { value: 45, min: 5, max: 200, step: 5 },
+
+  // ---- Arcs of fire (deployed weapons swing slowly to a target outside the arc) ----
+  mg_arc: { value: 40, min: 10, max: 180, step: 5 },           // half-angle, degrees
+  mg_turn: { value: 70, min: 10, max: 360, step: 5 },          // deg/s
+  at_arc: { value: 30, min: 10, max: 180, step: 5 },
+  at_turn: { value: 30, min: 5, max: 360, step: 5 },
+
+  // ---- Anti-tank gun and support tank ----
+  at_hp: { value: 45, min: 10, max: 300, step: 5 },
+  at_range: { value: 42, min: 10, max: 90, step: 1 },
+  at_damage: { value: 95, min: 10, max: 400, step: 5 },
+  at_rate: { value: 4.5, min: 0.5, max: 15, step: 0.25 },       // seconds between rounds
+  at_speed: { value: 70, min: 20, max: 160, step: 5 },          // round speed, units/s
+  ltank_hp: { value: 260, min: 50, max: 1000, step: 10 },
+  ltank_speed: { value: 5.5, min: 1, max: 14, step: 0.5 },
+  ltank_range: { value: 38, min: 10, max: 80, step: 1 },
+  ltank_damage: { value: 60, min: 5, max: 300, step: 5 },
+  ltank_reload: { value: 4, min: 0.5, max: 15, step: 0.25 },
+
+  // ---- Command vehicle hulls (multipliers on the battle tank's tank_* values) ----
+  hull_mbt_seats: { value: 0, min: 0, max: 12, step: 1 },      // infantry it carries before parts
+  hull_light_hp: { value: 0.7, min: 0.2, max: 2, step: 0.05 },
+  hull_light_speed: { value: 1.3, min: 0.5, max: 2.5, step: 0.05 },
+  hull_light_turn: { value: 1.25, min: 0.5, max: 2.5, step: 0.05 },
+  hull_light_armor: { value: 1.35, min: 0.5, max: 3, step: 0.05 }, // damage taken, x
+  hull_light_seats: { value: 2, min: 0, max: 12, step: 1 },
+  hull_apc_hp: { value: 0.85, min: 0.2, max: 2, step: 0.05 },
+  hull_apc_speed: { value: 1.2, min: 0.5, max: 2.5, step: 0.05 },
+  hull_apc_turn: { value: 1.1, min: 0.5, max: 2.5, step: 0.05 },
+  hull_apc_armor: { value: 1.2, min: 0.5, max: 3, step: 0.05 },
+  hull_apc_seats: { value: 6, min: 0, max: 12, step: 1 },
+  board_radius: { value: 3, min: 1, max: 8, step: 0.5 },        // how close to the hull infantry climb in
+  // the light hull's guns and the APC's heavy machine gun
+  tank_ac_damage: { value: 22, min: 2, max: 150, step: 1 },     // autocannon round
+  tank_ac_reload: { value: 0.35, min: 0.1, max: 3, step: 0.05 },
+  tank_ac_blast: { value: 0.75, min: 0.2, max: 3, step: 0.05 },
+  tank_mg_damage: { value: 7, min: 1, max: 60, step: 1 },       // light hull's machine gun
+  tank_mg_rate: { value: 0.09, min: 0.03, max: 1, step: 0.01 },  // seconds between rounds
+  tank_hmg_damage: { value: 11, min: 1, max: 80, step: 1 },     // APC heavy machine gun
+  tank_hmg_rate: { value: 0.13, min: 0.03, max: 1, step: 0.01 },
+  tank_mg_range: { value: 46, min: 10, max: 100, step: 1 },
   sight_range: { value: 34, min: 10, max: 80, step: 1 },        // how far any soldier spots enemies
 
   // ---- Raiders ----
@@ -119,6 +175,8 @@ window.CONFIG = {
   cost_medic: { value: 50, min: 0, max: 300, step: 5 },
   cost_mortar: { value: 85, min: 0, max: 400, step: 5 },
   cost_car: { value: 220, min: 0, max: 1000, step: 10 },
+  cost_at: { value: 110, min: 0, max: 500, step: 5 },
+  cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
   max_squads: { value: 6, min: 1, max: 9, step: 1 },
   squad_max_size: { value: 4, min: 1, max: 8, step: 1 },
   shop_radius: { value: 11, min: 4, max: 30, step: 1 },         // how near an outpost the tank must be

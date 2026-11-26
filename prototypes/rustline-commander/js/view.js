@@ -351,6 +351,69 @@ function makeBossModel() {
   selRing(g, 4.2);
   return g;
 }
+/** The anti-tank gun: a low gun behind a shield on two wheels, with a crew of two. */
+function makeATGunModel() {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+  for (const sx of [-1, 1]) bx(b, 0.25, 0.9, 0.9, PC.track, sx * 0.8, 0.45, 0.1);
+  bx(b, 1.5, 0.25, 0.5, PC.olive2, 0, 0.55, 0.1);
+  bx(b, 1.9, 1.0, 0.12, PC.olive, 0, 1.0, 0.45); bx(b, 1.92, 0.1, 0.14, PC.stripe, 0, 1.38, 0.45);
+  bx(b, 0.2, 0.2, 2.4, PC.metal, 0, 0.85, 1.4); bx(b, 0.32, 0.32, 0.3, PC.black, 0, 0.85, 2.6);
+  for (const sx of [-0.35, 0.35]) bx(b, 0.12, 0.12, 1.8, PC.olive2, sx, 0.3, -0.9, 0.12, sx * 0.4, 0);
+  for (const [sx, sz] of [[-0.55, -0.4], [0.6, -0.9]]) {
+    const c = new THREE.Group(); c.position.set(sx, 0, sz); b.add(c);
+    bx(c, 0.22, 0.5, 0.26, PC.khaki, -0.1, 0.25, 0); bx(c, 0.22, 0.5, 0.26, PC.khaki, 0.1, 0.25, 0);
+    bx(c, 0.5, 0.5, 0.32, PC.olive, 0, 0.75, 0); bx(c, 0.28, 0.28, 0.28, PC.skin, 0, 1.15, 0); bx(c, 0.36, 0.14, 0.36, PC.helmet, 0, 1.32, 0);
+  }
+  b.scale.setScalar(1.15);
+  g.userData = { hull: b };
+  selRing(g, 1.7);
+  return g;
+}
+/** The support tank: a smaller tank in the player's paint, short gun, no commander. */
+function makeLightTankModel() {
+  const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
+  for (const s of [-1, 1]) {
+    bx(hull, 0.75, 0.85, 4.2, PC.track, s * 1.2, 0.43, 0);
+    for (let i = -1.5; i <= 1.5; i++) bx(hull, 0.8, 0.42, 0.42, PC.wheel, s * 1.2, 0.33, i * 1.0);
+  }
+  bx(hull, 1.8, 0.7, 3.9, PC.drab, 0, 0.65, 0);
+  bx(hull, 2.5, 0.3, 3.6, PC.olive, 0, 1.12, -0.1);
+  bx(hull, 2.3, 0.4, 0.55, PC.drab, 0, 0.85, 2.0, -0.5);
+  bx(hull, 2.52, 0.08, 0.45, PC.stripe, 0, 1.3, 1.1);
+  bx(hull, 0.4, 0.4, 0.5, PC.metal, -0.7, 1.4, -1.6);
+  const tur = new THREE.Group(); tur.position.set(0, 1.27, -0.2); g.add(tur);
+  bx(tur, 1.7, 0.65, 1.9, PC.olive, 0, 0.33, 0); bx(tur, 1.4, 0.2, 1.5, PC.drab, 0, 0.75, -0.1);
+  bx(tur, 0.7, 0.5, 0.35, PC.drab, 0, 0.33, 1.05);
+  const gun = new THREE.Group(); gun.position.set(0, 0.35, 1.1); tur.add(gun);
+  bx(gun, 0.24, 0.24, 2.0, PC.metal, 0, 0, 1.0); bx(gun, 0.34, 0.34, 0.3, PC.black, 0, 0, 2.0);
+  bx(tur, 0.06, 1.1, 0.06, PC.black, -0.55, 1.1, -0.6); bx(tur, 0.12, 0.12, 0.12, PC.cyan, -0.55, 1.66, -0.6);
+  g.userData = { turret: tur, gun, hull, gunZ: 1.1 };
+  selRing(g, 3.0);
+  return g;
+}
+/** The troop carrier: a long boxy hull on tracks, a small machine-gun turret, a rear door. */
+function makeAPCModel() {
+  const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
+  for (const s of [-1, 1]) {
+    bx(hull, 0.8, 0.9, 5.2, PC.track, s * 1.45, 0.45, 0);
+    for (let i = -2; i <= 2; i++) bx(hull, 0.86, 0.46, 0.46, PC.wheel, s * 1.45, 0.35, i * 1.0);
+  }
+  bx(hull, 2.3, 1.5, 4.9, PC.olive, 0, 1.05, -0.1);
+  bx(hull, 2.3, 0.7, 1.2, PC.olive2, 0, 1.15, 2.55, -0.75);
+  bx(hull, 2.32, 0.1, 0.5, PC.stripe, 0, 1.82, 0.9);
+  bx(hull, 1.3, 1.2, 0.12, PC.drab, 0, 1.0, -2.6); bx(hull, 0.12, 0.12, 0.12, PC.metal, 0.45, 1.0, -2.68);
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) bx(hull, 0.06, 0.18, 0.45, PC.black, s * 1.16, 1.5, -1.4 + i * 1.0);
+  bx(hull, 0.6, 0.06, 0.8, PC.rust, -0.6, 1.81, -1.4);
+  const tur = new THREE.Group(); tur.position.set(0.3, 1.82, 0.4); g.add(tur);
+  bx(tur, 1.0, 0.45, 1.0, PC.olive2, 0, 0.22, 0); bx(tur, 0.7, 0.4, 0.1, PC.drab, 0, 0.55, 0.45);
+  const gun = new THREE.Group(); gun.position.set(0, 0.32, 0.5); tur.add(gun);
+  bx(gun, 0.12, 0.12, 1.4, PC.metal, 0, 0, 0.7); bx(gun, 0.2, 0.2, 0.3, PC.black, 0, 0, 0.1);
+  bx(tur, 0.42, 0.44, 0.3, 0x6b6a45, -0.25, 0.55, -0.35); bx(tur, 0.28, 0.28, 0.28, PC.skin, -0.25, 0.9, -0.35); bx(tur, 0.34, 0.12, 0.34, PC.helmet, -0.25, 1.08, -0.35);
+  bx(tur, 0.06, 1.6, 0.06, PC.black, 0.4, 1.0, -0.4); bx(tur, 0.14, 0.14, 0.14, PC.cyan, 0.4, 1.8, -0.4);
+  g.userData = { turret: tur, gun, hull, gunZ: 0.5 };
+  selRing(g, 3.4);
+  return g;
+}
 function makePickupModel() {
   const g = new THREE.Group(), s = new THREE.Group(); g.add(s);
   bx(s, 0.9, 0.6, 0.9, PC.rust, 0, 0.3, 0); bx(s, 0.92, 0.12, 0.2, PC.yel, 0, 0.62, 0);
@@ -359,8 +422,11 @@ function makePickupModel() {
   return g;
 }
 function modelFor(e) {
-  if (e.kind === 'tank') return makeTankModel(tankLook());
+  if (e.kind === 'tank') { const L = tankLook(); return L.hull === 'apc' ? makeAPCModel() : L.hull === 'light' ? makeLightTankModel() : makeTankModel(L); }
+  if (e.kind === 'apc') return makeAPCModel();
   if (e.kind === 'car') return makeCarModel();
+  if (e.kind === 'ltank') return makeLightTankModel();
+  if (e.kind === 'at') return makeATGunModel();
   if (e.kind === 'technical') return makeTechnicalModel();
   if (e.kind === 'boss') return makeBossModel();
   return makeSoldier(e.kind);
@@ -440,6 +506,8 @@ function renderWorld() {
   updateCamera();
   for (const e of state.ents) {
     if (e.gone) { if (e.model) { R3.units.remove(e.model); e.model = null; } continue; }
+    if (e.inside) { if (e.model) e.model.visible = false; continue; }
+    if (e.model && !e.model.visible) e.model.visible = true;
     if (e.kind === 'tank' && e.lookKey !== state.lookKey) { if (e.model) R3.units.remove(e.model); e.model = null; e.lookKey = state.lookKey; }
     syncModel(e);
   }
@@ -505,7 +573,7 @@ function renderWorld() {
 
 // ---- The figures sheet (?scene=figures) ----------------------------------------------------------
 const FIGS = [
-  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['car', 'Autoblindo'],
+  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['at', 'Cannone anticarro'], ['car', 'Autoblindo'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
   ['r_rifle', 'Predone'], ['r_mg', 'Mitragliere predone'], ['r_rpg', 'Razziere'], ['technical', 'Tecnica'], ['boss', 'Carro del Capo'],
 ];
 function renderFigures() {
@@ -517,13 +585,13 @@ function renderFigures() {
     const gnd = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0xd8a560 })); gnd.rotation.x = -Math.PI / 2; s.add(gnd);
     R3.figPos = [];
     FIGS.forEach(([k], i) => {
-      const row = i < 7 ? 0 : 1, col = row ? i - 7 : i;
-      const x = row ? (col - 2) * 8 : (col - 3) * 5.6, z = row ? 7 : -5;
+      const row = Math.floor(i / 5), col = i % 5; // three rows of five
+      const x = (col - 2) * 8.5, z = -10 + row * 9;
       const m = modelFor({ kind: k }); m.position.set(x, 0, z); m.rotation.y = 0.6; s.add(m);
       R3.figPos.push({ x, z, k });
     });
     const c = new THREE.PerspectiveCamera(30, W / H, 1, 500);
-    c.position.set(0, 30, 40); c.lookAt(0, 0, 1.5); c.updateMatrixWorld();
+    c.position.set(0, 44, 50); c.lookAt(0, 0, 0.5); c.updateMatrixWorld();
     R3.figScene = s; R3.figCam = c;
   }
   R3.renderer.render(R3.figScene, R3.figCam);

@@ -41,11 +41,13 @@ const CONTROLS = [
   'Mouse: punta il cannone (la torretta segue lenta)',
   'Click sinistro: fuoco    Spazio: pausa tattica (ordini a tempo fermo)',
   'Tab: modalità Carro / Comando',
-  'Comando: click o trascina per selezionare, click destro per muovere o attaccare',
+  'Comando: click/trascina seleziona, click dx muove o attacca',
   'V vai   F attacca   C copertura   Shift+click dx: aggiungi tappa al percorso',
-  '1-6 squadre   G seguimi   H fermi',
+  'Trascina col click dx: freccia della direzione da tenere sul posto',
+  '1-6 squadre   G seguimi   H fermi   B sali a bordo   U scendi',
+  'X: cannoncino / mitragliatrice (carro leggero)',
   'E: officina in un avamposto   Q/E: ruota camera',
-  'Rotella: zoom   P: pausa   M: muto',
+  'Rotella: zoom   P: pausa   M: muto   F2: pannello sviluppo',
 ];
 const clock = window.GAME_CLOCK || { now: () => performance.now() / 1000 }; // a check may inject one
 const CHEAP = params.get('render') === 'cheap'; // a headless shot or check: 3D draws cheap; players never see it
@@ -84,17 +86,17 @@ const pressed = code => hit.has(code); // true for one step after the key goes d
 addEventListener('keydown', e => {
   startAudio();
   if (!e.repeat) { down.add(e.code); hit.add(e.code); }
-  if (e.code === 'Space' || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();
+  if (e.code === 'Space' || e.code === 'Tab' || e.code === 'F2' || e.code.startsWith('Arrow')) e.preventDefault();
 });
 addEventListener('keyup', e => down.delete(e.code));
 addEventListener('pointerdown', () => startAudio());
 addEventListener('blur', () => { down.clear(); MS.l = MS.r = false; });
 // the mouse, in logical screen coordinates
-const MS = { x: W / 2, y: H / 2 - 60, l: false, r: false, lp: false, rp: false, lr: false, drag: null, wheel: 0 };
+const MS = { x: W / 2, y: H / 2 - 60, l: false, r: false, lp: false, rp: false, lr: false, rr: false, drag: null, wheel: 0 };
 function mousePos(e) { const b = canvas.getBoundingClientRect(); MS.x = (e.clientX - b.left) / b.width * W; MS.y = (e.clientY - b.top) / b.height * H; }
 addEventListener('mousemove', mousePos);
 addEventListener('mousedown', e => { mousePos(e); if (e.button === 0) { MS.l = true; MS.lp = true; } if (e.button === 2) { MS.r = true; MS.rp = true; } });
-addEventListener('mouseup', e => { if (e.button === 0) { MS.l = false; MS.lr = true; } if (e.button === 2) MS.r = false; });
+addEventListener('mouseup', e => { if (e.button === 0) { MS.l = false; MS.lr = true; } if (e.button === 2) { MS.r = false; MS.rr = true; } });
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('wheel', e => { MS.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
 
@@ -139,8 +141,11 @@ const scenes = {
       cam.yawT += dt * 0.08; cam.yaw = cam.yawT; cam.dist = 95;
       const s = state.tank; cam.x = s.x; cam.z = s.z; cam.y = s.y;
       perkKeys();
+      // the hull for the run: click a card, or the arrows
+      if (pressed('ArrowRight') || pressed('ArrowLeft')) { const i = HULL_IDS.indexOf(HULL_PICK.id); HULL_PICK.id = HULL_IDS[(i + (pressed('ArrowRight') ? 1 : 2)) % 3]; }
+      clickButtons();
       if (pressed('Enter') || pressed('Space') || pressed('NumpadEnter')) { reset(); scene = 'play'; }
-      MS.lp = MS.rp = MS.lr = false;
+      MS.lp = MS.rp = MS.lr = MS.rr = false;
     },
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawTitle(); },
   },
@@ -158,7 +163,7 @@ const scenes = {
       for (let i = 0; i < 3; i++) if (pressed('Digit' + (i + 1))) state.shopTab = i;
       clickButtons();
       if (pressed('Escape') || pressed('KeyE')) scene = 'play';
-      MS.lp = MS.rp = MS.lr = false;
+      MS.lp = MS.rp = MS.lr = MS.rr = false;
     },
     draw() {
       if (!state.shopSite) { state.shopSite = world.sites.start; state.shopTab = Number(params.get('tab')) || 0; } // a shot opens it straight
@@ -166,18 +171,18 @@ const scenes = {
     },
   },
   pause: {
-    update() { if (pressed('KeyP') || pressed('Escape')) scene = 'play'; MS.lp = MS.rp = MS.lr = false; },
+    update() { if (pressed('KeyP') || pressed('Escape')) scene = 'play'; MS.lp = MS.rp = MS.lr = MS.rr = false; },
     draw() {
       scenes.play.draw(); ctx.fillStyle = 'rgba(14,10,8,0.55)'; ctx.fillRect(0, 0, W, H);
       text('Pausa', W / 2, H / 2 - 20, 52, '#fff2d8'); text('P o Esc per riprendere', W / 2, H / 2 + 30, 20, '#e8dcc8');
     },
   },
   over: {
-    update() { perkKeys(); if (pressed('KeyR') || pressed('Enter')) { reset(); scene = 'play'; } MS.lp = MS.rp = MS.lr = false; },
+    update() { perkKeys(); if (pressed('KeyR') || pressed('Enter')) { reset(); scene = 'play'; } MS.lp = MS.rp = MS.lr = MS.rr = false; },
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawEnd(false); },
   },
   results: {
-    update() { perkKeys(); if (pressed('Enter') || pressed('KeyR')) { reset(); scene = 'play'; } MS.lp = MS.rp = MS.lr = false; },
+    update() { perkKeys(); if (pressed('Enter') || pressed('KeyR')) { reset(); scene = 'play'; } MS.lp = MS.rp = MS.lr = MS.rr = false; },
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawEnd(true); },
   },
 };

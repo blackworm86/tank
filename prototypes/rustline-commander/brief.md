@@ -14,11 +14,15 @@ un gioco roguelite o roguelike nel quale il giocatore è un comandante di APC o 
 
 After play: i voxel impediscono al carro di muoversi liberamente, serve un terreno con pendii, rampe... anche terreno impassabile chiaramente, ma nella demo praticamente il carro è immobilizzato da subito. deve essere anche possibile mettere in pausa tattica il gioco, in modo da poter dare comandi alle altre unità (vai, attacca, take cover, traccia percorso ecc.), con barra spaziatrice
 
+After play: Dovresti rivedere la logica dei movimenti e il pathfinding dei soldati, diciamo. Per esempio, il cecchino del test è bloccato su questa specie di muro che c'è all'inizio del primo settore. Vorrei anche che durante la fase di comando, diciamo i comandi alle varie unità, ai vari soldati e ai vari altri mezzi quando ci saranno, anzi segnati che voglio anche un comando di debug o comunque di sviluppo nel quale posso cambiare e testare liberamente le squadre, aggiungere soldati, togliere soldati, aggiungere carri di supporto, unità di artiglieria, unità di mitragliatrici. Vorrei che le squadre di fanteria, i soldati, cercassero riparo quando avvicini il mouse a muri, case, anche allo stesso carro armato che la fanteria dovrebbe coprircisi dietro per ripararsi dai colpi. Un po' come succede in Company of Heroes quando Iron Harvest, quando con il mouse ti avvicini a uno spazio che la fanteria può utilizzare come copertura. Altra cosa, i mezzi devono avere diversi livelli di protezione di armatura tra il fronte, retro, lati e soffitto, diciamo, in modo che il giocatore debba manovrare il carro armato o manovrare i piccoli carri di supporto in modo da mostrare il lato più protetto al nemico e cercare di aggirare il nemico in modo da colpirlo da dietro. Ricordati che dando nella modalità di comando, non nella modalità azione, dovresti dare al giocatore la possibilità di indicare in quale direzione tenere mentre si muove o quale direzione tenere alle unità a cui sta dando comandi, quale direzione tenere mentre si muove, quale direzione tenere quando arriva in posizione di attacco, cliccando e trascinando una specie di freccia. Questo dovrebbe essere utilizzabile anche con la fanteria, con i mitraglieri, con l'artiglieria anticarro, con l'artiglieria campale e via così.
+
+After play: Prima aggiungi la possibilità di far salire un certo numero di soldati all'interno del carro armato se il carro armato ha posto. Il carro può essere un main battle tank, un APC, può essere modificato, può essere aumentata la portata dei soldati che può portare, eccetera. E a inizio partita nel test fammi selezionare o il main battle tank o il carro leggero con la possibilità di passare da cannoncino a mitragliatrice e un APC.
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
 
-**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca, C copertura armano l'ordine del prossimo click; Shift + click destro aggiunge una tappa al percorso; G seguimi, H fermi; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
+**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; G seguimi, H fermi; **B sali a bordo, U scendi; X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
 
 **Question:** guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15–20 minuti? *(guessed)*
 
@@ -53,6 +57,13 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Mondo voxel generato a ogni run (colline, montagne, canyon, laghi, fiumi) con muri, edifici e rocce distruttibili dai colpi
 - [x] Terreno percorribile: colline in pendii e rampe che il carro sale, strade larghe con sponde in rampa; scogliere, creste ripide e acqua profonda restano invalicabili
 - [x] Pausa tattica con Spazio: ordini a tempo fermo (vai, attacca, copertura, percorso a tappe disegnato)
+- [x] Corazza direzionale sui mezzi: fronte forte, fianchi medi, retro e tetto deboli; i mezzi fermi girano il fronte verso il nemico, quindi aggirarli paga
+- [x] Freccia di direzione negli ordini (fanteria, mitraglieri, anticarro, mortai, mezzi) e archi di tiro per mitragliatrici e cannoni anticarro
+- [x] Anteprima delle coperture sotto il mouse, anche dietro il carro e i mezzi alleati; copertura leggera e pesante
+- [x] Nuove unità: cannone anticarro e carro di supporto (anche in caserma)
+- [x] Scelta del mezzo a inizio run: carro da battaglia (cannone, 0 posti), carro leggero (cannoncino o mitragliatrice, tasto X, 2 posti), trasporto truppe (mitragliatrice pesante, 6 posti)
+- [x] Fanteria a bordo: B fa salire le squadre selezionate se c'è posto, U le fa scendere; il pezzo officina Posti aumenta la capienza
+- [x] Pannello sviluppo (F2) per comporre e testare squadre e nemici
 - [x] Modalità Comando: selezione squadre e ordini movimento / attacco / copertura, solo per le squadre dentro il raggio radio
 - [x] Squadre minuscole e personalizzabili: fucilieri, cecchini, mitraglieri, medici, mortaio, autoblindo; soldati assoldati per rimpiazzare i singoli caduti
 - [x] Predoni con pattuglie, campi e fortezza finale: 4 tipi di nemici, ognuno attacca diversamente (fuciliere, mitragliere, razziere, veicolo/carro)
@@ -67,6 +78,12 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice
 - raggio radio limitato e migliorabile · in the slice
 - pausa tattica e percorsi a tappe · in the slice
+- corazza direzionale (fronte, lati, retro, tetto) · in the slice
+- direzione da tenere negli ordini (freccia) · in the slice
+- coperture con anteprima, anche dietro i mezzi · in the slice
+- pannello di sviluppo per testare squadre · in the slice
+- tipi di scafo (MBT, leggero, APC) scelti a inizio run · in the slice
+- fanteria trasportata a bordo, capienza migliorabile · in the slice
 - terreno a pendii e rampe percorribile dal carro · in the slice
 - pezzi da comprare per moddare il carro · in the slice
 - assoldare soldati e creare team personalizzati · in the slice

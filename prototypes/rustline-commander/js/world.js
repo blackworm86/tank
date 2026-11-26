@@ -72,6 +72,13 @@ function recomputeColumn(x, z) {
 }
 /** A cell a soldier can stand in: on the map and not deeper than a ford. */
 function walkable(x, z) { return inMap(x, z) && world.hmap[x + world.N * z] >= world.WL - 1; }
+/** A cell standing above most of its neighbours: the top of a wall, a crate, a pillar. Soldiers do not stand there. */
+function perch(x, z) {
+  if (!inMap(x, z)) return false;
+  const h = world.hmap[x + world.N * z]; let hi = 0;
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dz) && hAt(x + dx, z + dz) <= h - 1) hi++;
+  return hi >= 5;
+}
 function deepWater(x, z) { const h = hAt(x, z); return h < world.WL - 1; }
 function shallow(x, z) { return hAt(x, z) < world.WL; }
 
@@ -659,16 +666,21 @@ const PF = { g: null, from: null, stamp: null, closed: null, cur: 0, N: 0, heap:
  * A* over walkable cells; steps up or down more than maxStep are walls.
  * Returns waypoints [{x,z}] (cell centres) to the goal, or to the nearest reachable cell.
  */
-function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000) {
+/**
+ * A* over the voxel columns from (sx,sz) to (tx,tz). A step may climb maxStep voxels and drop
+ * maxDrop (soldiers jump down off a wall they cannot climb). Wall tops cost extra so nobody walks
+ * along them. Returns the cells to walk, or the way to the nearest reachable cell.
+ */
+function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxStep) {
   const N = world.N;
   if (PF.N !== N) { PF.N = N; PF.g = new Float32Array(N * N); PF.from = new Int32Array(N * N); PF.stamp = new Uint32Array(N * N); PF.closed = new Uint32Array(N * N); PF.cur = 0; }
   PF.cur++;
   const ax = Math.floor(sx), az = Math.floor(sz);
   let bx = Math.floor(tx), bz = Math.floor(tz);
   if (!inMap(ax, az) || !inMap(bx, bz)) return [];
-  if (!walkable(bx, bz)) { // nearest walkable to the goal
+  if (!walkable(bx, bz) || perch(bx, bz)) { // nearest ground cell to the goal
     let best = null, bd = 1e9;
-    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) if (walkable(bx + dx, bz + dz) && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = [bx + dx, bz + dz]; }
+    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) if (walkable(bx + dx, bz + dz) && !perch(bx + dx, bz + dz) && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = [bx + dx, bz + dz]; }
     if (!best) return []; bx = best[0]; bz = best[1];
   }
   const H = PF.heap; H.size = 0;
@@ -685,13 +697,16 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000) {
       const nx = cx + dx, nz = cz + dz; if (!walkable(nx, nz)) continue;
       if (PF.avoid && PF.avoid(nx + 0.5, nz + 0.5)) continue;
       const n = nx + N * nz; if (PF.closed[n] === PF.cur) continue;
-      if (Math.abs(hm[n] - hm[c]) > maxStep) continue;
+      const up = hm[n] - hm[c];
+      if (up > maxStep || -up > maxDrop) continue;
       if (dx && dz) { // no cutting corners
         const a = cx + dx + N * cz, b = cx + N * (cz + dz);
         if (!walkable(cx + dx, cz) || !walkable(cx, cz + dz) || Math.abs(hm[a] - hm[c]) > maxStep || Math.abs(hm[b] - hm[c]) > maxStep) continue;
       }
       let cost = dx && dz ? 1.414 : 1;
       if (hm[n] < world.WL) cost += 1.5;
+      if (-up > maxStep) cost += 2; // a jump down: fine, not preferred
+      if (perch(nx, nz)) cost += 6;
       const ng = PF.g[c] + cost;
       if (PF.stamp[n] !== PF.cur || ng < PF.g[n]) {
         PF.stamp[n] = PF.cur; PF.g[n] = ng; PF.from[n] = c;
@@ -715,22 +730,30 @@ function inCoverFrom(x, z, fx, fz) {
   }
   return false;
 }
-/** Up to n cells near (tx,tz) with something taller beside them (towards the threat when given). */
-function findCoverSpots(tx, tz, n, threat) {
+/** How good the cover in the cell beside (x,z) at height h is: 0 none, 1 light (low or soft), 2 heavy. */
+function coverQuality(x, z, h) {
+  const nh = hAt(x, z);
+  if (nh < h + 1 || nh > h + 8) return 0;
+  if (nh >= h + 2) return 2;
+  return SOFTV.has(getV(x, nh - 1, z)) ? 1 : 2;
+}
+/**
+ * Up to n cells near (tx,tz) with cover beside them (towards the threat when given), each with its
+ * quality q (1 light, 2 heavy). Heavy cover and nearness win.
+ */
+function findCoverSpots(tx, tz, n, threat, radius = 5) {
   const out = [], cand = [];
   const cx = Math.floor(tx), cz = Math.floor(tz);
-  for (let dz = -5; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) {
-    const x = cx + dx, z = cz + dz; if (!walkable(x, z) || shallow(x + 0.5, z + 0.5)) continue;
-    const h = hAt(x, z); let cover = false;
+  for (let dz = -radius; dz <= radius; dz++) for (let dx = -radius; dx <= radius; dx++) {
+    const x = cx + dx, z = cz + dz; if (!walkable(x, z) || shallow(x + 0.5, z + 0.5) || perch(x, z)) continue;
+    const h = hAt(x, z); let q = 0;
     for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const nh = hAt(x + ox, z + oz);
-      if (nh >= h + 1 && nh <= h + 8) {
-        if (!threat) { cover = true; break; }
-        const L = Math.hypot(ox, oz); if ((ox * threat.x + oz * threat.z) / L > 0.3) { cover = true; break; }
-      }
+      const cq = coverQuality(x + ox, z + oz, h); if (!cq) continue;
+      if (threat) { const L = Math.hypot(ox, oz); if ((ox * threat.x + oz * threat.z) / L <= 0.3) continue; }
+      q = Math.max(q, cq);
     }
-    if (!cover) continue;
-    cand.push({ x: x + 0.5, z: z + 0.5, d: Math.hypot(dx, dz) });
+    if (!q) continue;
+    cand.push({ x: x + 0.5, z: z + 0.5, d: Math.hypot(dx, dz) - q * 0.8, q });
   }
   cand.sort((a, b) => a.d - b.d);
   for (const c of cand) {
