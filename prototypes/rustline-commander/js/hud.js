@@ -155,6 +155,15 @@ function drawHUD() {
     if (!e.alive || e.team !== 0 || e.veh || e.inside || !e.rank) continue;
     const p = toScreen(e.x, surfaceY(e.x, e.z) + 2.3, e.z); if (p.on) chevrons(p.x, p.y, e.rank, 1);
   }
+  // buildings held by soldiers: a badge over the roof with how many are inside
+  for (const b of world.buildings) {
+    if (!b.occ.length) continue;
+    const mine = b.occ[0].team === 0, p = toScreen(b.x0 + b.w / 2, b.g + b.h + 1.5, b.z0 + b.d / 2); if (!p.on) continue;
+    const lab = b.occ.length + '/' + b.cap;
+    rrect(p.x - 22, p.y - 11, 44, 22, 5, 'rgba(10,14,12,0.85)', mine ? '#7fe35a' : '#e05a4a');
+    for (let k = 0; k < 3; k++) { ctx.fillStyle = mine ? '#b9f59a' : '#f0a090'; ctx.fillRect(p.x - 16 + k * 4, p.y - 4 - k * 2, 3, 8 + k * 2); }
+    text(lab, p.x + 8, p.y + 1, 12, mine ? '#b9f59a' : '#f0a090');
+  }
   if (tp) { ctx.fillStyle = 'rgba(10,22,34,0.22)'; ctx.fillRect(0, 0, W, H); ctx.strokeStyle = 'rgba(255,210,122,0.55)'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, W - 4, H - 4); }
   // drawn paths: each selected squad's remaining stops (every squad's in the tactical pause)
   for (const sq of state.squads) {
@@ -263,7 +272,7 @@ function drawHUD() {
     text(sq.name, 50, y + 17, 15, ms.length ? HC.text : '#8a7a68', 'left');
     sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, 30 + j * 22, y + 42, 18, m && m.alive ? '#a8d870' : '#5a3a32'); if (m && m.alive && m.rank) chevrons(30 + j * 22, y + 31, m.rank, 0.8); });
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
-    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
+    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
     text(heard ? ord : 'Fuori portata', 232, y + 42, 13, heard ? HC.dim : HC.warn, 'right');
     y += h + 6;
   });
@@ -291,7 +300,7 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['1-6 squadra   B sali   U scendi', 'Click dx: muovi / attacca  (trascina: direzione)', 'V F C + click: vai / attacca / copertura', 'Shift + click destro: aggiungi tappa']
+    ? ['1-6 squadra   B sali   U scendi', 'Click dx: muovi / attacca  (trascina: direzione)', 'Click dx su edificio: entra   sul carro: seguimi', 'V F C + click   Shift + click dx: tappa']
     : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio: pausa tattica   Tab: comando', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else {
@@ -465,7 +474,15 @@ function coverPip(x, z, q, alpha) {
 function drawOrderAids() {
   const g = state.gest, at = g ? g.p : state.mouse3;
   const sel = selectedSquads().filter(sq => inRadio(sq));
-  if (at && sel.length && !(g ? g.tgt && g.face == null : enemyUnderMouse())) {
+  const bIn = at && !g && sel.length && (!state.arm || state.arm === 'cover') && !enemyUnderMouse() && sel.some(sq => alive(sq).some(m => !m.veh && m.kind !== 'at')) ? buildingAt(at.x, at.z) : null;
+  if (bIn) { // a building under the mouse: the order is to go in
+    if (!bIn.ruined && buildingWalls(bIn) < bIn.walls0 * tune.garrison_ruin) bIn.ruined = true;
+    const lab = bIn.ruined ? 'Edificio crollato' : 'Entra nell\'edificio  ' + bIn.occ.length + '/' + bIn.cap;
+    if (!bIn.ruined) coverPip(bIn.door.x, bIn.door.z, 2, 0.95);
+    ctx.font = `bold 12px ${FONT}`; const w = ctx.measureText(lab).width + 16;
+    rrect(MS.x + 16, MS.y - 30, w, 20, 4, 'rgba(10,14,12,0.85)', bIn.ruined ? '#e05a4a' : '#7fe35a');
+    text(lab, MS.x + 24, MS.y - 20, 12, bIn.ruined ? '#f0a090' : '#b9f59a', 'left');
+  } else if (at && sel.length && !(g ? g.tgt && g.face == null : enemyUnderMouse())) {
     const nInf = sel.reduce((a, sq) => a + alive(sq).filter(m => !m.veh).length, 0);
     const face = g ? g.face : null, kind = g ? g.kind : state.arm;
     if (nInf && kind !== 'move' && kind !== 'attack') {

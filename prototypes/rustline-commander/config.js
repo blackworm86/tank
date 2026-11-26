@@ -27,7 +27,11 @@ window.CONFIG = {
   patrol_count: { value: 6, min: 0, max: 14, step: 1 },         // roaming raider patrols
   ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
-  map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },   // steepest smoothed rise between cells the tank takes (map report)
+  map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
+  map_cliff: { value: 2.5, min: 1, max: 6, step: 0.5 },          // a ground step at least this high is a cliff: never smoothed into a slope
+  garrison_cap: { value: 6, min: 1, max: 12, step: 1 },          // most soldiers one building takes
+  garrison_ruin: { value: 0.45, min: 0.1, max: 0.9, step: 0.05 }, // share of its walls left below which a building throws its soldiers out
+  garrison_hurt: { value: 12, min: 0, max: 50, step: 1 },        // damage to each soldier thrown out by a collapse   // steepest smoothed rise between cells the tank takes (map report)
 
   // ---- Camera ----
   cam_pitch: { value: 55, min: 35, max: 75, step: 1 },          // degrees down from horizon

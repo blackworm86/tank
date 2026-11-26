@@ -14,12 +14,14 @@ const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 
 const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD, V.TREE]);
 /** Voxel kinds that are natural ground (the drawn terrain), as opposed to walls, huts, junk and trees. */
 const GROUNDV = new Set([V.BED, V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
-/** True when a hard built column (a wall, a post) taller than 1, or deep water, lies in the 3x3 around (x,z): too tight for a hull. */
+/** True when a hard built column (a wall, a post) taller than 1, deep water or a cliff edge lies in the 3x3 around (x,z): too tight for a hull. */
 function hardNear(x, z) {
+  const c = inMap(x, z) ? world.groundRaw[x + world.N * z] : 0;
   for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
     const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
     const i = xx + world.N * zz, h = world.hmap[i];
     if (h < world.WL - 1) return true; // deep water beside: a hull would hang over it
+    if (Math.abs(world.groundRaw[i] - c) > tune.map_cliff) return true; // a cliff edge, above or below (M7)
     if (h - world.groundRaw[i] > 1 && !SOFTV.has(world.vox[VH * i + h - 1]) && world.road[i] !== 2) return true;
   }
   return false;
@@ -107,6 +109,7 @@ function genWorld() {
   world.road = new Uint8Array(N * N);
   world.scorch = new Uint8Array(N * N);
   world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N);
+  world.buildings = []; world.bld = new Int16Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
   const flipX = rng() < 0.5, flipZ = rng() < 0.5;
@@ -244,11 +247,16 @@ function genWorld() {
   sites.roadMain = roadPaths[0] || [];
   // the sites keep their flat ground after the roads ran through
   for (const s of placed) {
-    const r = s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 8 : 10;
-    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
-      const x = s.x + dx, z = s.z + dz; if (inMap(x, z)) { hi[x + N * z] = s.g; if (world.road[x + N * z] === 2) world.road[x + N * z] = 1; }
+    const r = padR(s), K = 6;
+    for (let dz = -r - K; dz <= r + K; dz++) for (let dx = -r - K; dx <= r + K; dx++) {
+      const x = s.x + dx, z = s.z + dz; if (!inMap(x, z)) continue;
+      const i = x + N * z, d = Math.max(Math.abs(dx), Math.abs(dz)) - r;
+      if (d <= 0) { hi[i] = s.g; if (world.road[i] === 2) world.road[i] = 1; continue; }
+      // M9: a pad's skirt ramps 1 a cell into the land round it, so its edge is never a cliff
+      if (hi[i] > s.g + d) hi[i] = s.g + d; else if (hi[i] < s.g - d) hi[i] = s.g - d;
     }
   }
+  relaxRoads(hi, N, placed);
 
   // Fill columns.
   const V_ = world.vox;
@@ -403,11 +411,18 @@ const BIN5 = [1, 4, 6, 4, 1];
 function updateGround(x0, z0, x1, z1) {
   const N = world.N, R = world.groundRaw, S = world.gsm;
   const cl = v => v < 0 ? 0 : v >= N ? N - 1 : v;
-  for (let z = cl(z0 - 2); z <= cl(z1 + 2); z++) for (let x = cl(x0 - 2); x <= cl(x1 + 2); x++) R[x + N * z] = groundOf(x, z);
+  for (let z = cl(z0 - 2); z <= cl(z1 + 2); z++) for (let x = cl(x0 - 2); x <= cl(x1 + 2); x++) {
+    const i = x + N * z; // a bridge deck is ridden like ground (map rule M9)
+    R[i] = world.road[i] === 2 ? Math.max(groundOf(x, z), world.hmap[i]) : groundOf(x, z);
+  }
+  const cliff = tune.map_cliff;
   for (let z = cl(z0); z <= cl(z1); z++) for (let x = cl(x0); x <= cl(x1); x++) {
-    let t = 0;
-    for (let b = 0; b < 5; b++) for (let a = 0; a < 5; a++) t += BIN5[a] * BIN5[b] * R[cl(x + a - 2) + N * cl(z + b - 2)];
-    S[x + N * z] = t / 256;
+    const c = R[x + N * z]; let t = 0, ws = 0;
+    for (let b = 0; b < 5; b++) for (let a = 0; a < 5; a++) {
+      const v = R[cl(x + a - 2) + N * cl(z + b - 2)]; if (Math.abs(v - c) > cliff) continue; // a cliff is not blurred into a slope (M1)
+      const k = BIN5[a] * BIN5[b]; t += k * v; ws += k;
+    }
+    S[x + N * z] = t / ws;
   }
 }
 /** The smoothed ground height at a point (bilinear over column centres): the relief as drawn, without bumps. */
@@ -480,6 +495,52 @@ function carveRoad(hi, N, WL, path) {
   }
 }
 
+/** Half-size of a site's flat pad (map rule M9): an outpost's holds its wall and its tool shed. */
+function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : 15; }
+/**
+ * Map rule M4b: along the roads no step is higher than 1, so roads that cross or run side by side at
+ * different heights meet in ramps, never cliffs. A site's flat pad is never cut: its height reaches
+ * along the road as a floor (the road climbs to meet it); road steps are then only cut down, and the
+ * 3 cells of shoulder either side are fitted ring by ring within 1 of the cells nearer the road.
+ */
+function relaxRoads(hi, N, placed) {
+  const pad = new Uint8Array(N * N), near = new Uint8Array(N * N).fill(255), q = [];
+  for (const s of placed) {
+    const r = padR(s);
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (inMap(s.x + dx, s.z + dz)) pad[s.x + dx + N * (s.z + dz)] = 1;
+  }
+  for (let i = 0; i < N * N; i++) if (world.road[i]) { near[i] = 0; q.push(i); }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k], x = i % N, z = (i / N) | 0; if (near[i] >= 3) continue;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue; const j = xx + N * zz; if (near[j] === 255) { near[j] = near[i] + 1; q.push(j); } }
+  }
+  const nb = i => { const x = i % N, z = (i / N) | 0, o = []; if (x > 0) o.push(i - 1); if (x < N - 1) o.push(i + 1); if (z > 0) o.push(i - N); if (z < N - 1) o.push(i + N); return o; };
+  const road = [], LB = new Int16Array(N * N);
+  for (let i = 0; i < N * N; i++) if (near[i] === 0) road.push(i);
+  // 1. a pad's height reaches along the road as a floor that drops 1 a cell (the road climbs to meet it)
+  for (const i of road) LB[i] = pad[i] ? hi[i] : 0;
+  for (let pass = 0, ch = 1; pass < 200 && ch; pass++) {
+    ch = 0;
+    for (const i of road) for (const j of nb(i)) if (near[j] === 0 && !pad[j] && LB[i] - 1 > LB[j]) { LB[j] = LB[i] - 1; ch++; }
+  }
+  for (const i of road) if (!pad[i] && hi[i] < LB[i]) hi[i] = LB[i];
+  // 2. every road step above 1 is cut down (never below that floor): monotone, so it settles
+  for (let pass = 0, ch = 1; pass < 200 && ch; pass++) {
+    ch = 0;
+    for (const i of road) for (const j of nb(i)) {
+      if (near[j] !== 0 || pad[j] || hi[j] - hi[i] <= 1) continue;
+      const v = Math.max(hi[i] + 1, LB[j]); if (v < hi[j]) { hi[j] = v; ch++; }
+    }
+  }
+  // 3. the shoulders, ring by ring outward, keep within 1 of every cell nearer the road
+  for (let r = 1; r <= 3; r++) for (let i = 0; i < N * N; i++) {
+    if (near[i] !== r || pad[i]) continue;
+    let mn = 1e9, mx = -1e9;
+    for (const j of nb(i)) if (near[j] === r - 1) { mn = Math.min(mn, hi[j]); mx = Math.max(mx, hi[j]); }
+    let v = hi[i]; if (v > mn + 1) v = mn + 1; if (v < mx - 1) v = mx - 1; hi[i] = v;
+  }
+}
+
 /** Binary min-heap of integer ids by priority. */
 class MinHeap {
   constructor() { this.ids = []; this.pr = []; this.size = 0; }
@@ -523,28 +584,65 @@ function boxShell(x0, z0, w, d, y0, h, wallT, roofT, door) {
     }
     if (roofT) put(x0 + dx, y0 + h, z0 + dz, roofT);
   }
+  let door0 = null;
+  if (door) for (let dz = 0; dz < d && !door0; dz++) for (let dx = 0; dx < w; dx++) {
+    if ((dx === 0 || dz === 0 || dx === w - 1 || dz === d - 1) && door(dx, dz, 0)) { door0 = { dx, dz }; break; }
+  }
+  if (door0) registerBuilding(x0, z0, w, d, y0, h, door0.dx, door0.dz);
+}
+/**
+ * A building soldiers can enter (map rule M10): its footprint, floor, wall height, door and the
+ * places inside. Registered by whatever builds it; world.bld maps each footprint cell to it.
+ */
+function registerBuilding(x0, z0, w, d, g, h, ddx, ddz) {
+  if (w < 3 || d < 3) return null;
+  const N = world.N, id = world.buildings.length;
+  const nx = ddx === 0 ? -1 : ddx === w - 1 ? 1 : 0, nz = nx ? 0 : ddz === 0 ? -1 : 1;
+  const slots = [];
+  for (let dz = 1; dz < d - 1; dz++) for (let dx = 1; dx < w - 1; dx++) slots.push({ x: x0 + dx + 0.5, z: z0 + dz + 0.5 });
+  const b = { id, x0, z0, w, d, g, h, slots, cap: Math.min(tune.garrison_cap, slots.length), occ: [], ruined: false,
+    door: { x: x0 + ddx + 0.5, z: z0 + ddz + 0.5 }, out: { x: x0 + ddx + 0.5 + nx * 1.6, z: z0 + ddz + 0.5 + nz * 1.6 }, walls0: 0 };
+  for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) if (inMap(x0 + dx, z0 + dz)) world.bld[x0 + dx + N * (z0 + dz)] = id + 1;
+  world.buildings.push(b);
+  return b;
+}
+/** The standing wall voxels of a building (its integrity, against walls0). */
+function buildingWalls(b) {
+  let n = 0;
+  for (let dz = 0; dz < b.d; dz++) for (let dx = 0; dx < b.w; dx++) {
+    if (dx && dz && dx < b.w - 1 && dz < b.d - 1) continue;
+    const x = b.x0 + dx, z = b.z0 + dz; if (!inMap(x, z)) continue;
+    const base = VH * (x + world.N * z);
+    for (let y = b.g; y < b.g + b.h && y < VH; y++) if (world.vox[base + y] && !GROUNDV.has(world.vox[base + y])) n++;
+  }
+  return n;
+}
+/** The building whose footprint holds (x,z), or null. */
+function buildingAt(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return null;
+  const k = world.bld[ix + world.N * iz]; return k ? world.buildings[k - 1] : null;
 }
 function buildOutpost(s, home) {
-  const g = s.g, R = 9;
-  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+  const g = s.g, R = 11;
+  if (!home) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { // the start has no wall (M9)
     if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-    if (Math.abs(dx) <= 3 || Math.abs(dz) <= 3) continue; // four wide gates
+    if (Math.abs(dx) <= 4 || Math.abs(dz) <= 4) continue; // four gates 9 wide
     let road = false; // and a gap wherever a road runs through the wall
     for (let a = -2; a <= 2 && !road; a++) for (let b = -2; b <= 2; b++) if (inMap(s.x + dx + a, s.z + dz + b) && world.road[s.x + dx + a + world.N * (s.z + dz + b)]) { road = true; break; }
     if (road) continue;
     const t = (dx + dz) % 4 === 0 ? V.GREEN : V.JUNK;
     put(s.x + dx, g, s.z + dz, t); put(s.x + dx, g + 1, s.z + dz, (dx * 7 + dz) % 3 ? V.JUNK : V.RUST);
   }
-  const door = (dx, dz, y) => dz === 0 && dx === 1 && y < 2;
-  // the outpost's own ground keeps no road voxels under its huts
-  boxShell(s.x - 7, s.z - 7, 3, 3, g, 3, V.RUST, V.JUNK, door);
-  boxShell(s.x + 4, s.z - 7, 3, 4, g, 3, V.RUST, V.RUST, door);
-  boxShell(s.x - 7, s.z + 4, 4, 3, g, 3, V.RUST, V.JUNK, door);
-  for (let y = 0; y < 7; y++) put(s.x - 3, g + y, s.z + 4, V.WOOD); // flag pole
-  put(s.x - 2, g + 6, s.z + 4, V.GREEN); put(s.x - 1, g + 6, s.z + 4, V.GREEN); put(s.x - 2, g + 5, s.z + 4, V.GREEN); put(s.x - 1, g + 5, s.z + 4, V.YEL);
-  // fuel tank
-  for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + 6 + a, g + y, s.z - 3 + b, y === 2 ? V.YEL : V.RUST);
-  buildShed(s, R);
+  // huts 4x4 in three corners, doors toward the yard; 3 cells to the wall and an 8-wide yard (M9)
+  const toYard = sz => (dx, dz, y) => y < 2 && dz === (sz < 0 ? 3 : 0) && dx === 1;
+  boxShell(s.x - 7, s.z - 7, 4, 4, g, 3, V.RUST, V.JUNK, toYard(-1));
+  boxShell(s.x + 4, s.z - 7, 4, 4, g, 3, V.RUST, V.RUST, toYard(-1));
+  boxShell(s.x - 7, s.z + 4, 4, 4, g, 3, V.RUST, V.JUNK, toYard(1));
+  for (let y = 3; y < 9; y++) put(s.x - 7, g + y, s.z + 7, V.WOOD); // flag pole on the hut roof
+  put(s.x - 6, g + 8, s.z + 7, V.GREEN); put(s.x - 5, g + 8, s.z + 7, V.GREEN); put(s.x - 6, g + 7, s.z + 7, V.GREEN); put(s.x - 5, g + 7, s.z + 7, V.YEL);
+  // fuel tank in the fourth corner
+  for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + 5 + a, g + y, s.z + 5 + b, y === 2 ? V.YEL : V.RUST);
+  buildShed(s, home ? 9 : R);
   s.home = home;
 }
 /**
@@ -556,7 +654,7 @@ function buildShed(s, R) {
   let best = null;
   for (const [ux, uz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const side of [1, -1]) {
     const px = -uz * side, pz = ux * side;
-    const cx = s.x + ux * (R + 4) + px * 6, cz = s.z + uz * (R + 4) + pz * 6;
+    const cx = s.x + ux * (R + 3) + px * 6, cz = s.z + uz * (R + 3) + pz * 6;
     let score = 0, lo = 99, hi = 0;
     for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
       const x = cx + a, z = cz + b; if (!inMap(x, z)) { score += 100; continue; }
@@ -593,14 +691,14 @@ function buildCamp(c) {
   // bunker in the middle
   boxShell(c.x - 2, c.z - 2, 5, 5, g, 3, V.CONC, V.CONC, (dx, dz, y) => (y === 1 && (dx === 2 || dz === 2)) || (dz === 4 && dx === 2 && y < 2));
   // watchtower
-  const tx = c.x + 3, tz = c.z - 5;
+  const tx = c.x + 2, tz = c.z - 8; // 3 cells clear of the bunker (M9)
   for (let y = 0; y < 4; y++) for (const [a, b] of [[0, 0], [2, 0], [0, 2], [2, 2]]) put(tx + a, g + y, tz + b, V.WOOD);
   for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) put(tx + a, g + 4, tz + b, V.WOOD);
   for (let a = 0; a < 3; a++) { put(tx + a, g + 5, tz, V.RAID); put(tx + a, g + 5, tz + 2, V.RAID); }
   c.tower = { x: tx + 1.5, z: tz + 1.5 };
   // banner and junk
-  for (let y = 0; y < 6; y++) put(c.x - 4, g + y, c.z + 3, V.WOOD);
-  put(c.x - 3, g + 5, c.z + 3, V.RAID); put(c.x - 3, g + 4, c.z + 3, V.YEL); put(c.x - 2, g + 5, c.z + 3, V.RAID);
+  for (let y = 0; y < 6; y++) put(c.x - 6, g + y, c.z + 5, V.WOOD);
+  put(c.x - 5, g + 5, c.z + 5, V.RAID); put(c.x - 5, g + 4, c.z + 5, V.YEL); put(c.x - 4, g + 5, c.z + 5, V.RAID);
   for (let k = 0; k < 4; k++) { const x = c.x - 4 + k * 2, z = c.z + 5; put(x, g, z, V.JUNK); if (k % 2) put(x, g + 1, z, V.RUST); }
 }
 function buildFortress(f) {
@@ -654,6 +752,14 @@ function buildRuin(s) {
         }
       } else if (roof && vnoise(x * 0.5, z * 0.5, ns + 2) < 0.6) put(x, s.h + h - 1, z, t);
     }
+    // a door 2 high in the middle of the side facing the flattest ground outside: the house is enterable
+    const sides = [[Math.floor(w / 2), 0, 0, -1], [Math.floor(w / 2), d - 1, 0, 1], [0, Math.floor(d / 2), -1, 0], [w - 1, Math.floor(d / 2), 1, 0]];
+    let bs = null, bd = 1e9;
+    for (const sd of sides) { const ox = s.x + sd[0] + sd[2], oz = s.z + sd[1] + sd[3]; if (!inMap(ox, oz)) continue; const dh = Math.abs(colTop(ox, oz) - s.h) + rng() * 0.5; if (dh < bd) { bd = dh; bs = sd; } }
+    if (bs) {
+      for (let y = 0; y < 2; y++) put(s.x + bs[0], s.h + y, s.z + bs[1], V.AIR);
+      registerBuilding(s.x, s.z, w, d, s.h, h, bs[0], bs[1]);
+    }
   } else {
     const len = 5 + Math.floor(rng() * 7), h = 2 + Math.floor(rng() * 2), ax = rng() < 0.5;
     for (let k = 0; k < len; k++) {
@@ -680,7 +786,7 @@ function rockOutcrop(x0, z0, r, h) {
  */
 function applyMapRules(sites) {
   const N = world.N, keep = sites.firstWall;
-  const pads = [sites.start, ...sites.outposts, ...sites.camps, sites.fortress].map(o => ({ x: o.x, z: o.z, r: o.kind === 'fortress' ? 20 : o.kind === 'camp' ? 10 : 13 }));
+  const pads = [sites.start, ...sites.outposts, ...sites.camps, sites.fortress].map(o => ({ x: o.x, z: o.z, r: padR(o) + 2 }));
   const near = new Uint8Array(N * N);
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (world.road[x + N * z] === 1) {
     for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) if (inMap(x + a, z + b)) near[x + a + N * (z + b)] = 1;
@@ -693,7 +799,13 @@ function applyMapRules(sites) {
     let g = 0; while (g < VH && GROUNDV.has(world.vox[base + g])) g++;
     for (let y = g; y < VH; y++) world.vox[base + y] = 0;
   }
+  for (const b of world.buildings) { // M10: a doorway and the floor inside stay clear (trees, junk)
+    const clear = (x, z, below) => { if (!inMap(x, z)) return; const base = VH * (x + N * z); for (let y = b.g; y < Math.min(VH, below); y++) if (!GROUNDV.has(world.vox[base + y])) world.vox[base + y] = 0; };
+    clear(Math.floor(b.out.x), Math.floor(b.out.z), VH);
+    for (let dz = 1; dz < b.d - 1; dz++) for (let dx = 1; dx < b.w - 1; dx++) clear(b.x0 + dx, b.z0 + dz, b.g + b.h - 1);
+  }
   recomputeAll();
+  for (const b of world.buildings) b.walls0 = Math.max(1, buildingWalls(b));
   for (let pass = 0; pass < 2; pass++) for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
     const i = x + N * z, h = world.hmap[i]; if (!natTop(i)) continue;
     const m = Math.max(world.hmap[i - 1], world.hmap[i + 1], world.hmap[i - N], world.hmap[i + N]);
@@ -733,7 +845,7 @@ function mapReport() {
   for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
     const i = x + N * z; if (natTop(i) && world.hmap[i] - Math.max(world.hmap[i - 1], world.hmap[i + 1], world.hmap[i - N], world.hmap[i + N]) > 3) spikes++;
     const fw = world.sites.firstWall;
-    if (world.road[i] === 1 && world.hmap[i] > world.groundRaw[i] && !(fw && Math.hypot(x - fw.x, z - fw.z) < 6) && !pads.some(o => Math.hypot(x - o.x, z - o.z) < (o.kind === 'fortress' ? 20 : 13))) roadside++;
+    if (world.road[i] === 1 && world.hmap[i] > world.groundRaw[i] && !(fw && Math.hypot(x - fw.x, z - fw.z) < 6) && !pads.some(o => Math.hypot(x - o.x, z - o.z) < padR(o) + 2)) roadside++;
   }
   return { sites: all.length, unreachable: all.filter(s => !reach(s)).map(s => s.name), reachLand: +(got / Math.max(1, dry)).toFixed(2), spikes, builtOnRoad: roadside };
 }

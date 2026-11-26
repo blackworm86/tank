@@ -226,7 +226,20 @@ function eyeH(e) { return e.kind === 'tank' ? 2.7 : e.kind === 'boss' ? 2.9 : e.
 /** How fast a vehicle's hull turns, deg/s. */
 function hullTurn(e) { return tune['hull_turn_' + e.kind] || 90; }
 function chestH(e) { return e.veh ? 1.3 : 1.15; }
-function canSee(a, b) { return lineClear(a.x, a.y + eyeH(a), a.z, b.x, b.y + chestH(b), b.z); }
+function canSee(a, b) {
+  if (a.garrison || b.garrison) return lineClearPast(a.x, a.y + eyeH(a), a.z, b.x, b.y + chestH(b), b.z, a.garrison, b.garrison);
+  return lineClear(a.x, a.y + eyeH(a), a.z, b.x, b.y + chestH(b), b.z);
+}
+/** A line of sight that ignores the walls of the buildings at either end: soldiers inside shoot from the windows. */
+function lineClearPast(ax, ay, az, bx, by, bz, ba, bb) {
+  const dx = bx - ax, dy = by - ay, dz = bz - az, L = Math.hypot(dx, dy, dz), n = Math.ceil(L / 0.45);
+  for (let i = 1; i < n; i++) {
+    const t = i / n, x = ax + dx * t, z = az + dz * t, here = (ba || bb) && buildingAt(x, z);
+    if (here && (here === ba || here === bb)) continue;
+    if (solidF(x, ay + dy * t, z)) return false;
+  }
+  return true;
+}
 function dist2(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return dx * dx + dz * dz; }
 function angTo(a, b) { return Math.atan2(b.x - a.x, b.z - a.z); }
 function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
@@ -342,6 +355,7 @@ function setDest(m, x, z) {
  * rocks and houses count, and so does a vehicle (alive or a wreck) between it and the shooter.
  */
 function coverFrom(e, fx, fz) {
+  if (e.garrison) return 2; // inside a building: walls all round
   const h = hAt(e.x, e.z), dx = fx - e.x, dz = fz - e.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
   let q = 0;
   for (const a of [0, 0.7, -0.7]) {
@@ -507,7 +521,7 @@ function roleUpkeep(sq, ms) {
   const marching = sq.order.t === 'move' && !sq.order.done;
   let told = false;
   for (const m of ms) {
-    if (m.veh || m.inside) continue;
+    if (m.veh || m.inside || m.garrison) continue;
     const th = (m.target && m.target.alive && m.target) || (m.shotBy && m.shotBy.alive && state.t - m.shotT < 6 && m.shotBy) || null;
     if (th) { m.combatT = state.t; m.threat = th; }
     if (m.kind === 'sniper') { sniperUpkeep(m, sq); continue; }
@@ -570,7 +584,48 @@ function overwatchSpot(ax, az, R, en) {
   }
   return best;
 }
-function orderFollow(sq) { sq.order = { t: 'follow' }; sq.tick = 0; say(sq.name, 'Ricevuto, vi seguiamo.'); }
+function orderFollow(sq) { leaveBuilding(sq); sq.order = { t: 'follow' }; sq.tick = 0; say(sq.name, 'Ricevuto, vi seguiamo.'); }
+/** Sends the squad's infantry into a building: they walk to its door and take the places inside. */
+function orderGarrison(sq, b) {
+  const ms = alive(sq).filter(m => !m.veh && m.kind !== 'at');
+  if (!b.ruined && buildingWalls(b) < b.walls0 * tune.garrison_ruin) b.ruined = true;
+  if (b.ruined) { say(sq.name, 'È crollato, lì dentro non si entra.', '#e0a070'); return false; }
+  if (!ms.length) { say(sq.name, 'Non possiamo entrare.', '#e0a070'); return false; }
+  const mine = ms.filter(m => m.garrison === b).length;
+  if (mine === ms.length) { say(sq.name, 'Siamo già dentro.'); return false; }
+  leaveBuilding(sq);
+  sq.order = { t: 'garrison', b }; sq.tick = 0;
+  for (const m of ms) { setDest(m, b.out.x, b.out.z); m.face = null; m.pref = null; }
+  say(sq.name, 'Entriamo nell\'edificio!'); mark(b.door.x, b.door.z, 0x8fe36a);
+  return true;
+}
+/** Puts a soldier at a free place inside the building (spread over the floor). */
+function enterBuilding(m, b) {
+  const used = new Set(b.occ.map(o => o.slotI)); let k = 0; while (used.has(k)) k++;
+  const s = b.slots[Math.min(b.slots.length - 1, Math.floor(k * b.slots.length / b.cap))];
+  m.garrison = b; m.slotI = k; b.occ.push(m);
+  m.x = s.x; m.z = s.z; m.y = m.vy = b.g; m.path = null; m.moving = false; m.dest = null; m.face = null;
+}
+function exitBuilding(m, i) {
+  const b = m.garrison; if (!b) return;
+  b.occ = b.occ.filter(o => o !== m); m.garrison = null;
+  const p = spotNear(b.out.x, b.out.z, i || 0); m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z);
+}
+/** Everyone of the squad inside a building comes out by its door. Returns how many. */
+function leaveBuilding(sq) { let n = 0; sq.members.forEach((m, i) => { if (m && m.alive && m.garrison) { exitBuilding(m, i); n++; } }); return n; }
+/** A building that lost most of its walls throws its soldiers out, hurt. */
+function checkBuildings() {
+  for (const b of world.buildings) {
+    if (!b.occ.length) continue;
+    b.occ = b.occ.filter(m => m.alive && m.garrison === b);
+    if (!b.occ.length || buildingWalls(b) >= b.walls0 * tune.garrison_ruin) continue;
+    b.ruined = true;
+    const ms = b.occ.slice();
+    ms.forEach((m, i) => { exitBuilding(m, i); dmgTo(m, tune.garrison_hurt, 'blast', null); });
+    const sq = ms[0] && ms[0].squad;
+    if (sq) { sq.order = { t: 'hold' }; say(sq.name, 'L\'edificio crolla! Fuori!', '#ffb070'); }
+  }
+}
 function orderHold(sq) { for (const m of alive(sq)) { m.path = null; m.pref = null; } sq.order = { t: 'hold' }; say(sq.name, 'Teniamo la posizione.'); }
 function squadUpkeep(sq, dt) {
   sq.tick -= dt; if (sq.tick > 0) return; sq.tick = 1.2;
@@ -592,6 +647,22 @@ function squadUpkeep(sq, dt) {
     return;
   }
   if (sq.order.t === 'inside') return;
+  if (sq.order.t === 'garrison') {
+    const b = sq.order.b; let left = 0;
+    for (const m of ms) {
+      if (m.veh || m.kind === 'at' || m.garrison || m.inside) continue;
+      if (Math.hypot(m.x - b.out.x, m.z - b.out.z) < 1.8 || Math.hypot(m.x - b.door.x, m.z - b.door.z) < 1.4) {
+        if (b.occ.length < b.cap && !b.ruined) { enterBuilding(m, b); continue; }
+        say(sq.name, 'Dentro non c\'è più posto.', '#e0a070'); sq.order = { t: 'hold' }; return;
+      }
+      left++;
+      if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 3) setDest(m, b.out.x, b.out.z);
+    }
+    sq.tick = 0.3;
+    if (!left) { sq.order = { t: 'garrisoned', b }; say(sq.name, 'Dentro! Teniamo l\'edificio.'); }
+    return;
+  }
+  if (sq.order.t === 'garrisoned') return;
   if (sq.order.t === 'follow') {
     if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; }
     ms.forEach((m, i) => {
@@ -635,7 +706,16 @@ function issueOrder(kind, append, pt, face, tgt) {
   for (const sq of sel) {
     if (!inRadio(sq)) { say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); continue; }
     any = true;
-    if (!kind && !tgt && Math.hypot(pt.x - state.tank.x, pt.z - state.tank.z) < state.tank.rad + 0.9) { orderBoard(sq); continue; } // right-click on the vehicle: climb in
+    if (!kind && !tgt && Math.hypot(pt.x - state.tank.x, pt.z - state.tank.z) < state.tank.rad + 0.9) { // right-click on the command vehicle
+      if (tankStats().seats > 0 && alive(sq).some(m => canRide(m) && !m.inside)) orderBoard(sq); else orderFollow(sq); // climb in, or follow me
+      continue;
+    }
+    const bAt = (!kind || kind === 'cover') && !tgt ? buildingAt(pt.x, pt.z) : null;
+    if (bAt && alive(sq).some(m => !m.veh && m.kind !== 'at')) { // right-click on a building: go in
+      if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
+      orderGarrison(sq, bAt); continue;
+    }
+    if (leaveBuilding(sq)) say(sq.name, 'Usciamo!');
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
     else if (tgt) orderAttack(sq, tgt);
@@ -972,6 +1052,7 @@ function launch(p, x, y, z, tx, ty, tz, speed, g) {
 // ---- Units: think, move, fire ---------------------------------------------------------------------------
 function updateUnits(dt) {
   const tk = state.tank;
+  state.bldT = (state.bldT || 0) - dt; if (state.bldT <= 0) { state.bldT = 1; checkBuildings(); }
   for (const e of state.ents) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
     if (e.kind === 'tank') continue;
@@ -987,11 +1068,14 @@ function updateUnits(dt) {
       e.inCover = e.cover > 0;
       if (e.team === 1) raiderThink(e, w);
     }
-    moveAlong(e, dt);
-    e.y = hAt(e.x, e.z);
-    if (e.y >= 99) e.y = 0;
-    e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
-    if (deepWater(e.x, e.z)) { dmgTo(e, 999, 'drown', null); continue; }
+    if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g; } // inside a building, at a window
+    else {
+      moveAlong(e, dt);
+      e.y = hAt(e.x, e.z);
+      if (e.y >= 99) e.y = 0;
+      e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
+      if (deepWater(e.x, e.z)) { dmgTo(e, 999, 'drown', null); continue; }
+    }
     const t = e.target;
     if (t && t.alive) {
       const want = angTo(e, t);
