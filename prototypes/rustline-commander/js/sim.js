@@ -245,10 +245,23 @@ function angTo(a, b) { return Math.atan2(b.x - a.x, b.z - a.z); }
 function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(cur, target, maxStep) { const d = angDiff(cur, target); return Math.abs(d) <= maxStep ? target : cur + Math.sign(d) * maxStep; }
 /** A free walkable spot near (x,z) for the i-th unit spawned there. */
+/** The natural ground under (x,z), below any building or wall standing there. */
+function groundAt(x, z) { const ix = Math.floor(x), iz = Math.floor(z); return inMap(ix, iz) && world.groundRaw ? world.groundRaw[ix + world.N * iz] : hAt(x, z); }
+/** A soldier on a roof with no way down to the ground beside it climbs down (a sniper who walked up keeps his post). */
+function unstrand(m) {
+  m.strandT = state.t;
+  const p = spotNear(m.x, m.z, m.id % 6); if (Math.hypot(p.x - m.x, p.z - m.z) < 0.5) return;
+  const fp = findPath(m.x, m.z, p.x, p.z, 1, 3000, 3, 1), end = fp && fp[fp.length - 1];
+  if (end && fp.length > 1 && Math.hypot(end.x - p.x, end.z - p.z) < 1.5) return; // there is a way down: not stranded
+  m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z); m.path = null;
+}
+/** True for a soldier standing on top of a structure (a roof, a wall) well above the ground. */
+function raised(m) { return hAt(m.x, m.z) - groundAt(m.x, m.z) > 2; }
 function spotNear(x, z, i) {
   // the ground height there: a centre on a wall top measures from the ground beside it
   let ref = hAt(x, z);
   if (perch(Math.floor(x), Math.floor(z))) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) ref = Math.min(ref, hAt(x + dx, z + dz));
+  const gr = groundAt(x, z); if (ref - gr > 1.5) ref = gr; // a centre on a roof (a camp's bunker) measures from the ground, not the roof
   for (let r = 0; r < 8; r++) for (let k = 0; k < 12; k++) {
     const a = (i * 2.4 + k * 0.52), px = x + Math.cos(a) * (1.5 + r + i * 0.3), pz = z + Math.sin(a) * (1.5 + r + i * 0.3);
     const cx = Math.floor(px), cz = Math.floor(pz);
@@ -386,6 +399,10 @@ function setDest(m, x, z) {
   const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && dist2(v, m) > (v.rad + 1.2) ** 2 && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)));
   PF.avoid = (px, pz) => { for (const v of vs) { const r = v.rad + 0.7; if ((px - v.x) ** 2 + (pz - v.z) ** 2 < r * r) return true; } return false; };
   m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 6000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null;
+  if ((!m.path || m.path.length < 2) && !m.veh && raised(m)) { // stranded on a roof with no way down: he climbs down beside it
+    const p = spotNear(m.x, m.z, m.id % 6); m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z);
+    m.path = findPath(m.x, m.z, x, z, 1, 6000, 3, 1);
+  }
   m.pi = 0; m.dest = { x, z }; m.pathT = state.t; m.stuckT = 0;
 }
 /**
@@ -1240,10 +1257,7 @@ function updateTank(dt) {
   tk.pitch += (-(front - backH) / 3 / 4.6 - tk.pitch) * Math.min(1, dt * 8);
   tk.roll += ((left - right) / 3 / 2.6 - tk.roll) * Math.min(1, dt * 8);
   // crush infantry in the way
-  if (Math.abs(tk.speed) > tune.crush_speed) for (const e of state.ents) {
-    if (!e.alive || e.veh || e.team !== 1) continue;
-    if (dist2(e, tk) < 4.4) { dmgTo(e, 999, 'crush', tk); floatText(e.x, e.y + 2, e.z, 'schiacciato', '#ffb070'); }
-  }
+  crushUnder(tk, tk.speed);
   // the turret follows the mouse at its own speed: the hook
   // the turret sits on the hull: it turns with it, then traverses on its own toward the mouse
   tk.turretYaw += angDiff(tk.prevHd ?? tk.heading, tk.heading); tk.prevHd = tk.heading;
@@ -1381,6 +1395,7 @@ function updateUnits(dt) {
       e.cover = e.veh ? 0 : e.target ? coverFrom(e, e.target.x, e.target.z) : coverAround(e);
       e.inCover = e.cover > 0;
       if (e.team === 1) raiderThink(e, w);
+      if (!e.veh && !e.fixed && !e.garrison && !e.moving && raised(e) && state.t - (e.strandT || -99) > 2) unstrand(e);
     }
     if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g; } // inside a building, at a window
     else {
@@ -1389,8 +1404,9 @@ function updateUnits(dt) {
       if (e.y >= 99) e.y = 0;
       e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
       if (deepWater(e.x, e.z)) { dmgTo(e, 999, 'drown', null); continue; }
+      if (e.veh && e.team === 0 && e.moving) crushUnder(e, unitSpeed(e));
     }
-    if (e.veh) { e.turretYaw += angDiff(e.prevHd ?? e.heading, e.heading); e.prevHd = e.heading; } // the turret turns with the hull
+    if (e.veh) { e.turretYaw += angDiff(e.prevHd ?? e.heading, e.heading); e.prevHd = e.heading; tiltVehicle(e, dt); } // the turret turns with the hull, the hull tilts with the ground
     const t = e.target;
     if (t && t.alive) {
       const want = angTo(e, t);
@@ -1430,10 +1446,35 @@ function updateUnits(dt) {
       const dx = e.x - v.x, dz = e.z - v.z, r = v.rad + 0.4, d2 = dx * dx + dz * dz;
       if (d2 < r * r && d2 > 0.0001) {
         // a soldier walking to a point clear of the vehicle is passing by: no shove, or it stalls at the hull
+        if (e.team === 1 && v.team === 0 && (v.kind === 'tank' ? Math.abs(v.speed) > tune.crush_speed : v.moving)) continue; // run over, not pushed aside
         const wp = e.moving && e.path && e.path[e.pi];
         if (wp && (wp.x - v.x) ** 2 + (wp.z - v.z) ** 2 >= r * r) continue;
         const d = Math.sqrt(d2), p = (r - d) * (e.moving ? 0.25 : 1); nudge(e, dx / d * p, dz / d * p);
       }
+    }
+  }
+}
+/** A vehicle's pitch and roll from the ground at its four corners (as the command tank's). */
+function tiltVehicle(e, dt) {
+  const s = Math.sin(e.heading), c = Math.cos(e.heading), L = e.rad * 1.05, Wd = e.rad * 0.6;
+  const h = (lx, lz) => hAt(e.x + c * lx + s * lz, e.z - s * lx + c * lz);
+  const f = (h(-Wd, L) + h(Wd, L)) / 2, b = (h(-Wd, -L) + h(Wd, -L)) / 2, l = (h(Wd, L) + h(Wd, -L)) / 2, r = (h(-Wd, L) + h(-Wd, -L)) / 2;
+  const k = Math.min(1, dt * 6), cl = v => Math.max(-0.45, Math.min(0.45, v));
+  e.pitch = (e.pitch || 0) + (cl(-(f - b) / (2 * L)) - (e.pitch || 0)) * k;
+  e.roll = (e.roll || 0) + (cl((l - r) / (2 * Wd)) - (e.roll || 0)) * k;
+}
+/**
+ * Infantry under a moving hull is run over: the command tank (above crush_speed) and the player's
+ * other vehicles while they drive. The test is the hull's own box, not a circle round it.
+ */
+function crushUnder(v, speed) {
+  if (Math.abs(speed) <= tune.crush_speed) return;
+  const s = Math.sin(v.heading), c = Math.cos(v.heading), hw = v.rad * 0.72 + 0.35, hl = v.rad * 1.15 + 0.35;
+  for (const e of state.ents) {
+    if (!e.alive || e.veh || e.team !== 1 || e.garrison) continue;
+    const dx = e.x - v.x, dz = e.z - v.z, lx = dx * c - dz * s, lz = dx * s + dz * c;
+    if (Math.abs(lx) < hw && lz > -hl && lz < hl + (speed > 0 ? 0.5 : 0)) {
+      dmgTo(e, 999, 'crush', v); floatText(e.x, e.y + 2, e.z, 'schiacciato', '#ffb070'); sfx('crunch', e.x, e.z);
     }
   }
 }
@@ -1474,7 +1515,7 @@ function pickTarget(e, w) {
     if (w.min && d < w.min * w.min) continue;
     c.push([d, o]);
   }
-  if (w.kind === 'ap') for (const it of c) if (it[1].veh) it[0] *= 0.2; // anti-tank guns hunt vehicles first
+  if (w.kind === 'ap' || w.kind === 'rpg') for (const it of c) if (it[1].veh) it[0] *= 0.15; // anti-tank guns and rockets hunt vehicles first
   c.sort((a, b) => a[0] - b[0]);
   for (let i = 0; i < Math.min(4, c.length); i++) {
     const o = c[i][1];
@@ -1508,6 +1549,7 @@ function raiderThink(e, w) {
     return;
   }
   if (e.fixed) return;
+  if (!e.veh && raiderTactics(e, w)) return;
   if (e.target && !e.veh) { e.path = null; return; }
   if (e.target && e.veh && dist2(e, e.target) < 16 * 16) { e.path = null; return; }
   if (g.known && (!e.path || e.pi >= e.path.length || state.t - e.pathT > 3)) {
@@ -1517,6 +1559,64 @@ function raiderThink(e, w) {
     const tx = g.home.x + dx + (e.id % 5 - 2) * 1.4, tz = g.home.z + dz + (e.id % 3 - 1) * 1.4;
     if (Math.hypot(tx - e.x, tz - e.z) > 2) setDest(e, tx, tz);
   }
+}
+/** The player's vehicle nearest to e within r (alive), or null. */
+function nearestFriendVeh(e, r) {
+  let best = null, bd = r * r;
+  for (const v of state.ents) if (v.alive && v.veh && v.team === 0 && !v.inside) { const d = dist2(v, e); if (d < bd) { bd = d; best = v; } }
+  return best;
+}
+/** True when vehicle v drives towards e (the command tank by its speed, the others while they move). */
+function bearingDown(v, e) {
+  const sp = v.kind === 'tank' ? v.speed : v.moving ? 1 : 0; if (Math.abs(sp) < 1) return false;
+  const h = v.heading + (sp < 0 ? Math.PI : 0), dx = e.x - v.x, dz = e.z - v.z, L = Math.hypot(dx, dz) || 1;
+  return (Math.sin(h) * dx + Math.cos(h) * dz) / L > 0.6;
+}
+/** A walkable spot near (x,z), or null. */
+function openSpot(x, z) {
+  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [2, 1], [-2, -1]]) {
+    const px = x + a, pz = z + b; if (!inMap(Math.floor(px), Math.floor(pz))) continue;
+    if (walkable(Math.floor(px), Math.floor(pz)) && !shallow(px, pz) && !perch(Math.floor(px), Math.floor(pz))) return { x: px, z: pz };
+  }
+  return null;
+}
+/**
+ * How raiders on foot fight armour. A hull driving at them: they dive aside. Rocket men work round to
+ * a vehicle's flank or rear (its weak armour) and fire as soon as they are there. Everyone else in a
+ * fight runs to the nearest cover against his target. True when it set the raider's move.
+ */
+function raiderTactics(e, w) {
+  if (e.fleeT && state.t - e.fleeT < 1.4 && e.path && e.pi < e.path.length) return true; // still diving clear
+  const v = nearestFriendVeh(e, Math.max(tune.raider_flee + 14, e.kind === 'r_rpg' ? tune.rpg_range * 1.7 : 0));
+  // 1. out of the way of a hull bearing down
+  const reach = v ? tune.raider_flee + Math.abs(v.kind === 'tank' ? v.speed : 3) * 1.2 : 0; // a fast hull is seen coming from further
+  if (v && dist2(v, e) < reach * reach && bearingDown(v, e)) {
+    const h = v.heading, rx = Math.cos(h), rz = -Math.sin(h), side = ((e.x - v.x) * rx + (e.z - v.z) * rz) >= 0 ? 1 : -1;
+    const p = openSpot(e.x + rx * side * 7 - Math.sin(h) * 2, e.z + rz * side * 7 - Math.cos(h) * 2) || openSpot(e.x - rx * side * 7, e.z - rz * side * 7);
+    if (p) { setDest(e, p.x, p.z); e.fleeT = state.t; e.coverT = 0; return true; }
+  }
+  // 2. rockets: to the vehicle's side or back, then fire
+  if (e.kind === 'r_rpg' && v) {
+    const off = Math.abs(angDiff(v.heading, angTo(v, e))), d = Math.sqrt(dist2(v, e));
+    const there = off > tune.rpg_flank_angle * Math.PI / 180 && d < tune.rpg_range * 0.95 && canSee(e, v);
+    if (there) { e.path = null; e.pref = v; return true; }
+    if (!e.path || e.pi >= e.path.length || state.t - (e.pathT || -9) > 2.5) {
+      const side = (e.id % 2 ? 1 : -1), a = v.heading + Math.PI + side * 0.8, r = tune.rpg_range * 0.6;
+      const p = openSpot(v.x + Math.sin(a) * r, v.z + Math.cos(a) * r) || openSpot(v.x + Math.sin(a + side * 0.6) * r, v.z + Math.cos(a + side * 0.6) * r);
+      if (p) setDest(e, p.x, p.z);
+    }
+    e.pref = v; return true;
+  }
+  // 3. a fight: into cover against the target, once in a while
+  const t = e.target;
+  if (t && !e.inCover && state.t - (e.coverT || -99) > 5) {
+    e.coverT = state.t;
+    const dx = t.x - e.x, dz = t.z - e.z, L = Math.hypot(dx, dz) || 1;
+    const spots = findCoverSpots(e.x, e.z, 1, { x: dx / L, z: dz / L }, 6);
+    if (spots.length) { setDest(e, spots[0].x + 0.5, spots[0].z + 0.5); return true; }
+  }
+  if (e.coverT && state.t - e.coverT < 3 && e.path && e.pi < e.path.length) return true; // on the way to cover
+  return false;
 }
 function alertGroup(g, src) {
   if (!g || !src) return;

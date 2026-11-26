@@ -506,12 +506,15 @@ function addXray(model, hex) {
   let m = R3.xray[hex];
   // drawn after the ground and before the figures (renderOrder 1 < 2): where the figure itself shows,
   // it covers its twin; only the parts behind a hill, tree or wall stay coloured
-  if (!m) m = R3.xray[hex] = new THREE.MeshBasicMaterial({ color: hex, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false });
+  if (!m) m = R3.xray[hex] = new THREE.MeshBasicMaterial({ color: hex, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -60 }); // a little slack: a hull dipping into a slope is not hidden
   const parts = []; model.traverse(o => { if (o.isMesh && o !== model.userData.ring) parts.push(o); });
   for (const o of parts) { const x = new THREE.Mesh(o.geometry, m); x.userData.xray = true; x.renderOrder = 1; o.renderOrder = 2; o.add(x); }
 }
 function syncModel(e) {
-  if (!e.model) { e.model = modelFor(e); addXray(e.model, e.team ? 0xff4030 : 0x58ff5a); R3.units.add(e.model); }
+  if (!e.model) {
+    e.model = modelFor(e); addXray(e.model, e.team ? 0xff4030 : 0x58ff5a); R3.units.add(e.model);
+    const ud = e.model.userData; if (ud.turret && ud.hull && ud.turret.parent !== ud.hull) ud.hull.attach(ud.turret); // the turret sits on the hull: it pitches and rolls with it
+  }
   const m = e.model, u = m.userData;
   m.position.set(e.x, e.vy + (e.kind === 'tank' ? 0 : surfaceY(e.x, e.z) - hAt(e.x, e.z)), e.z);
   m.rotation.set(0, e.heading, 0);

@@ -76,6 +76,8 @@ window.CONFIG = {
   tank_hp: { value: 300, min: 50, max: 1500, step: 10 },        // base integrity
   tank_armor: { value: 0.3, min: 0, max: 0.9, step: 0.05 },     // fraction of heavy damage blocked
   small_arms_vs_tank: { value: 0.12, min: 0, max: 1, step: 0.01 }, // share of rifle/MG damage that gets through
+  raider_flee: { value: 10, min: 0, max: 30, step: 1 },           // raiders on foot dive aside from a hull driving at them within this
+  rpg_flank_angle: { value: 70, min: 0, max: 180, step: 5 },       // a rocket man fires once this far off a vehicle's nose (degrees): its flank or rear
   crush_speed: { value: 2, min: 0, max: 10, step: 0.5 },        // speed above which the tank crushes infantry
 
   // ---- Command tank: turret and fire solution (the hook) ----

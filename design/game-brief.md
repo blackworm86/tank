@@ -44,6 +44,12 @@ l'obiettivo del giocatore è arrivare alla ottava mappa, nella quale si ricongiu
 
 After play (risposte): truppe da NPC, eventi e avamposti; pressione: solo timer in battaglia; finale: resisti alle ondate; le piastrine tra i run restano.
 
+After play: la torretta dei blindati si muove ancora in modo strano, non segue le inclinazioni dello scafo
+
+inoltre serve che i nemici appiedati possano essere investitie schiacciati dal carro, e cercheranno di fuggire o ripararsi dietro coperture, aggirare i carri per sparare da dietro, usare armi anticarro appena possibile
+
+After play: ho liberato in una prova questi soldati, che però rimangono bloccati sul tetto dell'edificio
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
@@ -132,6 +138,10 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Timer dell'Orda: dopo horde_time secondi in un settore arrivano ondate di cacciatori sempre più grandi che puntano il carro
 - [x] Ottavo settore, l'ultima difesa: campo dell'esercito con mura e capanno, cinque squadre e mezzi dell'esercito ai tuoi ordini (fino a 10 squadre), final_waves ondate dal cancello dell'Orda, l'ultima col Carro del Capo; respinte tutte, vittoria
 - [x] Piastrine anche per ogni settore attraversato
+- [x] Torrette montate sullo scafo: beccheggiano e rollano con lui; anche i mezzi alleati e nemici si inclinano col terreno
+- [x] Investire la fanteria nemica: il carro sopra crush_speed (e i mezzi amici in marcia) schiacciano i predoni appiedati sotto lo scafo
+- [x] Predoni contro i corazzati: si buttano di lato quando un mezzo gli punta addosso (prima se va veloce), corrono al riparo dal bersaglio, i razzieri puntano subito i mezzi e li aggirano verso fianco e retro (rpg_flank_angle) prima di sparare
+- [x] Nessuno resta sui tetti: i prigionieri liberati (e chiunque compaia vicino a un edificio) nascono a terra, e un soldato bloccato su un tetto senza via d'uscita scende da solo
 - [x] Piastrine tra i run per miglioramenti permanenti (thin stand-in)
 
 ## Map rules
