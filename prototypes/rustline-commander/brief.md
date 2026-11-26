@@ -172,6 +172,13 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Sistemi base con bonus e malus (telaio, motore, cingoli, corazza, torretta, stabilizzatore, radio, sensori, vano truppe); il telaio, solo sull'APC, porta i sistemi avanzati da 3 a 4 o 5
 - [x] Sistemi avanzati: passivi (gabbia antirazzo, minigonne, corazza reattiva a cariche, visore termico, kit autoriparante, caricatore automatico, rastrelliera, ripetitore radio, infermeria) e attivi coi tasti 1-5 in marcia (fumogeni che bloccano la vista, azoto, saldatrice, impulso radar, salva di razzi) con ricarica; ogni garage ne vende due, rari nelle casse
 - [x] Garage su cinque schede: Sistemi base, Arma e colpi, Sistemi avanzati, Caserma, Riparazioni
+- [x] La mappa ha dei limiti: oltre il bordo è tutto nero (niente terreno finto attorno), l'acqua finisce al bordo
+- [x] Quattro biomi con terreno, cielo, luce, acqua, alberi ed erba propri: Deserto (sabbia, alberi secchi, mesa), Foresta (verde, conifere e latifoglie fitte, laghi), Ghiaccio (neve, fiumi gelati, abeti innevati, neve sui tetti), Terre bruciate (cenere, alberi morti)
+- [x] Quattro tipi di zona: lande aperte (capanne di fango o lamiera, rovine), campagna (fattorie con casa, fienile, silo o torre dell'acqua, fieno e staccionate), villaggi (piazza lastricata con chiesa e campanile o pozzo, case attorno con le porte verso la piazza), città distrutta (griglia di strade asfaltate, palazzi di 2-4 piani con file di finestre e vetrine, angoli sventrati, macerie, auto distrutte, lampioni); un distributore di benzina lungo la strada principale
+- [x] Strutture rifatte perché si capisca cosa sono: nuovi materiali con un disegno più fine di un voxel (mattoni, intonaco, tegole, lamiera ondulata, vetri con telaio, assi, sacchetti di sabbia, tela, strisce di pericolo), tetti a falde con gronda, comignoli; dettagli non voxel (barili, casse, pneumatici, pompe, lampioni, antenne, cisterne, fuochi, insegne dipinte) che spariscono se il voxel sotto salta o il carro ci passa sopra
+- [x] Garage: capannone in lamiera aperto davanti, bordo a strisce gialle e nere, insegna OFFICINA, banco da lavoro e paranco dentro; ci si entra col carro per aprire il menu. Avamposti con muro di sacchetti e pannelli, cancelli a strisce, torrette agli angoli, baracche col tetto a falde, cisterna e bandiera. Campi predoni con palizzata a punte, bunker con feritoie e sacchetti sul tetto, tende, torretta di guardia, stendardo col teschio, bidoni in fiamme. Uscita con paletti luminosi verdi
+- [x] Etichette sopra i luoghi una volta esplorati: GARAGE, CAMPO PREDONI, USCITA (site_markers)
+- [x] Il SITREP della campagna dice bioma e tipo di zona di ogni settore; il bioma cambia ogni pochi settori
 
 ## Map rules
 - M1 Rilievo: il terreno è sfumato (media 5x5) e il carro guida su quella superficie; blocca solo una pendenza più ripida di tank_slope_span sotto l'impronta del carro. Un gradino di map_cliff o più è una scogliera e non viene sfumato.
@@ -192,6 +199,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - precisione da fermo e in movimento · in the slice
 - campo di battaglia distruttibile in voxel · in the slice
 - mappa generata proceduralmente · in the slice
+- biomi e tipi di zona con strutture leggibili · in the slice
 - truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice
 - raggio radio limitato e migliorabile · in the slice
 - pausa tattica e percorsi a tappe · in the slice
@@ -237,7 +245,6 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 -
 
 ## Out of scope
-- Mappe con limiti neri, biomi (deserto, foresta, ghiaccio) e strutture (rurale, villaggi, città distrutta), strutture rifatte leggibili: iteration 13
 - Quattro fazioni oltre all'Orda con cui interagire: iteration 14
 - AI di nemici e soldati (coperture, posizioni, nemici più furbi): iteration 15
 - Un hub tra i run con personaggi e storia: grow it

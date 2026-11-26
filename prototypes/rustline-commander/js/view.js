@@ -43,14 +43,15 @@ function initView() {
   x.fillStyle = 'rgb(238,236,232)'; for (let i = 0; i < 9; i++) x.fillRect(2 + (i * 5) % 12, 2 + (i * 7) % 12, 1, 1);
   const tex = new THREE.CanvasTexture(tc);
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestMipmapLinearFilter; tex.colorSpace = THREE.SRGBColorSpace;
-  R3.voxMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex });
+  R3.atlas = makeVoxAtlas(); // biomes.js: a patterned tile per voxel kind (bricks, tiles, panes, planks...)
+  R3.voxMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: R3.atlas.tex });
   R3.vlin = VCOL.map(h => new THREE.Color(h || 0));
   R3.chunks = new Map(); R3.chunkGroup = new THREE.Group(); sc.add(R3.chunkGroup);
 
   initTerrain(); // terrain.js: ground textures, ground material, trees, tufts, stones
   R3.water = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshPhongMaterial({ color: 0x3d5a50, specular: 0x9fb0a6, shininess: 90, transparent: true, opacity: 0.84, depthWrite: false, normalMap: R3.terTex.wn, normalScale: new THREE.Vector2(0.55, 0.55) }));
   R3.water.rotation.x = -Math.PI / 2; R3.water.receiveShadow = !CHEAP; sc.add(R3.water);
-  R3.outer = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: 0x8c7f58 }));
+  R3.outer = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false })); // the void past the map's edge
   R3.outer.rotation.x = -Math.PI / 2; sc.add(R3.outer);
 
   R3.units = new THREE.Group(); sc.add(R3.units);
@@ -135,7 +136,7 @@ function buildChunkGeo(cx, cz) {
   const N = world.N, x0 = cx * 16, z0 = cz * 16;
   const pos = [], nor = [], col = [], uv = [], idx = [];
   let vcount = 0;
-  const sm = smoothLook();
+  const sm = smoothLook(), snowy = !!BIOME().snow;
   // smooth look: a neighbour that is ground below the drawn surface, or a tree, counts as open
   const solidN = (x, y, z) => { const t = getV(x, y, z); if (!t || t === V.TREE) return false; if (!sm || !GROUNDV.has(t) || !inMap(x, z)) return true; return y >= TER.ground[x + N * z]; };
   for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
@@ -146,7 +147,7 @@ function buildChunkGeo(cx, cz) {
     if (sm && top > gtop) { let lo = gtop; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, z + dz)) lo = Math.min(lo, TER.gs[x + dx + N * (z + dz)]); skirt = gtop - lo + 0.6; }
     for (let y = sm ? gtop : 0; y < top; y++) {
       const t = world.vox[base + y]; if (!t || t === V.TREE) continue;
-      const bc = R3.vlin[t];
+      const bc = R3.vlin[t], snowTop = snowy && y === top - 1 && !GROUNDV.has(t); // snow on the roofs in the ice lands
       const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
       // the surface voxel of natural ground bends its top corners up toward a 1-voxel step: a ramp
       const ramp = !sm && y === top - 1 && NATURAL.has(t);
@@ -161,7 +162,9 @@ function buildChunkGeo(cx, cz) {
         for (let i = 0; i < 4; i++) {
           const c = F.c[i];
           pos.push(x + c[0], y + c[1] + (rise && c[1] ? rise[c[0] + 2 * c[2]] : 0) - (skirt && y === gtop && !c[1] && f !== 2 ? skirt : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
-          col.push(bc.r * k, bc.g * k, bc.b * k); uv.push(UVS[i][0], UVS[i][1]);
+          const uu = F.n[0] ? c[2] : c[0], vv = F.n[1] ? c[2] : c[1], au = atlasUV(t, F.n[0] < 0 || F.n[2] > 0 ? 1 - uu : uu, vv);
+          if (snowTop && f === 2) col.push(0.62 + bc.r * k * 0.3, 0.64 + bc.g * k * 0.3, 0.68 + bc.b * k * 0.3); else col.push(bc.r * k, bc.g * k, bc.b * k);
+          uv.push(au[0], au[1]);
         }
         idx.push(vcount, vcount + 1, vcount + 2, vcount, vcount + 2, vcount + 3);
         vcount += 4;
@@ -197,11 +200,11 @@ function rebuildWorldView() {
   const n = world.N / 16;
   for (let cz = 0; cz < n; cz++) for (let cx = 0; cx < n; cx++) setChunk(cx + cz * 64);
   world.dirty.clear();
-  rebuildDecor(); buildOuterRing();
-  const WS = smoothLook() ? world.N + 96 : world.N;
+  applyBiomeView(); rebuildDecor(); buildPropsView();
+  const WS = world.N;
   R3.terTex.wn.repeat.set(WS / 9, WS / 9);
   R3.water.scale.set(WS, WS, 1); R3.water.position.set(world.N / 2, world.WL - 0.2, world.N / 2);
-  R3.outer.position.set(world.N / 2, world.WL - 1.2, world.N / 2);
+  R3.outer.position.set(world.N / 2, -0.5, world.N / 2);
   for (const c of R3.units.children.slice()) R3.units.remove(c);
   R3.worldGen = world.gen;
 }
@@ -617,6 +620,7 @@ function renderWorld() {
     p.models.forEach((m, i) => { const x = p.x + (i - (p.n - 1) / 2) * 1.5, z = p.z + (i % 2) * 0.9; m.position.set(x, surfaceY(x, z), z); m.rotation.set(0, Math.atan2(state.tank.x - x, state.tank.z - z), 0); m.visible = !p.done; });
   }
   updateFogMesh();
+  updatePropsView();
   poolsBegin();
   // debris
   const D = R3.debris;

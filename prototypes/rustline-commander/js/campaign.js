@@ -24,22 +24,25 @@ const MISSIONS = {
 /** A new campaign: 8 columns, one start, one last stand, 2-4 sectors between, each linked forward. */
 function newCampaign() {
   const cols = [];
-  let id = 0;
+  let id = 0, colBiome = 'desert';
   for (let c = 0; c < 8; c++) {
     const k = c === 0 || c === 7 ? 1 : 2 + Math.floor(rng() * 3), col = [];
+    if (c === 0 || rng() < 0.45) colBiome = BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)]; // the land changes every few sectors
     for (let r = 0; r < k; r++) {
       const n = { id: id++, col: c, row: r, y: (r + 0.5) / k + (k > 1 ? (rng() - 0.5) * 0.12 : 0), next: [] };
       n.enemy = Math.max(1, Math.min(3, 1 + Math.floor(c / 3) + (rng() < 0.4 ? 1 : 0) - (rng() < 0.25 ? 1 : 0)));
       n.scrap = 1 + Math.floor(rng() * 3);
       const f = rng(); n.faction = f < 0.3 ? 'coloni' : f < 0.5 ? 'mercanti' : f < 0.68 ? 'disertori' : null;
       n.outpost = rng() < 0.3;
+      n.biome = rng() < 0.6 ? colBiome : BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)];
+      n.layout = LAYOUT_IDS[Math.floor(rng() * LAYOUT_IDS.length)];
       const m = rng(); n.mission = m < 0.3 ? 'camp' : m < 0.5 ? 'rescue' : m < 0.7 ? 'cache' : 'exit';
       col.push(n);
     }
     cols.push(col);
   }
   // the first sector: few raiders, prisoners to free and deserters to meet, so the tank finds its first men
-  Object.assign(cols[0][0], { enemy: 1, scrap: 2, faction: 'disertori', outpost: false, mission: 'rescue' });
+  Object.assign(cols[0][0], { enemy: 1, scrap: 2, faction: 'disertori', outpost: false, mission: 'rescue', layout: rng() < 0.5 ? 'rural' : 'villages' });
   Object.assign(cols[7][0], { final: true, enemy: 3, faction: null, outpost: true, mission: 'defend' });
   // links: each sector to the one or two nearest in the next column, and every sector reached
   for (let c = 0; c < 7; c++) {
@@ -55,8 +58,8 @@ function newCampaign() {
 function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (n.id === id) return n; return null; }
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
-  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3 };
-  return { camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout };
+  return { biome: n.biome, layout: n.layout, camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -137,7 +140,7 @@ function setupMap() {
   }
   if (n.final) setupFinal();
   else {
-    say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
+    say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
     const gs = s.outposts.filter(o => o.shed);
     if (gs.length) say('SITREP', (gs.length > 1 ? 'Due garage amici: ' : 'Garage amico: ') + gs.map(o => o.name).join(' e ') + ' (croce verde sulla minimappa). Lì modifiche, colpi e pezzi trovati.', '#b6d77a');
   }
@@ -455,6 +458,7 @@ function drawCampaign() {
   panel(bx, by, 440, 124);
   if (sel) {
     text('SITREP · settore ' + (sel.col + 1) + (sel.final ? ' · ULTIMA DIFESA' : ''), bx + 16, by + 20, 15, '#ffd9a0', 'left');
+    if (sel.biome) text(BIOMES[sel.biome].name + ' · ' + LAYOUTS[sel.layout].name, bx + 424, by + 20, 14, '#9fd8ff', 'right');
     if (sel.final) wrap('Il campo dell\'esercito. L\'Orda attaccherà con tutto quello che ha: ondate su ondate, poi il Carro del Capo.', 410, 14).forEach((l, i) => text(l, bx + 16, by + 46 + i * 20, 14, HC.text, 'left'));
     else {
       text('Presenza nemica: ' + LEVEL[sel.enemy], bx + 16, by + 46, 14, ['', HC.ok, HC.warn, HC.bad][sel.enemy], 'left');

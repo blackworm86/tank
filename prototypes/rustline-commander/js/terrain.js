@@ -43,7 +43,7 @@ function terrainCells(x0, z0, x1, z1) {
     let slope = 0;
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) slope = Math.max(slope, Math.abs(tR(x + dx, z + dz) - g));
     let asph = 0, rock = 0, mud = 0, grass = 0;
-    if (t === V.ROAD && world.road[i] === 1) asph = 1;
+    if (t === V.ROAD && world.road[i] !== 2) asph = 1; // roads, and the streets and squares of towns
     else {
       const stony = t === V.ROCK || t === V.RED;
       rock = stony ? Math.max(0.3, smooth(0.5, 1.6, slope)) : smooth(1, 2.6, slope); // plateaus grassed over, rock on the steep sides
@@ -53,7 +53,7 @@ function terrainCells(x0, z0, x1, z1) {
         for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (tR(x + dx, z + dz) < WL) wd = Math.min(wd, Math.max(Math.abs(dx), Math.abs(dz)));
         mud = wd <= 1 ? 0.9 : wd <= 2 ? 0.5 : 0;
       }
-      mud = Math.min(1, Math.max(mud, smooth(0.6, 0.7, fbm(x / 7, z / 7, 501, 2)) * tune.mud_patches * 1.6));
+      mud = Math.min(1, Math.max(mud, smooth(0.6, 0.7, fbm(x / 7, z / 7, 501, 2)) * tune.mud_patches * 1.6 * BIOME().mud));
       let nearRoad = 0;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, z + dz) && world.road[x + dx + N * (z + dz)]) nearRoad = 1;
       grass = (t === V.SAND || t === V.DIRT || stony) ? 0.3 + 0.7 * smooth(0.3, 0.52, fbm(x / 11, z / 11, 502, 3)) : 0;
@@ -290,6 +290,12 @@ vec3 cM = texture2D(tMud, tp * 0.21).rgb;
 vec3 cR = mix(texture2D(tRock, tp * 0.17).rgb, texture2D(tRock, vec2(vTPos.x + vTPos.z * 0.7, vTPos.y * 1.3) * 0.17).rgb, clamp(vSteep * 2.0, 0.0, 1.0));
 vec3 cA = texture2D(tAsph, tp * 0.16).rgb;
 vec3 cD = texture2D(tDirt, tp * 0.23).rgb;
+// the biome's tints: each ground pulled toward its colour, keeping the texture's light and shade
+cG = mix(cG, uTG.rgb * (0.45 + 1.6 * dot(cG, vec3(0.333))), uTG.a);
+cM = mix(cM, uTM.rgb * (0.45 + 1.6 * dot(cM, vec3(0.333))), uTM.a);
+cR = mix(cR, uTR.rgb * (0.45 + 1.6 * dot(cR, vec3(0.333))), uTR.a);
+cA = mix(cA, uTA.rgb * (0.45 + 1.6 * dot(cA, vec3(0.333))), uTA.a);
+cD = mix(cD, uTD.rgb * (0.45 + 1.6 * dot(cD, vec3(0.333))), uTD.a);
 vec4 hh = vec4(texture2D(tHeight, tp * 0.26).r, texture2D(tHeight, tp * 0.21 + 0.3).r, texture2D(tHeight, tp * 0.17 + 0.6).r, texture2D(tHeight, tp * 0.16 + 0.1).r);
 float hd = texture2D(tHeight, tp * 0.23 + 0.8).r;
 float wd = max(0.0, 1.0 - vSplat.x - vSplat.y - vSplat.z - vSplat.w);
@@ -307,12 +313,13 @@ gc *= 0.84 + big * 0.32;
 diffuseColor.rgb *= gc;
 `;
 function makeTerrainMaterial(T) {
+  R3.terU = { uTG: { value: new THREE.Vector4(1, 1, 1, 0) }, uTM: { value: new THREE.Vector4(1, 1, 1, 0) }, uTR: { value: new THREE.Vector4(1, 1, 1, 0) }, uTA: { value: new THREE.Vector4(1, 1, 1, 0) }, uTD: { value: new THREE.Vector4(1, 1, 1, 0) } };
   const m = new THREE.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { tGrass: { value: T.grass }, tMud: { value: T.mud }, tRock: { value: T.rock }, tAsph: { value: T.asph }, tDirt: { value: T.dirt }, tHeight: { value: T.height } });
+    Object.assign(sh.uniforms, { tGrass: { value: T.grass }, tMud: { value: T.mud }, tRock: { value: T.rock }, tAsph: { value: T.asph }, tDirt: { value: T.dirt }, tHeight: { value: T.height } }, R3.terU);
     sh.vertexShader = 'attribute vec4 splat;\nattribute float steep;\nvarying vec4 vSplat;\nvarying float vSteep;\nvarying vec3 vTPos;\n' +
       sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSplat = splat; vSteep = steep; vTPos = position;');
-    sh.fragmentShader = 'uniform sampler2D tGrass;\nuniform sampler2D tMud;\nuniform sampler2D tRock;\nuniform sampler2D tAsph;\nuniform sampler2D tDirt;\nuniform sampler2D tHeight;\nvarying vec4 vSplat;\nvarying float vSteep;\nvarying vec3 vTPos;\n' +
+    sh.fragmentShader = 'uniform vec4 uTG;\nuniform vec4 uTM;\nuniform vec4 uTR;\nuniform vec4 uTA;\nuniform vec4 uTD;\nuniform sampler2D tGrass;\nuniform sampler2D tMud;\nuniform sampler2D tRock;\nuniform sampler2D tAsph;\nuniform sampler2D tDirt;\nuniform sampler2D tHeight;\nvarying vec4 vSplat;\nvarying float vSteep;\nvarying vec3 vTPos;\n' +
       sh.fragmentShader.replace('#include <map_fragment>', TER_FRAG);
   };
   m.customProgramCacheKey = () => 'terrain-splat';
@@ -402,13 +409,14 @@ function rebuildDecor() {
         nt = putInst(D.trunk, nt, px + Math.sin(yaw) * 0.4, y + 0.25, pz + Math.cos(yaw) * 0.4, Math.PI / 2, yaw, 0, 0.24 * s, 3.2 * s, 0.24 * s, pick(PAL.trunk, kind), br * 0.9);
         continue;
       }
-      if (kind < 0.45) { // conifer
+      const TB = BIOME().trees;
+      if (kind < TB[0]) { // conifer
         nt = putInst(D.trunk, nt, px, y, pz, 0, yaw, 0, 0.22 * s, 1.8 * s, 0.22 * s, pick(PAL.trunk, kind * 2), br);
         const cc = pick(PAL.conifer, hash2(x, z, 825));
         nc = putInst(D.cone, nc, px, y + 1.1 * s, pz, 0, yaw, 0, 1.55 * s, 2.3 * s, 1.55 * s, cc, br);
         nc = putInst(D.cone, nc, px, y + 2.3 * s, pz, 0, yaw + 1, 0, 1.2 * s, 2.0 * s, 1.2 * s, cc, br * 1.04);
         nc = putInst(D.cone, nc, px, y + 3.4 * s, pz, 0, yaw + 2, 0, 0.82 * s, 1.8 * s, 0.82 * s, cc, br * 1.08);
-      } else if (kind < 0.88) { // broadleaf, dry
+      } else if (kind < TB[1]) { // broadleaf
         nt = putInst(D.trunk, nt, px, y, pz, 0, yaw, 0, 0.28 * s, 2.6 * s, 0.28 * s, pick(PAL.trunk, kind), br);
         const lc = pick(PAL.leaf, hash2(x, z, 826));
         nb = putInst(D.blob, nb, px, y + 3.2 * s, pz, 0, yaw, 0, 1.55 * s, 1.25 * s, 1.55 * s, lc, br);
@@ -424,7 +432,7 @@ function rebuildDecor() {
     if (!sm || h !== g || g < WL) continue;
     const k = i * 4, gw = TER.cellW[k], rw = TER.cellW[k + 2], aw = TER.cellW[k + 3];
     if (aw > 0.3) continue;
-    const want = gw * tune.grass_tufts, cnt = Math.floor(want) + (hash2(x, z, 801) < want % 1 ? 1 : 0);
+    const want = gw * tune.grass_tufts * BIOME().tufts, cnt = Math.floor(want) + (hash2(x, z, 801) < want % 1 ? 1 : 0);
     const burnt = world.scorch[i] > 60;
     for (let j = 0; j < cnt; j++) {
       const px = x + hash2(x * 3 + j, z, 802), pz = z + hash2(x, z * 3 + j, 803), s = 0.6 + hash2(x + j, z, 804) * 0.9;

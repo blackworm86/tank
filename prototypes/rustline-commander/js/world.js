@@ -106,8 +106,8 @@ function shallow(x, z) { return hAt(x, z) < world.WL; }
  * bridges, no mountains, mesa, canyon or lakes, three camps, few ruins, rocks and woods.
  */
 function mapPreset() {
-  if (tune.map_simple) return { size: 128, relief: 4, mountains: 0, mesa: false, lakes: false, camps: 3, ruins: 6, rocks: 5, forest: 0.3 };
-  return { size: Math.round(tune.map_size / 16) * 16, relief: 11, mountains: tune.mountain_amount, mesa: true, lakes: true, camps: Math.round(tune.camp_count), ruins: Math.round(tune.ruin_count), rocks: Math.round(tune.rock_count), forest: tune.forest_amount };
+  if (tune.map_simple) return biomePreset({ size: 128, relief: 4, mountains: 0, mesa: false, lakes: false, camps: 3, ruins: 6, rocks: 5, forest: 0.3 });
+  return biomePreset({ size: Math.round(tune.map_size / 16) * 16, relief: 11, mountains: tune.mountain_amount, mesa: true, lakes: true, camps: Math.round(tune.camp_count), ruins: Math.round(tune.ruin_count), rocks: Math.round(tune.rock_count), forest: tune.forest_amount });
 }
 function genWorld() {
   const P = mapPreset(); world.preset = P;
@@ -120,7 +120,7 @@ function genWorld() {
   world.road = new Uint8Array(N * N);
   world.scorch = new Uint8Array(N * N);
   world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N);
-  world.buildings = []; world.bld = new Int16Array(N * N);
+  world.buildings = []; world.bld = new Int16Array(N * N); world.props = []; world.keep = new Uint8Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
   const flipX = rng() < 0.5, flipZ = rng() < 0.5;
@@ -303,7 +303,7 @@ function genWorld() {
   for (const o of sites.outposts) buildOutpost(o, false);
   for (const c of sites.camps) buildCamp(c);
   world.sitesStart = sites.start;
-  if (sites.fortress.kind === 'fortress') buildFortress(sites.fortress); else buildExit(sites.fortress);
+  if (sites.fortress.kind === 'fortress') { buildFortress(sites.fortress); dressFortress(sites.fortress); } else buildExit(sites.fortress);
   // friendly outposts keep their roads open: nothing of theirs stands on a road or beside it
   for (const o of [sites.start, ...sites.outposts]) {
     for (let dz = -13; dz <= 13; dz++) for (let dx = -13; dx <= 13; dx++) {
@@ -355,7 +355,8 @@ function genWorld() {
     }
     return null;
   };
-  for (let k = 0; k < P.ruins; k++) { const s = freeSpot(18, 2); if (s) { buildRuin(s); recomputeAll(); } }
+  buildLayout(sites, placed, freeSpot, P, ns); // biomes.js: farms, villages, the city, petrol stations, huts, ruins
+  recomputeAll();
   for (let k = 0; k < P.rocks; k++) {
     const s = freeSpot(14, 3); if (!s) continue;
     rockOutcrop(s.x + 2, s.z + 2, 2.5 + rng() * 2.5, 2 + Math.floor(rng() * 3));
@@ -396,6 +397,7 @@ function plantTrees(placed, ns) {
     const i = x + N * z, h = world.hmap[i];
     if (h < WL + 1) continue;
     const t = world.vox[vi(x, h - 1, z)]; if (t !== V.SAND && t !== V.DIRT && t !== V.ROCK && t !== V.RED) continue;
+    if (world.bld[i]) continue; // never inside a building
     let bad = false;
     for (let dz = -2; dz <= 2 && !bad; dz++) for (let dx = -2; dx <= 2; dx++) {
       const j = x + dx + N * (z + dz);
@@ -511,15 +513,6 @@ function carveRoad(hi, N, WL, path) {
 
 /** Half-size of a site's flat pad (map rule M9): an outpost's holds its wall and its tool shed. */
 function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : s.kind === 'exit' ? 11 : 17; }
-/** A sector's exit: a ring of yellow paint on the ground round the pad, nothing in the way. */
-function buildExit(s) {
-  for (let dz = -9; dz <= 9; dz++) for (let dx = -9; dx <= 9; dx++) {
-    const d = Math.hypot(dx, dz); if (d < 7.5 || d > 9) continue;
-    if (((Math.atan2(dz, dx) + 7) * 4 | 0) % 2) continue; // dashed
-    const x = s.x + dx, z = s.z + dz; if (!inMap(x, z)) continue;
-    const t = colTop(x, z); if (t > 1) put(x, t - 1, z, V.YEL);
-  }
-}
 /**
  * Map rule M4b: along the roads no step is higher than 1, so roads that cross or run side by side at
  * different heights meet in ramps, never cliffs. A site's flat pad is never cut: its height reaches
@@ -644,94 +637,6 @@ function buildingWalls(b) {
 function buildingAt(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return null;
   const k = world.bld[ix + world.N * iz]; return k ? world.buildings[k - 1] : null;
-}
-function buildOutpost(s, home) {
-  const g = s.g, R = 13;
-  if (!home) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { // the start has no wall (M9)
-    if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-    if (Math.abs(dx) <= 4 || Math.abs(dz) <= 4) continue; // four gates 9 wide
-    let road = false; // and a gap wherever a road runs through the wall
-    for (let a = -2; a <= 2 && !road; a++) for (let b = -2; b <= 2; b++) if (inMap(s.x + dx + a, s.z + dz + b) && world.road[s.x + dx + a + world.N * (s.z + dz + b)]) { road = true; break; }
-    if (road) continue;
-    const t = (dx + dz) % 4 === 0 ? V.GREEN : V.JUNK;
-    put(s.x + dx, g, s.z + dz, t); put(s.x + dx, g + 1, s.z + dz, (dx * 7 + dz) % 3 ? V.JUNK : V.RUST);
-  }
-  // huts 4x4 in the corners no road crosses, 6 to 9 cells out: an 11-wide yard, 3 cells to the wall,
-  // doors toward the yard (M9); the fuel tank takes a free corner left over
-  const corners = [[-9, -9], [6, -9], [-9, 6], [6, 6]].filter(([a, b]) => {
-    for (let dz = -1; dz <= 4; dz++) for (let dx = -1; dx <= 4; dx++) if (inMap(s.x + a + dx, s.z + b + dz) && world.road[s.x + a + dx + world.N * (s.z + b + dz)]) return false;
-    return true;
-  });
-  const walls = [V.JUNK, V.RUST, V.JUNK];
-  corners.slice(0, 3).forEach(([a, b], k) => {
-    const north = b < 0; // a door on the side facing the yard
-    boxShell(s.x + a, s.z + b, 4, 4, g, 3, V.RUST, walls[k], (dx, dz, y) => y < 2 && dz === (north ? 3 : 0) && dx === (a < 0 ? 2 : 1));
-    if (k === 0) { // the flag on the first hut's roof
-      const fx = s.x + a + (a < 0 ? 0 : 3), fz = s.z + b + (north ? 0 : 3);
-      for (let y = 3; y < 9; y++) put(fx, g + y, fz, V.WOOD);
-      put(fx + 1, g + 8, fz, V.GREEN); put(fx + 2, g + 8, fz, V.GREEN); put(fx + 1, g + 7, fz, V.GREEN); put(fx + 2, g + 7, fz, V.YEL);
-    }
-  });
-  const ft = corners[3];
-  if (ft) for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + ft[0] + 1 + a, g + y, s.z + ft[1] + 1 + b, y === 2 ? V.YEL : V.RUST);
-  buildShed(s, home ? 11 : R);
-  s.home = home;
-}
-/**
- * The tool shed: an open roof on four posts outside the outpost wall, beside a gate (one the road
- * uses when it can), on the flattest dry ground. Driving up to it opens the modifications menu.
- */
-function buildShed(s, R) {
-  const N = world.N, WL = world.WL;
-  let best = null;
-  for (const [ux, uz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const side of [1, -1]) {
-    const px = -uz * side, pz = ux * side;
-    const cx = s.x + ux * (R + 2) + px * 6, cz = s.z + uz * (R + 2) + pz * 6;
-    let score = 0, lo = 99, hi = 0;
-    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
-      const x = cx + a, z = cz + b; if (!inMap(x, z)) { score += 100; continue; }
-      if (world.road[x + N * z]) score += 100;
-      const h = colTop(x, z); lo = Math.min(lo, h); hi = Math.max(hi, h);
-    }
-    if (lo < WL + 1) score += 100;
-    score += (hi - lo) * 2;
-    const gx = s.x + ux * (R + 2), gz = s.z + uz * (R + 2);
-    if (inMap(gx, gz) && world.road[gx + N * gz]) score -= 3; // by the road's gate
-    if (!best || score < best.score) best = { score, cx, cz };
-  }
-  if (best.score >= 100) best = { cx: s.x + 5, cz: s.z + 5 }; // nowhere outside: in the yard
-  const { cx, cz } = best;
-  let top = 0;
-  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) top = Math.max(top, colTop(cx + a, cz + b));
-  // two posts at the back, the side away from the outpost: the front stays open to drive up to
-  const bx = Math.sign(cx - s.x) || 1, bz = Math.sign(cz - s.z) || 1, back = Math.abs(cx - s.x) >= Math.abs(cz - s.z) ? [[bx, -1], [bx, 1]] : [[-1, bz], [1, bz]];
-  for (const [a, b] of back) for (let y = colTop(cx + a, cz + b); y < top + 3; y++) put(cx + a, y, cz + b, V.RUST);
-  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) put(cx + a, top + 3, cz + b, (a + b) & 1 ? V.YEL : V.RUST);
-  s.shed = { x: cx + 0.5, z: cz + 0.5 };
-}
-function buildCamp(c) {
-  const g = c.g, tier = c.tier;
-  c.spots = [];
-  // sandbag arcs with gaps
-  for (let a = 0; a < 64; a++) {
-    const ang = a / 64 * Math.PI * 2;
-    if ((a % 16) < 3) continue;
-    const x = Math.round(c.x + Math.cos(ang) * 6.5), z = Math.round(c.z + Math.sin(ang) * 6.5);
-    put(x, g, z, V.BAG); if (tier >= 3) put(x, g + 1, z, V.BAG);
-    if (a % 5 === 0) c.spots.push({ x: c.x + 0.5 + Math.cos(ang) * 5.2, z: c.z + 0.5 + Math.sin(ang) * 5.2 });
-  }
-  // bunker in the middle
-  boxShell(c.x - 2, c.z - 2, 5, 5, g, 3, V.CONC, V.CONC, (dx, dz, y) => (y === 1 && (dx === 2 || dz === 2)) || (dz === 4 && dx === 2 && y < 2));
-  // watchtower
-  const tx = c.x + 2, tz = c.z - 8; // 3 cells clear of the bunker (M9)
-  for (let y = 0; y < 4; y++) for (const [a, b] of [[0, 0], [2, 0], [0, 2], [2, 2]]) put(tx + a, g + y, tz + b, V.WOOD);
-  for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) put(tx + a, g + 4, tz + b, V.WOOD);
-  for (let a = 0; a < 3; a++) { put(tx + a, g + 5, tz, V.RAID); put(tx + a, g + 5, tz + 2, V.RAID); }
-  c.tower = { x: tx + 1.5, z: tz + 1.5 };
-  // banner and junk
-  for (let y = 0; y < 6; y++) put(c.x - 6, g + y, c.z + 5, V.WOOD);
-  put(c.x - 5, g + 5, c.z + 5, V.RAID); put(c.x - 5, g + 4, c.z + 5, V.YEL); put(c.x - 4, g + 5, c.z + 5, V.RAID);
-  for (let k = 0; k < 4; k++) { const x = c.x - 4 + k * 2, z = c.z + 5; put(x, g, z, V.JUNK); if (k % 2) put(x, g + 1, z, V.RUST); }
 }
 function buildFortress(f) {
   const g = f.g, R = 15;

@@ -36,6 +36,9 @@ window.CONFIG = {
   turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front
   squad_size: { value: 8, min: 1, max: 12, step: 1 },            // most soldiers in one squad (Alt+1-6)
   fog_unknown: { value: 0.97, min: 0, max: 1, step: 0.01 },     // how dark the ground nobody has explored yet is drawn (map and minimap)
+  biome_force: { value: 0, min: 0, max: 4, step: 1 },          // 0 = the campaign's biome; 1 desert, 2 forest, 3 ice, 4 burnt lands (testing)
+  layout_force: { value: 0, min: 0, max: 4, step: 1 },         // 0 = the campaign's layout; 1 open lands, 2 farmland, 3 villages, 4 ruined city (testing)
+  site_markers: { value: 1, min: 0, max: 1, step: 1 },         // 1 = floating labels over the garage, the camps and the exit once explored
   fog_lid: { value: 11, min: 0, max: 30, step: 1 },              // how high the unexplored fog sits above the ground, covering trees and buildings
   fog_dark: { value: 0.7, min: 0, max: 0.9, step: 0.05 },      // how dark the ground nobody sees is drawn
   posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
