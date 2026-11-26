@@ -179,6 +179,13 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Garage: capannone in lamiera aperto davanti, bordo a strisce gialle e nere, insegna OFFICINA, banco da lavoro e paranco dentro; ci si entra col carro per aprire il menu. Avamposti con muro di sacchetti e pannelli, cancelli a strisce, torrette agli angoli, baracche col tetto a falde, cisterna e bandiera. Campi predoni con palizzata a punte, bunker con feritoie e sacchetti sul tetto, tende, torretta di guardia, stendardo col teschio, bidoni in fiamme. Uscita con paletti luminosi verdi
 - [x] Etichette sopra i luoghi una volta esplorati: GARAGE, CAMPO PREDONI, USCITA (site_markers)
 - [x] Il SITREP della campagna dice bioma e tipo di zona di ogni settore; il bioma cambia ogni pochi settori
+- [x] Cinque fazioni oltre all'Orda, ognuna padrona di alcuni settori con un suo insediamento e una reputazione che dura tutta la campagna (da -100 a 100: amici da 30, ostili da -30; sconti o rincari fino al 35%), mostrata nella schermata della campagna e nel SITREP
+- [x] Carovana dei Mercanti (mercato con bancarelle, camion e insegna MERCATO): colpi, riparazioni, un sistema avanzato, l'incarico di portare una cassa all'uscita; si possono rapinare
+- [x] Coloni dei Pozzi (borgo con due case, pozzo, fieno): scorte in cambio di un medico, l'incarico di difendere il borgo da una razzia (rottami, riparazioni, due miliziani), volontari se amici, fabbri; si possono derubare
+- [x] Disertori della 4ª Divisione (posto di blocco sulla strada principale: sbarra a strisce, sacchetti, bunker): pedaggio o passaggio libero da amici, veterani da assoldare, colpi AP e cannone 75mm a metà prezzo se amici; si può forzare il blocco
+- [x] Culto della Ruggine (santuario di totem di rottami e relitti): offerte, un sistema antico in baratto, la benedizione che ripara tutto se amici; spogliare i relitti nei loro settori li offende, e da ostili tendono imboscate coi lanciarazzi
+- [x] Ratti di Ferro (accampamento con tende e moto): nei loro settori metà dei relitti è già spolpata; spartire il bottino, assoldare esploratori che scoprono la zona e cerchiano i campi, o cacciarli
+- [x] Gli insediamenti si riaprono allontanandosi e tornando; una fazione ostile accoglie il carro con un gruppo armato; etichetta col nome sopra l'insediamento
 
 ## Map rules
 - M1 Rilievo: il terreno è sfumato (media 5x5) e il carro guida su quella superficie; blocca solo una pendenza più ripida di tank_slope_span sotto l'impronta del carro. Un gradino di map_cliff o più è una scogliera e non viene sfumato.
@@ -200,6 +207,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - campo di battaglia distruttibile in voxel · in the slice
 - mappa generata proceduralmente · in the slice
 - biomi e tipi di zona con strutture leggibili · in the slice
+- cinque fazioni con insediamenti, dialoghi e reputazione · in the slice
 - truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice
 - raggio radio limitato e migliorabile · in the slice
 - pausa tattica e percorsi a tappe · in the slice
@@ -245,7 +253,6 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 -
 
 ## Out of scope
-- Quattro fazioni oltre all'Orda con cui interagire: iteration 14
 - AI di nemici e soldati (coperture, posizioni, nemici più furbi): iteration 15
 - Un hub tra i run con personaggi e storia: grow it
 - Molti biomi e boss: grow it

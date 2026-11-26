@@ -7,11 +7,7 @@
 'use strict';
 
 // ---- The campaign map ---------------------------------------------------------------------------------
-const FACTIONS = {
-  coloni: { name: 'Coloni', col: '#b9f59a', sign: 'Coloni in zona' },
-  mercanti: { name: 'Carovana dei mercanti', col: '#ffd36a', sign: 'Carovana dei mercanti' },
-  disertori: { name: 'Disertori', col: '#9fd8ff', sign: 'Disertori armati' },
-};
+// FACTIONS: js/factions.js
 const LEVEL = ['', 'bassa', 'media', 'alta'], PLENTY = ['', 'pochi', 'discreti', 'molti'];
 const MISSIONS = {
   exit: { name: 'Raggiungi l\'uscita', brief: 'Nessun obiettivo: trova l\'uscita del settore.' },
@@ -32,7 +28,7 @@ function newCampaign() {
       const n = { id: id++, col: c, row: r, y: (r + 0.5) / k + (k > 1 ? (rng() - 0.5) * 0.12 : 0), next: [] };
       n.enemy = Math.max(1, Math.min(3, 1 + Math.floor(c / 3) + (rng() < 0.4 ? 1 : 0) - (rng() < 0.25 ? 1 : 0)));
       n.scrap = 1 + Math.floor(rng() * 3);
-      const f = rng(); n.faction = f < 0.3 ? 'coloni' : f < 0.5 ? 'mercanti' : f < 0.68 ? 'disertori' : null;
+      n.faction = rng() < 0.82 ? FACTION_IDS[Math.floor(rng() * FACTION_IDS.length)] : null; // who holds the sector
       n.outpost = rng() < 0.3;
       n.biome = rng() < 0.6 ? colBiome : BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)];
       n.layout = LAYOUT_IDS[Math.floor(rng() * LAYOUT_IDS.length)];
@@ -42,7 +38,7 @@ function newCampaign() {
     cols.push(col);
   }
   // the first sector: few raiders, prisoners to free and deserters to meet, so the tank finds its first men
-  Object.assign(cols[0][0], { enemy: 1, scrap: 2, faction: 'disertori', outpost: false, mission: 'rescue', layout: rng() < 0.5 ? 'rural' : 'villages' });
+  Object.assign(cols[0][0], { enemy: 1, scrap: 2, faction: 'coloni', outpost: false, mission: 'rescue', layout: rng() < 0.5 ? 'rural' : 'villages' });
   Object.assign(cols[7][0], { final: true, enemy: 3, faction: null, outpost: true, mission: 'defend' });
   // links: each sector to the one or two nearest in the next column, and every sector reached
   for (let c = 0; c < 7; c++) {
@@ -53,13 +49,13 @@ function newCampaign() {
     }
     for (const b of B) if (!A.some(a => a.next.includes(b.id))) A.slice().sort((p, q) => Math.abs(p.y - b.y) - Math.abs(q.y - b.y))[0].next.push(b.id);
   }
-  state.camp = { cols, cur: 0, visited: [0], lost: 0, sector: 1 };
+  state.camp = { cols, cur: 0, visited: [0], lost: 0, sector: 1, rep: {} };
 }
 function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (n.id === id) return n; return null; }
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
   if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout };
-  return { biome: n.biome, layout: n.layout, camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  return { faction: n.faction, biome: n.biome, layout: n.layout, camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -124,7 +120,7 @@ function setupMap() {
     const q = spotNear(p[0] + 6, p[1] + 6, 0); M.cache = { x: q.x, z: q.z }; M.target = M.cache;
   }
   // the people met on the way: by the road, away from the camps
-  const rm = s.roadMain, want = n.final ? 0 : n.faction === 'coloni' ? 3 : n.faction ? 2 : 1;
+  const rm = s.roadMain, want = n.final ? 0 : 1 + (rng() < 0.5 ? 1 : 0);
   const used = new Set();
   for (let k = 0; k < want && rm.length > 30; k++) {
     for (let tries = 0; tries < 30; tries++) {
@@ -138,6 +134,7 @@ function setupMap() {
       break;
     }
   }
+  setupFactions(); // factions.js: the settlement, its people and the faction's ways
   if (n.final) setupFinal();
   else {
     say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
@@ -192,12 +189,13 @@ function campaignUpdate(dt) {
       if (q.recruits) joinSquad(q.recruits, 'Volontari', tk.x - 4, tk.z - 4);
     }
   }
+  factionUpdate(dt); // factions.js: jobs, raids, the cult's eyes
   // people on the way: spotted from afar, talked to up close
   for (const p of state.npcs) {
     if (p.done) continue;
     const d = Math.hypot(p.x - tk.x, p.z - tk.z);
-    if (!p.seen && d < 46) { p.seen = true; say('Radio', 'Gente in vista, sembrano neutrali. Avvicinati col carro per parlarci.', '#cfd8e0'); }
-    if (d < tune.npc_radius && !state.goScene && !state.tpause) { p.done = true; tk.speed = 0; state.event = { p, ev: p.ev, res: null }; state.goScene = 'event'; }
+    if (!p.seen && d < 46) { p.seen = true; say('Radio', p.fac ? FACTIONS[p.fac].sign + ' in vista. Avvicinati col carro per parlarci.' : 'Gente in vista, sembrano neutrali. Avvicinati col carro per parlarci.', p.fac ? FACTIONS[p.fac].col : '#cfd8e0'); }
+    if (d < (p.r || tune.npc_radius) && !state.goScene && !state.tpause) { p.done = true; tk.speed = 0; state.event = { p, ev: p.mk ? p.mk(p) : p.ev, res: null }; state.goScene = 'event'; }
   }
   // the Horde's clock
   state.hordeT -= dt;
@@ -290,13 +288,13 @@ function promote(sq, r) { if (sq) for (const m of alive(sq)) { m.rank = r; m.xp 
  * line shown as its outcome. fac: the faction it comes with (null: anyone); fig: their figure.
  */
 const EVENTS = [
-  { id: 'disertori', fac: 'disertori', fig: 'r_rifle', title: 'Disertori dell\'Orda', text: 'Tre uomini con le insegne dell\'Orda strappate alzano le mani. "Ne abbiamo abbastanza del Capo. Prendeteci con voi, sappiamo sparare."',
+  { id: 'disertori', fac: null, fig: 'r_rifle', title: 'Disertori dell\'Orda', text: 'Tre uomini con le insegne dell\'Orda strappate alzano le mani. "Ne abbiamo abbastanza del Capo. Prendeteci con voi, sappiamo sparare."',
     choices: [
       { label: 'Accoglili nel gruppo', act: () => { if (state.node.col > 0 && rng() < 0.2) { ambush(5); return 'Era una trappola! Altri predoni escono dai cespugli.'; } joinSquad(['rifle', 'rifle', 'mg'], 'Disertori', state.tank.x - 4, state.tank.z - 4); return 'Si mettono in fila dietro al carro. Una squadra in più.'; } },
       { label: 'Prendi le loro armi e mandali via (+40 rottami)', act: () => { state.scrap += 40; return 'Lasciano fucili e munizioni e spariscono tra le rovine.'; } },
       { label: 'Tira dritto', act: () => 'Li lasci al loro destino.' },
     ] },
-  { id: 'cecchino', fac: 'disertori', fig: 'sniper', figs: 1, title: 'Il cecchino solitario', text: 'Un tiratore scelto ti osserva da un tetto. "Ho una buona canna e la mira ferma. Per 60 rottami lavoro per te fino alla fine."',
+  { id: 'cecchino', fac: null, fig: 'sniper', figs: 1, title: 'Il cecchino solitario', text: 'Un tiratore scelto ti osserva da un tetto. "Ho una buona canna e la mira ferma. Per 60 rottami lavoro per te fino alla fine."',
     choices: [
       { label: 'Paga 60 rottami', need: () => state.scrap >= 60, act: () => { state.scrap -= 60; promote(joinSquad(['sniper'], 'Occhio di Falco', state.tank.x - 3, state.tank.z - 3), 2); return 'Un veterano in più: scende dal tetto e si unisce a te.'; } },
       { label: 'Non ci serve', act: () => 'Alza le spalle e torna a guardare l\'orizzonte.' },
@@ -397,7 +395,7 @@ function drawMapHUD() {
   if (!state.final) tag(s.fortress.x, s.fortress.z, 'USCITA', '#ffd36a', 6);
   const M = state.mission;
   if (M.target && !M.done) tag(M.target.x, M.target.z, M.kind === 'cache' ? 'DEPOSITO' : M.kind === 'rescue' ? 'PRIGIONIERI' : 'OBIETTIVO', '#ff8a6a', 7);
-  for (const p of state.npcs) if (p.seen && !p.done) tag(p.x, p.z, '?', '#b9f59a', 3.4);
+  for (const p of state.npcs) if (p.seen && !p.done) tag(p.x, p.z, p.fac ? FACTIONS[p.fac].short : '?', p.fac ? FACTIONS[p.fac].col : '#b9f59a', 3.4);
   if (state.leaveOK) {
     const c = exitCount(), msg = (state.atExit ? 'USCITA' : 'MISSIONE COMPIUTA') + ' · Invio: lascia il settore · con te ' + c.go + (c.stay ? ', ' + c.stay + ' restano indietro (fuori radio)' : '');
     ctx.font = `bold 14px ${FONT}`; const w = ctx.measureText(msg).width + 30;
@@ -464,13 +462,16 @@ function drawCampaign() {
       text('Presenza nemica: ' + LEVEL[sel.enemy], bx + 16, by + 46, 14, ['', HC.ok, HC.warn, HC.bad][sel.enemy], 'left');
       text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 46, 14, HC.gold, 'left');
       const signs = [];
-      if (sel.faction) signs.push(FACTIONS[sel.faction].sign);
+      if (sel.faction) signs.push(FACTIONS[sel.faction].sign + ' (' + repLabel(sel.faction) + ')');
       signs.push(sel.outpost ? '2 garage' : 'garage');
       if (sel.mission === 'rescue') signs.push('segnale di soccorso');
       text('Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), bx + 16, by + 70, 14, HC.text, 'left');
     }
     text('Click o tasto ' + (R.indexOf(sel) + 1) + ' per partire', bx + 16, by + 102, 13, HC.dim, 'left');
   } else text('Passa il mouse su un settore giallo per il SITREP.', bx + 16, by + 60, 14, HC.dim, 'left');
+  const rx = 575, ry = H - 140; panel(rx, ry, 230, 124); // the factions' standing
+  text('Reputazione', rx + 12, ry + 16, 13, '#ffd9a0', 'left');
+  FACTION_IDS.forEach((f, i) => { const y = ry + 36 + i * 18, r = rep(f); text(FACTIONS[f].short, rx + 12, y, 12, FACTIONS[f].col, 'left'); ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(rx + 80, y - 4, 80, 8); ctx.fillStyle = repCol(f); ctx.fillRect(rx + 120, y - 4, r * 0.4, 8); text(repLabel(f), rx + 218, y, 11, repCol(f), 'right'); });
   const cx = 20, cy = H - 140; panel(cx, cy, 540, 124);
   const ca = state.carry, hpk = ca ? ca.hp : 1;
   text('Carro · integrità', cx + 16, cy + 20, 14, HC.text, 'left'); bar(cx + 150, cy + 13, 200, 13, hpk, hpk > 0.35 ? '#8fd86a' : '#e0503a');

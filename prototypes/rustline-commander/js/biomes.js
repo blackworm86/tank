@@ -258,7 +258,9 @@ function areaOK(x, z, w, d, m, flat, road, sites) {
   return true;
 }
 /** Builds something on a found area: levels the ground first, then calls make(x, z, g). */
-function onArea(A, w, d, make) { if (!A) return false; levelGround(A.x, A.z, w, d, A.g, 1); recomputeArea(A.x - 2, A.z - 2, w + 4, d + 4); make(A.x, A.z, A.g); recomputeArea(A.x - 5, A.z - 5, w + 10, d + 10); return true; }
+function onArea(A, w, d, make) { if (!A) return false; levelGround(A.x, A.z, w, d, A.g, 1); recomputeArea(A.x - 2, A.z - 2, w + 4, d + 4); make(A.x, A.z, A.g); keepArea(A.x, A.z, w, d, 1); recomputeArea(A.x - 5, A.z - 5, w + 10, d + 10); return true; }
+/** Marks a box (plus margin) as kept: nothing else is built there and no tree grows. */
+function keepArea(x0, z0, w, d, m) { for (let z = z0 - m; z < z0 + d + m; z++) for (let x = x0 - m; x < x0 + w + m; x++) if (inMap(x, z)) world.keep[x + world.N * z] = 1; }
 function recomputeArea(x0, z0, w, d) { for (let z = z0; z < z0 + d; z++) for (let x = x0; x < x0 + w; x++) if (inMap(x, z)) recomputeColumn(x, z); }
 
 /** A farmstead: farmhouse, barn, a silo or a water tower, hay, a fence round the yard. */
@@ -274,6 +276,7 @@ function farmstead(sites) {
   for (let k = 0; k < 18; k++) { if (k % 7 === 3) continue; put(A.x + k, g, A.z + 15, V.WOOD); } // a fence with gaps
   for (let k = 0; k < 16; k++) { if (k % 6 === 2) continue; put(A.x + 17, g, A.z + k, V.WOOD); }
   addProp('barrel', A.x + 8.5, g, A.z + 7.5, { ay: g - 1, crush: true, col: 0x56693a });
+  keepArea(A.x, A.z, 18, 16, 1);
   recomputeArea(A.x - 4, A.z - 4, 26, 24);
   return true;
 }
@@ -284,7 +287,7 @@ function village(sites) {
   const cx = C.x + 6, cz = C.z + 6;
   levelGround(C.x, C.z, 12, 12, C.g, 1);
   for (let dz = 0; dz < 12; dz++) for (let dx = 0; dx < 12; dx++) { const x = C.x + dx, z = C.z + dz, g = groundOf(x, z); if (g > 0) world.vox[vi(x, g - 1, z)] = V.ROAD; }
-  recomputeArea(C.x - 2, C.z - 2, 16, 16);
+  recomputeArea(C.x - 2, C.z - 2, 16, 16); keepArea(C.x, C.z, 12, 12, 1);
   if (rng() < 0.65) church(C.x + 3, C.z + 2, C.g, [0, 1]);
   else { cylinder(cx, cz, 1.6, C.g, 1, V.CONC, null, null); addProp('well', cx + 0.5, C.g + 1, cz + 0.5, { ay: C.g }); }
   recomputeArea(C.x - 4, C.z - 4, 20, 20);
@@ -338,6 +341,7 @@ function buildLayout(sites, placed, freeSpot, P, ns) {
   if (L === 'rural') for (let k = 0; k < 6; k++) farmstead(placed);
   if (L === 'villages') { for (let k = 0; k < 3; k++) village(placed); for (let k = 0; k < 2; k++) farmstead(placed); }
   if (L === 'city') cityGrid(placed, ns);
+  buildSettlement(sites, placed); // factions.js: the settlement of the faction holding the sector
   if (L === 'wild') for (let k = 0; k < 4; k++) { const A = findArea(6, 6, { sites: placed }); onArea(A, 6, 6, (x, z, g) => (desert ? adobeHut : shack)(x, z, g, [rng() - 0.5, rng() - 0.5])); }
   const rm = sites.roadMain; // a petrol station beside the main road
   if (rm && rm.length > 40 && rng() < 0.8) {
@@ -543,12 +547,13 @@ function atlasUV(t, u, v) { const A = R3.atlas, e = 0.05; return [((t % A.C) + e
 function signTex(kind) {
   R3.signTex = R3.signTex || {};
   if (R3.signTex[kind]) return R3.signTex[kind];
-  const sq = kind === 'raid' || kind === 'horde';
+  const sq = kind === 'raid' || kind === 'horde' || kind === 'cult';
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = sq ? 256 : 96;
   const x = cv.getContext('2d'), Wd = cv.width, Hd = cv.height;
   const S = {
     garage: ['#26211c', '#ffc93c', 'OFFICINA'], exit: ['#1c3a24', '#c8ffb0', 'USCITA'], fuel: ['#e8e0cc', '#a62f28', 'BENZINA'], bar: ['#3a2418', '#ffd36a', 'BAR'],
-    raid: ['#2a1210', '#e8dcc8', 'PREDONI'], horde: ['#1a0a08', '#ff5a40', "L'ORDA"],
+    raid: ['#2a1210', '#e8dcc8', 'PREDONI'], horde: ['#1a0a08', '#ff5a40', "L'ORDA"], cult: ['#2a1408', '#e8905a', 'RUGGINE'],
+    market: ['#2a1e10', '#ffd36a', 'MERCATO'], toll: ['#e8e0cc', '#a62f28', 'ALT · 4ª'], ratti: ['#1e1e1e', '#d0c0b0', 'RATTI'], village: ['#e8e0cc', '#3a5a2a', 'I POZZI'],
   }[kind];
   x.fillStyle = S[0]; x.fillRect(0, 0, Wd, Hd);
   x.strokeStyle = S[1]; x.lineWidth = 8; x.strokeRect(6, 6, Wd - 12, Hd - 12);
@@ -571,8 +576,8 @@ function partsGeo(parts) {
   const pos = [], nor = [], col = [], c = new THREE.Color();
   for (const [k, sx, sy, sz, px, py, pz, hex] of parts) {
     let g = k === 'cyl' ? new THREE.CylinderGeometry(sx / 2, sx / 2, sy, 10) : k === 'cone' ? new THREE.ConeGeometry(sx / 2, sy, 8) : k === 'torus' ? new THREE.TorusGeometry(sx / 2, sz, 6, 12) : new THREE.BoxGeometry(sx, sy, sz);
-    if (k === 'torus') g.rotateX(Math.PI / 2);
-    g.translate(px, py + (k === 'torus' ? 0 : sy / 2), pz); g = g.toNonIndexed();
+    if (k === 'torus' && sy !== 'up') g.rotateX(Math.PI / 2); // flat rings, or upright wheels
+    g.translate(px, py + (k === 'torus' ? 0 : sy / 2), pz); // (a torus's sy is only its orientation) g = g.toNonIndexed();
     c.setHex(hex);
     const P = g.attributes.position, Nn = g.attributes.normal;
     for (let i = 0; i < P.count; i++) { pos.push(P.getX(i), P.getY(i), P.getZ(i)); nor.push(Nn.getX(i), Nn.getY(i), Nn.getZ(i)); col.push(c.r, c.g, c.b); }
@@ -597,6 +602,8 @@ function propModels() {
     well: partsGeo([['box', 0.1, 1.6, 0.1, -1, 0, 0, 0x5e4a38], ['box', 0.1, 1.6, 0.1, 1, 0, 0, 0x5e4a38], ['box', 2.4, 0.5, 0.9, 0, 1.6, 0, 0x8f3b26], ['cyl', 0.12, 1.9, 0, 0, 1.2, 0, 0x3a3a3a]]),
     beacon: partsGeo([['cyl', 0.5, 0.4, 0, 0, 0, 0, 0x8cff6a]]),
     fire: partsGeo([['cyl', 0.62, 0.86, 0, 0, 0, 0, 0x5a3a2a], ['cone', 0.5, 0.7, 0, 0, 0.86, 0, 0xff8a2a], ['cone', 0.3, 0.5, 0, 0.1, 0.9, 0.05, 0xffd34a]]),
+    barrier: partsGeo([['box', 0.3, 1.1, 0.3, 0, 0, 0, 0x5a5a5a], ...Array.from({ length: 12 }, (_, i) => ['box', 1, 0.18, 0.18, i - 5.5, 0.9, 0, i % 2 ? 0xe8e0cc : 0xc8302a])]),
+    bike: partsGeo([['torus', 0.6, 'up', 0.08, -0.55, 0.3, 0, 0x1a1a1a], ['torus', 0.6, 'up', 0.08, 0.55, 0.3, 0, 0x1a1a1a], ['box', 1.1, 0.3, 0.22, 0, 0.45, 0, 0xffffff], ['box', 0.06, 0.4, 0.5, 0.5, 0.7, 0, 0x777777]]),
     hook: partsGeo([['box', 0.06, 1.6, 0.06, 0, -1.6, 0, 0x333333], ['torus', 0.4, 0, 0.06, 0, -1.7, 0, 0xd8b030], ['box', 6.5, 0.25, 0.3, 0, -0.25, 0, 0xd8b030]]),
   };
 }
@@ -626,6 +633,7 @@ function buildPropsView() {
   const mk = (site, x, z, txt, col, icon) => { const sp = markerSprite(txt, col, icon); sp.position.set(x, 0, z); G.add(sp); R3.markers.push({ sp, site, x, z }); };
   for (const o of [S.start, ...S.outposts]) if (o.shed) mk(o, o.shed.x, o.shed.z, 'GARAGE', '#ffc93c', 'spanner');
   for (const c of S.camps) mk(c, c.x + 0.5, c.z + 0.5, 'CAMPO PREDONI', '#ff6a50', 'skull');
+  if (S.settle) mk(S.settle, S.settle.x, S.settle.z, FACTIONS[S.settle.fac].short.toUpperCase(), FACTIONS[S.settle.fac].col, 'flag');
   if (S.fortress) mk(S.fortress, S.fortress.x + 0.5, S.fortress.z + 0.5, S.fortress.kind === 'exit' ? 'USCITA' : S.fortress.name.toUpperCase(), S.fortress.kind === 'exit' ? '#8cff6a' : '#ff5a40', S.fortress.kind === 'exit' ? 'arrow' : 'skull');
   R3.propT = -1;
 }
@@ -641,6 +649,7 @@ function markerSprite(txt, col, icon) {
   x.fillStyle = '#1a120c'; x.save(); x.translate(x0 + 46, 64);
   if (icon === 'spanner') { x.rotate(-0.7); x.fillRect(-4, -12, 8, 30); x.beginPath(); x.arc(0, -14, 10, 0, 6.3); x.fill(); x.fillStyle = col; x.fillRect(-3.5, -26, 7, 11); }
   else if (icon === 'skull') { x.beginPath(); x.arc(0, -3, 15, 0, 6.3); x.fill(); x.fillRect(-9, 6, 18, 11); x.fillStyle = col; x.beginPath(); x.arc(-6, -3, 4.5, 0, 6.3); x.arc(6, -3, 4.5, 0, 6.3); x.fill(); }
+  else if (icon === 'flag') { x.fillRect(-12, -16, 4, 32); x.beginPath(); x.moveTo(-8, -16); x.lineTo(16, -8); x.lineTo(-8, 0); x.fill(); }
   else { x.beginPath(); x.moveTo(-12, -14); x.lineTo(16, 0); x.lineTo(-12, 14); x.fill(); }
   x.restore();
   x.fillStyle = '#fff2d8'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(txt, x0 + 90, 66);

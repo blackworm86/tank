@@ -49,6 +49,12 @@ window.CONFIG = {
   wave_size: { value: 3, min: 1, max: 12, step: 1 },              // raiders in the first wave
   wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
   exit_radius: { value: 10, min: 4, max: 20, step: 1 },           // how close to the exit the tank must be to leave
+  rep_friend: { value: 30, min: 10, max: 80, step: 5 },          // reputation at which a faction is a friend (and minus it, an enemy)
+  rep_discount: { value: 0.35, min: 0, max: 0.8, step: 0.05 },   // price change at full reputation (friends pay less, enemies more)
+  job_scrap: { value: 100, min: 20, max: 300, step: 10 },         // pay for a faction job (delivery, defence)
+  raid_delay: { value: 30, min: 5, max: 120, step: 5 },           // seconds before the raid on the settlers' hamlet
+  toll: { value: 40, min: 0, max: 200, step: 5 },                 // the deserters' toll at their checkpoint
+  scout_reveal: { value: 60, min: 20, max: 160, step: 5 },        // radius the rats' scouts reveal
   npc_radius: { value: 7, min: 3, max: 15, step: 1 },             // how close the tank must come to talk to people
   mission_scrap: { value: 50, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
   final_waves: { value: 6, min: 1, max: 15, step: 1 },            // waves in the last stand (the last brings the Chief)

@@ -397,7 +397,7 @@ function plantTrees(placed, ns) {
     const i = x + N * z, h = world.hmap[i];
     if (h < WL + 1) continue;
     const t = world.vox[vi(x, h - 1, z)]; if (t !== V.SAND && t !== V.DIRT && t !== V.ROCK && t !== V.RED) continue;
-    if (world.bld[i]) continue; // never inside a building
+    if (world.bld[i] || world.keep[i]) continue; // never inside a building, a yard or a settlement
     let bad = false;
     for (let dz = -2; dz <= 2 && !bad; dz++) for (let dx = -2; dx <= 2; dx++) {
       const j = x + dx + N * (z + dz);
