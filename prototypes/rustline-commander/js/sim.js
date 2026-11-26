@@ -208,7 +208,7 @@ function unitHp(e) {
   }
 }
 function unitSpeed(e) {
-  const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1);
+  const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1) * (!e.team && !e.veh && posture(e) === 'stealth' ? tune.stealth_speed : 1);
   return k * baseSpeed(e);
 }
 function baseSpeed(e) {
@@ -331,13 +331,42 @@ function squadName(slots) {
   if (k.has('mg')) return 'Squadra d\'appoggio';
   return 'Squadra mista';
 }
+/** The squads' colours: on their cards, rings, paths and minimap numbers. */
+const SQ_COLORS = ['#4fe3e0', '#ffd36a', '#ff8ad8', '#9fe35a', '#b48cff', '#ff9a4a'];
+function sqColor(sq) {
+  if (!sq.color) { const used = new Set(state.squads.filter(q => q !== sq).map(q => q.color)); sq.color = SQ_COLORS.find(c => !used.has(c)) || SQ_COLORS[sq.id % SQ_COLORS.length]; }
+  return sq.color;
+}
+/**
+ * How a squad fights. aggressive: goes for every enemy it sees; neutral: fires on what comes in range
+ * and takes cover; return: fires only once shot at; stealth: slow and hard to spot, fires only up close
+ * or once shot at; hold: never fires.
+ */
+const POSTURES = [
+  { k: 'aggressive', name: 'Aggressiva', short: 'AGG', col: '#ff8a6a' },
+  { k: 'neutral', name: 'Neutrale', short: 'NEU', col: '#e8dcc4' },
+  { k: 'return', name: 'Risponde al fuoco', short: 'RISP', col: '#ffd36a' },
+  { k: 'stealth', name: 'Furtiva', short: 'FURT', col: '#9fd8ff' },
+  { k: 'hold', name: 'Non sparare', short: 'NO', col: '#b0a8a0' },
+];
+function postureOf(sq) { return POSTURES.find(q => q.k === ((sq && sq.posture) || 'neutral')); }
+function posture(e) { return (e.squad && e.squad.posture) || 'neutral'; }
+function setPosture(sq, k) { sq.posture = k; say(sq.name, 'Atteggiamento: ' + postureOf(sq).name.toLowerCase() + '.', postureOf(sq).col); }
+function cyclePosture(sq) { const i = POSTURES.findIndex(q => q.k === postureOf(sq).k); setPosture(sq, POSTURES[(i + 1) % POSTURES.length].k); }
+/** A soldier in stealth that has not fired lately: raiders spot it only up close. */
+function stealthy(o) { return !o.team && !o.veh && posture(o) === 'stealth' && state.t - (o.firedT || -99) > 3; }
+/** An empty squad at the end of the list, with its own colour. */
+function newSquad() {
+  const sq = { id: state.squads.length, slots: [], members: [], order: { t: 'hold' }, selected: false, tick: 0, posture: 'neutral' };
+  state.squads.push(sq); sqColor(sq); return sq;
+}
 /** Adds a squad of the given unit kinds near (x,z). */
 function addSquad(slots, x, z, force) {
   if (state.squads.length >= tune.max_squads) return null;
-  const sq = { id: state.squads.length, slots: slots.slice(), members: [], order: { t: 'hold' }, selected: false, tick: 0 };
+  const sq = { id: state.squads.length, slots: slots.slice(), members: [], order: { t: 'hold' }, selected: false, tick: 0, posture: 'neutral' };
   slots.forEach((k, i) => { const p = spotNear(x, z, i); const m = spawn(k, p.x, p.z); m.squad = sq; m.heading = state.tank ? state.tank.heading : 0; m.turretYaw = m.heading; sq.members[i] = m; });
   sq.name = squadName(slots);
-  state.squads.push(sq);
+  state.squads.push(sq); sqColor(sq);
   return sq;
 }
 function alive(sq) { return sq.members.filter(m => m && m.alive); }
@@ -405,6 +434,12 @@ function coverSpotsAt(x, z, n, threat) {
     out.push(c);
   }
   return out;
+}
+/** The nearest raider the player sees (the fog of war) within maxD of a unit. */
+function nearestSeenFoe(m, maxD) {
+  let best = null, bd = maxD * maxD;
+  for (const e of state.ents) if (e.alive && e.team === 1 && !hiddenFoe(e) && !e.inside) { const d = dist2(e, m); if (d < bd) { bd = d; best = e; } }
+  return best;
 }
 function nearestEnemyTo(x, z, team, maxD) {
   let best = null, bd = maxD * maxD;
@@ -525,6 +560,14 @@ function roleUpkeep(sq, ms) {
     const th = (m.target && m.target.alive && m.target) || (m.shotBy && m.shotBy.alive && state.t - m.shotT < 6 && m.shotBy) || null;
     if (th) { m.combatT = state.t; m.threat = th; }
     if (m.kind === 'sniper') { sniperUpkeep(m, sq); continue; }
+    if (sq.posture === 'aggressive' && !marching && !sq.order.ambush && !m.garrison) { // goes for the nearest enemy it sees, no waiting in cover
+      const t = nearestSeenFoe(m, tune.sight_range + 10);
+      if (t) {
+        const w = weapon(UT[m.kind].w);
+        if ((dist2(m, t) > (w.range * 0.7) ** 2 || !canSee(m, t)) && (!m.path || m.pi >= m.path.length || state.t - (m.pathT || 0) > 2.5)) { setDest(m, t.x + (m.id % 3 - 1) * 2, t.z + (m.id % 2 - 0.5) * 3); m.pathT = state.t; }
+        continue;
+      }
+    }
     if (marching || sq.order.ambush || m.moving) continue;
     if (!(state.t - (m.combatT || -99) < 6 && m.threat && m.threat.alive)) continue;
     if (state.t - (m.coverT || -99) < 4) continue;
@@ -742,14 +785,23 @@ function regroupTo(n) {
   if (!us.length) { say('Radio', 'Scegli prima i soldati: click, riquadro o 1-6.', '#e0a070'); return; }
   const veh = us.some(m => m.veh); us = us.filter(m => !m.veh);
   if (!us.length) { say('Radio', 'Un mezzo resta sempre una squadra a sé.', '#e0a070'); return; }
-  let to = state.squads[n];
-  if (to && to.members.some(m => m && m.veh)) { say('Radio', 'La squadra ' + (n + 1) + ' è un mezzo: scegli un altro numero.', '#e0a070'); return; }
-  us = us.filter(m => m.squad !== to); if (!us.length) return;
+  const to = moveUnits(us, state.squads[n] || null);
+  if (to) { for (const s of state.squads) s.selected = s === to; state.picked = null; if (veh) say('Radio', 'I mezzi restano squadre a sé.', '#e0a070'); }
+}
+/**
+ * Moves soldiers into squad `to` (null: a new squad at the end). Vehicles never move: a vehicle is a
+ * squad of its own. Squads left with nobody alive go and the rest are numbered again. Returns the squad.
+ */
+function moveUnits(us, to) {
+  us = us.filter(m => m.alive && m.squad && !m.veh && !m.inside && m.squad !== to);
+  if (!us.length) return null;
+  if (to && to.members.some(m => m && m.veh)) { say('Radio', 'Un mezzo resta sempre una squadra a sé.', '#e0a070'); return null; }
+  let made = false;
   if (!to) {
-    if (state.squads.length >= tune.max_squads) { say('Radio', 'Massimo ' + tune.max_squads + ' squadre.', '#e0a070'); return; }
-    to = { id: state.squads.length, slots: [], members: [], order: { t: 'hold' }, selected: false, tick: 0 }; state.squads.push(to);
+    if (state.squads.length >= tune.max_squads) { say('Radio', 'Massimo ' + tune.max_squads + ' squadre.', '#e0a070'); return null; }
+    to = newSquad(); made = true;
   }
-  if (to.slots.length + us.length > tune.squad_size) { say('Radio', 'Al massimo ' + tune.squad_size + ' soldati per squadra.', '#e0a070'); if (!to.slots.length) state.squads.pop(); return; }
+  if (to.slots.length + us.length > tune.squad_size) { say('Radio', 'Al massimo ' + tune.squad_size + ' soldati per squadra.', '#e0a070'); if (made) state.squads.splice(state.squads.indexOf(to), 1); return null; }
   const from = new Set();
   for (const m of us) {
     const q = m.squad, i = q.members.indexOf(m);
@@ -757,13 +809,56 @@ function regroupTo(n) {
     q.members.splice(i, 1); q.slots.splice(i, 1); from.add(q);
     m.squad = to; to.members.push(m); to.slots.push(m.kind); m.path = null; m.pref = null; m.face = null;
   }
-  for (const q of from) if (q.slots.length) q.name = squadName(q.slots);
-  state.squads = state.squads.filter(q => q === to || (q.slots.length && q.members.some(m => m && m.alive)) || !from.has(q));
+  for (const q of from) if (q.slots.length && !q.named) q.name = squadName(q.slots);
+  state.squads = state.squads.filter(q => q === to || !from.has(q) || q.members.some(m => m && m.alive));
   state.squads.forEach((q, i) => { q.id = i; });
-  to.name = squadName(to.slots); to.order = { t: 'hold' };
-  for (const s of state.squads) s.selected = s === to; state.picked = null;
-  say(to.name, 'Squadra ' + (state.squads.indexOf(to) + 1) + ': ' + to.slots.length + (to.slots.length > 1 ? ' soldati.' : ' soldato.') + (veh ? ' (i mezzi restano a sé)' : ''));
+  if (!to.named) to.name = squadName(to.slots);
+  to.order = { t: 'hold' };
+  say(to.name, 'Squadra ' + (state.squads.indexOf(to) + 1) + ': ' + to.slots.length + (to.slots.length > 1 ? ' soldati.' : ' soldato.'));
   sfx('radio');
+  return to;
+}
+/** The squad card (drawn by the HUD) under (x,y). */
+function cardAt(x, y) { for (const c of UI.cards || []) if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return c; return null; }
+function inRect(r, x, y) { return !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
+/**
+ * The squad cards take the mouse: a click on a card selects the squad, on its posture tag changes the
+ * posture, on the pencil renames it; a soldier's icon picks that soldier (Shift adds) or, dragged onto
+ * another card or the 'new squad' slot, moves him (with the other picked soldiers). True when the
+ * mouse was the cards' this step.
+ */
+function cardInput() {
+  const d = state.dragSoldier, add = down.has('ShiftLeft') || down.has('ShiftRight');
+  if (d) {
+    if (Math.hypot(MS.x - d.x0, MS.y - d.y0) > 6) d.moved = true;
+    state.menuBlock = true; MS.lp = false; MS.drag = null;
+    if (!MS.l) {
+      state.dragSoldier = null; MS.lr = false;
+      if (d.moved) {
+        const c = cardAt(MS.x, MS.y), us = state.picked && state.picked.has(d.m) ? [...state.picked] : [d.m];
+        let to = null;
+        if (c && c.sq !== d.m.squad) to = moveUnits(us, c.sq);
+        else if (!c && inRect(UI.newCard, MS.x, MS.y)) to = moveUnits(us, null);
+        if (to) { state.picked = null; for (const s of state.squads) s.selected = s === to; }
+      } else {
+        if (!d.add || !state.picked) state.picked = new Set();
+        if (d.add && state.picked.has(d.m)) state.picked.delete(d.m); else state.picked.add(d.m);
+        if (!d.add) for (const s of state.squads) s.selected = false;
+        if (inRadio(d.m.squad)) d.m.squad.selected = true;
+        if (!state.picked.size) state.picked = null;
+      }
+    }
+    return true;
+  }
+  if (!MS.lp) return false;
+  const c = cardAt(MS.x, MS.y); if (!c) return false;
+  MS.lp = false; MS.drag = null; state.menuBlock = true; state.menu = null;
+  if (inRect(c.post, MS.x, MS.y)) { cyclePosture(c.sq); return true; }
+  if (inRect(c.edit, MS.x, MS.y)) { state.rename = { sq: c.sq, text: c.sq.name }; return true; }
+  const ic = c.icons.find(i => i.m && i.m.alive && Math.abs(MS.x - i.x) < 10 && Math.abs(MS.y - i.y) < 11);
+  if (ic && !ic.m.veh) { state.dragSoldier = { m: ic.m, x0: MS.x, y0: MS.y, moved: false, add }; return true; }
+  selectSquad(c.sq, add); state.picked = null;
+  return true;
 }
 
 // ---- Fog of war: the enemy is drawn only while the tank, or a friend in radio reach, sees it -----------
@@ -782,6 +877,35 @@ function updateFog() {
     e.seen = s;
   }
 }
+/**
+ * The fog drawn on the map: which 2x2 cells the tank and the friends in radio reach see. Rays go out
+ * from each one's eyes; a cell is seen while no voxel column (hill, wall, tree) on the way rises above
+ * the line to it. world.vis eases toward it so the edge of the fog moves softly.
+ */
+function updateVision() {
+  const N = world.N, G = Math.ceil(N / 2), tk = state.tank, R = tankStats().radio;
+  if (!world.vis || world.vis.length !== G * G) { world.vis = new Float32Array(G * G); world.visT = new Uint8Array(G * G); world.visG = G; }
+  const T = world.visT; T.fill(tune.fog ? 0 : 1);
+  if (tune.fog) {
+    const eyes = state.ents.filter(f => f.alive && f.team === 0 && !f.inside && (f === tk || (tk.alive && dist2(f, tk) <= R * R)));
+    for (const f of eyes) {
+      const r = f === tk ? tune.tank_sight : f.kind === 'sniper' ? tune.sniper_sight : tune.sight_range;
+      const ey = (f === tk ? tk.vy : f.y) + eyeH(f), nr = Math.ceil(Math.PI * 2 * r / 1.3);
+      const fx = Math.floor(f.x), fz = Math.floor(f.z); if (inMap(fx, fz)) T[(fx >> 1) + G * (fz >> 1)] = 1;
+      for (let a = 0; a < nr; a++) {
+        const dx = Math.sin(a / nr * Math.PI * 2), dz = Math.cos(a / nr * Math.PI * 2); let maxA = -1e9;
+        for (let s = 1; s <= r; s++) {
+          const ix = Math.floor(f.x + dx * s), iz = Math.floor(f.z + dz * s); if (!inMap(ix, iz)) break;
+          const h = world.hmap[ix + N * iz], ang = (h - ey) / s;
+          if (ang >= maxA - 0.05) T[(ix >> 1) + G * (iz >> 1)] = 1;
+          if (ang > maxA) maxA = ang;
+        }
+      }
+    }
+  }
+  const V = world.vis; for (let i = 0; i < V.length; i++) V[i] += (T[i] - V[i]) * 0.6;
+  world.visN = (world.visN || 0) + 1;
+}
 /** True for a living raider the player cannot see now (the fog hides it). */
 function hiddenFoe(e) { return e.team === 1 && e.alive && !!tune.fog && !e.seen; }
 
@@ -789,8 +913,15 @@ function hiddenFoe(e) { return e.team === 1 && e.alive && !!tune.fog && !e.seen;
 /** Menu layout, shared by the drawing and the mouse. */
 const MENU = { w: 250, row: 26, head: 26, pad: 6 };
 /** Every order the selected squads can take at the clicked point (an enemy, a building, the own vehicle, open ground). */
-function menuItems(g) {
+function menuItems(g, append) {
   const sel = selectedSquads(), tk = state.tank, p = g.p, items = [];
+  if (append) { // a stop on the drawn path: how to get there
+    const n = Math.max(1, ...sel.map(sq => sq.order.t === 'move' && !sq.order.done && sq.order.pts ? sq.order.pts.length - (sq.order.i || 0) + 1 : 1));
+    items.push({ key: 'V', label: 'Tappa ' + n + ': vai', act: () => issueOrder('move', true, p, g.face) });
+    if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'C', label: 'Tappa ' + n + ': al riparo', col: '#b9f59a', act: () => issueOrder('cover', true, p, g.face) });
+    items.push({ key: 'F', label: 'Tappa ' + n + ': avanza all\'attacco', col: '#ff8a6a', act: () => issueOrder('attack', true, p, g.face, null) });
+    return items;
+  }
   const ms = sel.flatMap(sq => alive(sq)), inf = ms.some(m => !m.veh && m.kind !== 'at'), riders = ms.some(m => canRide(m) && !m.inside);
   const onTank = Math.hypot(p.x - tk.x, p.z - tk.z) < tk.rad + 0.9;
   const b = inf && !onTank && !g.tgt ? buildingAt(p.x, p.z) : null;
@@ -813,17 +944,19 @@ function menuItems(g) {
     items.push({ key: 'G', label: 'Seguimi', act: all(orderFollow) });
   }
   items.push({ key: 'Z', label: 'Fermi dove siete', act: all(orderHold) });
+  { const cur = postureOf(sel[0]), nx = POSTURES[(POSTURES.findIndex(q => q.k === cur.k) + 1) % POSTURES.length];
+    items.push({ key: 'Q', label: 'Atteggiamento: ' + cur.name + ' → ' + nx.name, col: nx.col, act: () => { for (const sq of sel) setPosture(sq, nx.k); } }); }
   if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
   if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', act: () => unloadSelected() });
   return items;
 }
 /** Opens the menu at the mouse for the order gesture g (its point, its dragged bearing, its enemy). */
-function openMenu(g) {
-  const items = menuItems(g); if (!items.length) return;
+function openMenu(g, append) {
+  const items = menuItems(g, append); if (!items.length) return;
   const h = MENU.head + items.length * MENU.row + MENU.pad;
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
-  state.menu = { x, y, h, items, p: g.p, face: g.face, title: n > 1 ? n + ' squadre' : selectedSquads()[0].name };
+  state.menu = { x, y, h, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name) };
 }
 /** Which menu row is under the mouse (-1: none). */
 function menuHover() {
@@ -846,6 +979,15 @@ function menuInput() {
 }
 /** The order the next click gives, armed with a hotkey (V, F, C). */
 const ARM = { move: 'VAI', attack: 'ATTACCA', cover: 'COPERTURA', ambush: 'IMBOSCATA' };
+/** WASD (or the arrows) slide the view over the map, at a speed that follows the zoom. */
+function panCamera(dt) {
+  const ax = (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) - (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0);
+  const az = (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0);
+  const v = tune.pause_pan * cam.dist / 84 * dt, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+  cam.x += (cy * ax - sy * az) * v; cam.z += (-sy * ax - cy * az) * v;
+  cam.x = Math.max(0, Math.min(world.N, cam.x)); cam.z = Math.max(0, Math.min(world.N, cam.z));
+  cam.y += (Math.min(40, hAt(cam.x, cam.z)) - cam.y) * Math.min(1, dt * 3);
+}
 /** Space: the tactical pause. Time stops; selection, orders and the camera still work. */
 function setTacticalPause(on) {
   state.tpause = on; state.arm = null; MS.drag = null;
@@ -884,11 +1026,7 @@ function stepPlay(dt) {
   if (state.tpause) { // frozen: only orders and the camera move
     if (R3.ready) state.mouse3 = pickWorld(MS.x, MS.y);
     handleInput();
-    const ax = (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) - (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0);
-    const az = (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0);
-    const v = tune.pause_pan * cam.dist / 84 * dt, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
-    cam.x += (cy * ax - sy * az) * v; cam.z += (-sy * ax - cy * az) * v;
-    cam.x = Math.max(0, Math.min(world.N, cam.x)); cam.z = Math.max(0, Math.min(world.N, cam.z));
+    if (!state.rename) panCamera(dt);
     MS.lp = MS.rp = MS.lr = MS.rr = false; MS.wheel = 0;
     return;
   }
@@ -905,13 +1043,17 @@ function stepPlay(dt) {
   let lx = 0, lz = 0;
   if (aim) { lx = (aim.x - tk.x) * 0.22; lz = (aim.z - tk.z) * 0.22; const L = Math.hypot(lx, lz); if (L > 12) { lx *= 12 / L; lz *= 12 / L; } }
   const k = Math.min(1, dt * 4);
-  cam.x += (tk.x + lx - cam.x) * k; cam.z += (tk.z + lz - cam.z) * k; cam.y += (tk.vy - cam.y) * k;
+  if (state.mode === 'cmd') { if (!state.rename) panCamera(dt); } // command mode: the view is the player's to move
+  else { cam.x += (tk.x + lx - cam.x) * k; cam.z += (tk.z + lz - cam.z) * k; cam.y += (tk.vy - cam.y) * k; }
   cam.shake *= 0.9;
   MS.lp = MS.rp = MS.lr = MS.rr = false; MS.wheel = 0;
 }
 function handleInput() {
   const tk = state.tank;
   if (!MS.l) state.menuBlock = false;
+  if (state.rename) { MS.lp = MS.rp = false; return; } // typing a squad's name: keys go to the name
+  if (pressed('F1')) state.help = !state.help;
+  if (cardInput()) return;
   if (state.menu) { // the order menu takes the mouse and the order keys till it closes
     if (MS.rp || !tk.alive) state.menu = null; // a new right-click: a new order (and a new menu)
     else { menuInput(); return; }
@@ -958,7 +1100,7 @@ function handleInput() {
     g.face = Math.hypot(MS.x - g.sx, MS.y - g.sy) > 14 && state.mouse3 ? Math.atan2(state.mouse3.x - g.p.x, state.mouse3.z - g.p.z) : null;
     if (g.btn === 'r' ? (MS.rr || !MS.r) : (MS.lr || !MS.l)) {
       // a plain right-click with squads selected opens the menu of orders; Shift or an armed order sends at once
-      if (g.btn === 'r' && !shift && !g.kind && tune.context_menu && selectedSquads().length) openMenu(g);
+      if (g.btn === 'r' && !g.kind && tune.context_menu && selectedSquads().length) openMenu(g, shift); // Shift: the menu of a path stop
       else if (issueOrder(g.kind, shift, g.p, g.face, g.face == null || g.kind === 'attack' ? g.tgt : null) && state.arm && !shift) state.arm = null;
       state.gest = null; if (g.btn === 'l') MS.lr = false;
     }
@@ -1033,8 +1175,9 @@ function updateTank(dt) {
   const tk = state.tank, S = tankStats();
   if (!tk.alive) return;
   tk.maxhp = S.hp; if (tk.hp > S.hp) tk.hp = S.hp;
-  const fwd = (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0);
-  const turn = (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0) - (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0);
+  const drive = state.mode !== 'cmd' && !state.rename; // in command mode WASD pans the map and the tank holds still
+  const fwd = drive ? (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0) : 0;
+  const turn = drive ? (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0) - (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) : 0;
   const wet = shallow(tk.x, tk.z) ? 0.6 : 1;
   const target = fwd > 0 ? S.speed * wet : fwd < 0 ? -S.reverse * wet : 0;
   const acc = S.accel * (Math.sign(target) !== Math.sign(tk.speed) && tk.speed !== 0 ? 2 : 1);
@@ -1213,7 +1356,7 @@ function launch(p, x, y, z, tx, ty, tz, speed, g) {
 // ---- Units: think, move, fire ---------------------------------------------------------------------------
 function updateUnits(dt) {
   const tk = state.tank;
-  state.fogT = (state.fogT || 0) - dt; if (state.fogT <= 0) { state.fogT = 0.2; updateFog(); }
+  state.fogT = (state.fogT || 0) - dt; if (state.fogT <= 0) { state.fogT = 0.2; updateFog(); updateVision(); }
   state.bldT = (state.bldT || 0) - dt; if (state.bldT <= 0) { state.bldT = 1; checkBuildings(); }
   for (const e of state.ents) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
@@ -1255,6 +1398,10 @@ function updateUnits(dt) {
         if (dist2(e, t) <= (w.range * tune.ambush_trigger) ** 2 || state.t - (e.shotT || -99) < 1) springAmbush(e.squad); else aligned = false;
       }
       if (e.kind === 'at' && !e.revealed && dist2(e, t) > (w.range * tune.at_ambush) ** 2) aligned = false; // the gun waits for a sure shot
+      if (!e.team && e.squad) { // the squad's posture decides whether it opens fire
+        const ps = posture(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory;
+        if (ps === 'hold' || (ps === 'return' && !hit) || (ps === 'stealth' && !hit && dist2(e, t) > (w.range * tune.stealth_trigger) ** 2)) aligned = false;
+      }
       if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : 1 - (e.rank || 0) * tune.rank_rate); }
     } else if (!e.moving) {
       if (e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
@@ -1314,7 +1461,7 @@ function pickTarget(e, w) {
   for (const o of state.ents) {
     if (!o.alive || o.team === e.team || o.inside) continue;
     const d = dist2(e, o); if (d > R * R) continue;
-    if (e.team === 1 && lurking(o) && d > tune.ambush_reveal ** 2) continue; // an ambush still unseen
+    if (e.team === 1 && (lurking(o) || stealthy(o)) && d > tune.ambush_reveal ** 2) continue; // an ambush, or a stealthy soldier, still unseen
     if (w.min && d < w.min * w.min) continue;
     c.push([d, o]);
   }
@@ -1375,7 +1522,7 @@ function alertGroup(g, src) {
 }
 /** One shot from a unit at a target. */
 function fire(e, t, w) {
-  if (e.team === 1) e.firedT = state.t;
+  e.firedT = state.t;
   const yaw = e.veh ? e.turretYaw : e.heading, off = e.veh ? 1.6 : 0.6;
   const mx = e.x + Math.sin(yaw) * off, mz = e.z + Math.cos(yaw) * off, my = e.y + eyeH(e) - 0.2;
   e.recoil = 1;
@@ -1466,7 +1613,7 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.kind === 'boss' && kind === 'blast') amt *= 0.8;
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
-  if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; }
+  if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; if (!e.team && e.squad) e.squad.attackedT = state.t; }
   if (lurking(e)) springAmbush(e.squad);
   if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit); }
   if (e.team === 0 && e.squad && src && src.team === 1 && state.t - (e.squad.fireMsgT || -99) > 12) { e.squad.fireMsgT = state.t; say(e.squad.name, 'Siamo sotto fuoco!', '#ff9a7a'); }
@@ -1793,7 +1940,20 @@ function devSpawnEnemy(kind, x, z) {
   say('Sviluppo', UT[kind].name + ' piazzato.', '#c8a0ff');
 }
 /** The panel's own input: K drops the chosen enemy at the mouse; clicks on the panel stay on it. */
+/** A friendly unit of the picked kind as a new squad at (x,z) (dev). */
+function devSpawnAlly(kind, x, z) {
+  if (state.squads.length >= tune.max_squads) { say('Sviluppo', 'Massimo ' + tune.max_squads + ' squadre.', '#c8a0ff'); return; }
+  const sq = addSquad([kind], x, z, true); if (!sq) return;
+  sq.order = { t: 'hold' };
+  say('Sviluppo', UT[kind].name + ' piazzato (squadra ' + (state.squads.indexOf(sq) + 1) + ').', '#c8a0ff');
+}
+/** Kills every raider within r of the tank (dev). */
+function devKillNear(r) { let n = 0; for (const e of state.ents) if (e.alive && e.team === 1 && dist2(e, state.tank) < r * r) { dmgTo(e, 9999, 'blast', null); n++; } say('Sviluppo', n + ' nemici eliminati.', '#c8a0ff'); }
+/** Moves the own tank to (x,z) if it fits there (dev). */
+function devTeleport(x, z) { const tk = state.tank; if (tankFits(tk, x, z, tk.heading, 99)) { tk.x = x; tk.z = z; tk.speed = 0; } else say('Sviluppo', 'Il carro lì non ci sta.', '#c8a0ff'); }
 function devInput() {
+  if (pressed('KeyJ') && state.mouse3) devSpawnAlly(state.devKind || 'rifle', state.mouse3.x, state.mouse3.z);
+  if (pressed('KeyL') && state.mouse3) devTeleport(state.mouse3.x, state.mouse3.z);
   if (pressed('KeyK') && state.mouse3) devSpawnEnemy(state.devEnemy || 'r_rifle', state.mouse3.x, state.mouse3.z);
   const r = UI.devRect;
   if (r && MS.x >= r.x && MS.x <= r.x + r.w && MS.y >= r.y && MS.y <= r.y + r.h) {

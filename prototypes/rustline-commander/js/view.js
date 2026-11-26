@@ -497,21 +497,75 @@ function ringPoints(line, cx, cz, r, lift, dashed) {
   a.needsUpdate = true;
   if (dashed) line.computeLineDistances();
 }
+/**
+ * Adds a see-through twin to every part of a figure: drawn only where something stands in front of it
+ * (a hill, a tree, a wall), green for the player's units and red for raiders, so hidden units still show.
+ */
+function addXray(model, hex) {
+  if (!R3.xray) R3.xray = {};
+  let m = R3.xray[hex];
+  // drawn after the ground and before the figures (renderOrder 1 < 2): where the figure itself shows,
+  // it covers its twin; only the parts behind a hill, tree or wall stay coloured
+  if (!m) m = R3.xray[hex] = new THREE.MeshBasicMaterial({ color: hex, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false });
+  const parts = []; model.traverse(o => { if (o.isMesh && o !== model.userData.ring) parts.push(o); });
+  for (const o of parts) { const x = new THREE.Mesh(o.geometry, m); x.userData.xray = true; x.renderOrder = 1; o.renderOrder = 2; o.add(x); }
+}
 function syncModel(e) {
-  if (!e.model) { e.model = modelFor(e); R3.units.add(e.model); }
+  if (!e.model) { e.model = modelFor(e); addXray(e.model, e.team ? 0xff4030 : 0x58ff5a); R3.units.add(e.model); }
   const m = e.model, u = m.userData;
   m.position.set(e.x, e.vy + (e.kind === 'tank' ? 0 : surfaceY(e.x, e.z) - hAt(e.x, e.z)), e.z);
   m.rotation.set(0, e.heading, 0);
   if (u.hull) { u.hull.rotation.x = e.pitch || 0; u.hull.rotation.z = e.roll || 0; }
   if (u.turret) u.turret.rotation.y = (e.turretYaw ?? e.heading) - e.heading;
   if (u.gun) u.gun.position.z = u.gunZ - (e.recoil || 0) * 0.7;
-  if (u.ring) u.ring.visible = !!e.selected && e.alive;
+  if (u.ring) { // the squad's colour; a picked soldier in white, the rest of his squad faint
+    const on = !!e.selected && e.alive; u.ring.visible = on;
+    if (on) {
+      const pk = state.picked && state.picked.size ? state.picked.has(e) : null;
+      u.ring.material.color.set(pk ? '#ffffff' : e.squad && e.kind !== 'tank' ? sqColor(e.squad) : '#4fe3e0');
+      u.ring.material.opacity = pk === false ? 0.3 : 0.95; u.ring.scale.setScalar(pk ? 1.3 : 1);
+    }
+  }
+  if (!e.alive && !u.xrayOff) { u.xrayOff = true; m.traverse(o => { if (o.userData.xray) o.visible = false; }); }
   if (u.legs && e.alive) { const sw = e.moving ? Math.sin(state.t * 11 + e.id) * 0.6 : 0; u.legs[0].rotation.x = sw; u.legs[1].rotation.x = -sw; }
   if (u.body) u.body.scale.y = 1.45 * (e.alive && e.inCover && !e.moving ? 0.72 : 1);
   if (!e.alive) {
-    if (e.veh) { if (!u.burnt) { m.traverse(o => { if (o.isMesh && o !== u.ring) o.material = mat(0x2b2522); }); u.burnt = true; } }
+    if (e.veh) { if (!u.burnt) { m.traverse(o => { if (o.isMesh && o !== u.ring && !o.userData.xray) o.material = mat(0x2b2522); }); u.burnt = true; } }
     else { const k = Math.min(1, (state.t - e.deathT) * 3); m.rotation.z = k * Math.PI / 2 * (e.id % 2 ? 1 : -1); m.position.y = e.vy + 0.2 - Math.max(0, state.t - e.deathT - 4) * 0.4; }
   }
+}
+/**
+ * The fog of war on the map: a dark see-through sheet laid over the tops of the voxels (ground, trees,
+ * roofs), one vertex per 2x2 cell corner, its alpha growing where nobody sees (world.vis). The vertex
+ * blend gives the fog a soft edge.
+ */
+function updateFogMesh() {
+  const G = world.visG, V = world.vis, N = world.N;
+  if (!G || !V || !tune.fog) { if (R3.fog) R3.fog.visible = false; return; }
+  const n = G + 1;
+  if (!R3.fog || R3.fogG !== G) {
+    if (R3.fog) R3.scene.remove(R3.fog);
+    const g = new THREE.BufferGeometry(), idx = [];
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * n * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * n * 4), 4));
+    for (let z = 0; z < G; z++) for (let x = 0; x < G; x++) { const a = x + n * z, b = a + 1, c = a + n, d = c + 1; idx.push(a, c, b, b, c, d); }
+    g.setIndex(idx);
+    R3.fog = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+    R3.fog.renderOrder = 20; R3.fog.frustumCulled = false; R3.scene.add(R3.fog); R3.fogG = G; R3.fogN = -1;
+  }
+  R3.fog.visible = true;
+  if (R3.fogN === world.visN) return; R3.fogN = world.visN;
+  const P = R3.fog.geometry.attributes.position, C = R3.fog.geometry.attributes.color, dark = tune.fog_dark, H = world.hmap;
+  const vis = (x, z) => V[Math.max(0, Math.min(G - 1, x)) + G * Math.max(0, Math.min(G - 1, z))];
+  const top = (x, z) => { x = Math.max(0, Math.min(N - 1, x)); z = Math.max(0, Math.min(N - 1, z)); return Math.max(world.gsm[x + N * z], H[x + N * z]); };
+  for (let z = 0; z <= G; z++) for (let x = 0; x <= G; x++) {
+    const i = x + n * z, wx = x * 2, wz = z * 2;
+    const v = (vis(x - 1, z - 1) + vis(x, z - 1) + vis(x - 1, z) + vis(x, z)) / 4;
+    const h = Math.max(world.WL, top(wx - 1, wz - 1), top(wx, wz - 1), top(wx - 1, wz), top(wx, wz));
+    P.setXYZ(i, wx, h + 0.15, wz);
+    C.setXYZW(i, 0.01, 0.02, 0.04, (1 - v) * dark);
+  }
+  P.needsUpdate = true; C.needsUpdate = true;
 }
 /** Draws the play world: chunks, figures, effects, rings, camera. */
 function renderWorld() {
@@ -528,6 +582,7 @@ function renderWorld() {
     syncModel(e);
     if (e.model) e.model.visible = !hiddenFoe(e); // the fog of war: a raider nobody sees is not drawn
   }
+  updateFogMesh();
   poolsBegin();
   // debris
   const D = R3.debris;

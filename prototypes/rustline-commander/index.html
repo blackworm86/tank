@@ -8,7 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rustline Commander</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #1a120d; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #1a120d; overflow: hidden; cursor: none; }
+  canvas { cursor: none; }
   body { font-variant-numeric: tabular-nums; }
   canvas { display: block; position: absolute; left: 0; top: 0; }
   #game { z-index: 2; }
@@ -86,8 +87,16 @@ const down = new Set(), hit = new Set();
 const pressed = code => hit.has(code); // true for one step after the key goes down
 addEventListener('keydown', e => {
   startAudio();
+  if (state && state.rename) { // typing a squad's name: Enter keeps it, Esc drops it
+    e.preventDefault(); const r = state.rename;
+    if (e.key === 'Enter') { const t = r.text.trim(); if (t) { r.sq.name = t.slice(0, 18); r.sq.named = true; } state.rename = null; }
+    else if (e.key === 'Escape') state.rename = null;
+    else if (e.key === 'Backspace') r.text = r.text.slice(0, -1);
+    else if (e.key.length === 1 && r.text.length < 18) r.text += e.key;
+    return;
+  }
   if (!e.repeat) { down.add(e.code); hit.add(e.code); }
-  if (e.code === 'Space' || e.code === 'Tab' || e.code === 'F2' || e.code.startsWith('Arrow') || e.altKey) e.preventDefault(); // Alt+1-6 is the game's
+  if (e.code === 'Space' || e.code === 'Tab' || e.code === 'F2' || e.code === 'F1' || e.code.startsWith('Arrow') || e.altKey) e.preventDefault(); // Alt+1-6 is the game's
 });
 addEventListener('keyup', e => down.delete(e.code));
 addEventListener('pointerdown', () => startAudio());
@@ -193,7 +202,7 @@ const scenes = {
 function step() {
   if (pressed('KeyM')) { setMuted(!muted); hit.delete('KeyM'); }
   scenes[scene].update(STEP); hit.clear();
-  canvas.style.cursor = (scene === 'play') ? 'none' : 'default';
+  canvas.style.cursor = 'none'; // only the game's own cursor shows
 }
 let last, acc = 0, ALPHA = 1; // ALPHA: how far the frame is between the last two steps
 function tick() {
@@ -203,7 +212,12 @@ function tick() {
   ALPHA = acc / STEP;
   drawFrame();
 }
-function drawFrame() { scenes[scene].draw(); }
+/** The game's pointer outside play (play draws its own crosshair or command arrow). */
+function drawPointer() {
+  ctx.fillStyle = '#ffe6a0'; ctx.strokeStyle = '#1a120c'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(MS.x, MS.y); ctx.lineTo(MS.x + 13, MS.y + 5); ctx.lineTo(MS.x + 6, MS.y + 7); ctx.lineTo(MS.x + 4, MS.y + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+function drawFrame() { scenes[scene].draw(); if (scene !== 'play') drawPointer(); }
 function frame() { tick(); requestAnimationFrame(frame); }
 // A headless browser on a time budget runs timers but almost no animation frames: a timer
 // ticks when no frame has come for 100 ms on a visible page; a hidden tab stays paused.

@@ -35,6 +35,10 @@ window.CONFIG = {
   fog_shot_reveal: { value: 1.5, min: 0, max: 6, step: 0.5 },    // seconds a raider's shot gives its place away (near the radio ring)
   turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front
   squad_size: { value: 8, min: 1, max: 12, step: 1 },            // most soldiers in one squad (Alt+1-6)
+  fog_dark: { value: 0.7, min: 0, max: 0.9, step: 0.05 },      // how dark the ground nobody sees is drawn
+  posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
+  stealth_trigger: { value: 0.45, min: 0.1, max: 1, step: 0.05 }, // a stealthy squad opens fire inside this share of its range
+  stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a stealthy soldier's speed
   context_menu: { value: 1, min: 0, max: 1, step: 1 },          // 1: right-click opens the menu of orders; 0: right-click orders at once (move/attack/enter)
   garrison_cap: { value: 6, min: 1, max: 12, step: 1 },          // most soldiers one building takes
   garrison_ruin: { value: 0.45, min: 0.1, max: 0.9, step: 0.05 }, // share of its walls left below which a building throws its soldiers out

@@ -113,6 +113,17 @@ function drawMinimap(x0, y0, S) {
   ctx.translate(-N / 2, -N / 2);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(minimapImage(), 0, 0);
+  // the fog of war: what nobody sees now is dark
+  if (tune.fog && world.vis) {
+    const G = world.visG;
+    if (!UI.fogC || UI.fogC.width !== G) { UI.fogC = document.createElement('canvas'); UI.fogC.width = UI.fogC.height = G; UI.fogN = -1; }
+    if (UI.fogN !== world.visN) {
+      UI.fogN = world.visN; const c2 = UI.fogC.getContext('2d'), im = c2.createImageData(G, G);
+      for (let i = 0; i < G * G; i++) im.data[i * 4 + 3] = Math.round((1 - world.vis[i]) * 175);
+      c2.putImageData(im, 0, 0);
+    }
+    ctx.imageSmoothingEnabled = true; ctx.drawImage(UI.fogC, 0, 0, G * 2, G * 2); ctx.imageSmoothingEnabled = false;
+  }
   const sites = world.sites;
   const flagMark = (sx, sz, col, s2) => { ctx.fillStyle = '#1d1b1a'; ctx.fillRect(sx - s2 - 1, sz - s2 - 1, s2 * 2 + 2, s2 * 2 + 2); ctx.fillStyle = col; ctx.fillRect(sx - s2, sz - s2, s2 * 2, s2 * 2); };
   for (const o of [sites.start, ...sites.outposts]) { flagMark(o.x, o.z, '#7fc85a', 4); ctx.fillStyle = '#1d1b1a'; ctx.fillRect(o.x - 1, o.z - 2.5, 2, 5); ctx.fillRect(o.x - 2.5, o.z - 1, 5, 2); }
@@ -120,10 +131,16 @@ function drawMinimap(x0, y0, S) {
   const f = sites.fortress; flagMark(f.x, f.z, '#d0402e', 7); ctx.fillStyle = '#1d1b1a'; for (let i = -6; i <= 4; i += 4) ctx.fillRect(f.x + i, f.z - 7, 2, 3);
   ctx.strokeStyle = 'rgba(79,227,224,0.85)'; ctx.lineWidth = 1.2 / k; ctx.setLineDash([3 / k, 2 / k]);
   ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  // the player's view: the screen's corners carried down to the ground
+  if (R3.ready && R3.camera) {
+    const pts = [[0, 0], [W, 0], [W, H], [0, H]].map(([sx, sy]) => { const { o, d } = screenRay(sx, sy); const t = d.y < -0.02 ? Math.min(600, (cam.y - o.y) / d.y) : 600; return { x: o.x + d.x * t, z: o.z + d.z * t }; });
+    ctx.fillStyle = 'rgba(255,240,200,0.10)'; ctx.strokeStyle = 'rgba(255,240,200,0.9)'; ctx.lineWidth = 1.3 / k;
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.z) : ctx.moveTo(p.x, p.z)); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
   for (const e of state.ents) {
     if (!e.alive || e.kind === 'tank') continue;
     if (e.team === 1 && hiddenFoe(e)) continue; // the fog of war
-    ctx.fillStyle = e.team ? '#ff5a40' : '#c8f07a';
+    ctx.fillStyle = e.team ? '#ff5a40' : e.squad ? sqColor(e.squad) : '#c8f07a';
     const s = e.veh ? 2.6 : 1.6; ctx.fillRect(e.x - s / 2, e.z - s / 2, s, s);
   }
   ctx.save(); ctx.translate(tk.x, tk.z); ctx.rotate(-tk.heading);
@@ -137,8 +154,9 @@ function drawMinimap(x0, y0, S) {
     const ms = alive(sq).filter(m => !m.inside); if (!ms.length) return;
     let ax = 0, az = 0; for (const m of ms) { ax += m.x; az += m.z; } const p = toMini(ax / ms.length, az / ms.length);
     if (p.x < x0 || p.y < y0 || p.x > x0 + S || p.y > y0 + S) return;
-    rrect(p.x - 7, p.y - 16, 14, 13, 3, sq.selected ? 'rgba(79,227,224,0.9)' : 'rgba(20,28,20,0.85)', sq.selected ? '#dff' : '#c8f07a');
-    text(String(i + 1), p.x, p.y - 9, 10, sq.selected ? '#06221f' : '#c8f07a');
+    const col = sqColor(sq);
+    rrect(p.x - 7, p.y - 16, 14, 13, 3, sq.selected ? col : 'rgba(20,24,20,0.85)', col);
+    text(String(i + 1), p.x, p.y - 9, 10, sq.selected ? '#101010' : col);
   });
 }
 function objective() {
@@ -183,7 +201,7 @@ function drawHUD() {
     if (o.t === 'move' && !o.done) {
       for (let i = o.i; i < o.pts.length; i++) {
         const p = o.pts[i], q = toScreen(p.x, hAt(p.x, p.z) + 0.6, p.z); if (!q.on || !prev.on) { prev = q; continue; }
-        const col = p.how === 'cover' ? '#8fe36a' : '#4fe3e0';
+        const col = sqColor(sq);
         ctx.strokeStyle = col; ctx.globalAlpha = sq.selected ? 0.95 : 0.5;
         ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke();
         ctx.setLineDash([]); ctx.fillStyle = col;
@@ -211,89 +229,95 @@ function drawHUD() {
   if (cmd) for (const sq of state.squads) {
     const m = alive(sq)[0]; if (!m) continue;
     const p = toScreen(m.x, m.y + 3.4, m.z); if (!p.on) continue;
-    const heard = inRadio(sq);
-    rrect(p.x - 11, p.y - 11, 22, 22, 4, heard ? 'rgba(20,60,60,0.85)' : 'rgba(60,30,20,0.85)', heard ? HC.cyan : HC.warn);
-    text(String(sq.id + 1), p.x, p.y + 1, 15, heard ? HC.cyan : HC.warn);
+    const heard = inRadio(sq), col = heard ? sqColor(sq) : '#8a7a68';
+    rrect(p.x - 9, p.y - 9, 18, 18, 4, sq.selected ? col : 'rgba(16,14,12,0.8)', col);
+    text(String(sq.id + 1), p.x, p.y + 1, 12, sq.selected ? '#101010' : col);
+  }
+  // picked soldiers: a white mark over the head
+  if (state.picked) for (const m of state.picked) {
+    if (!m.alive || m.inside) continue; const p = toScreen(m.x, m.y + 2.9, m.z); if (!p.on) continue;
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#101010'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y + 6); ctx.lineTo(p.x - 5, p.y - 1); ctx.lineTo(p.x + 5, p.y - 1); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
   for (const f of state.floats) { const p = toScreen(f.x, f.y + f.t * 1.5, f.z); if (p.on) { ctx.globalAlpha = Math.max(0, 1 - f.t / 1.6); text(f.s, p.x, p.y, 16, f.col); ctx.globalAlpha = 1; } }
   const hurt = Math.max(0, 1 - (state.t - state.hurtT) * 2.5);
   if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(160,20,10,0)'); g.addColorStop(1, `rgba(160,20,10,${0.45 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
 
-  // tank panel
-  drawArmor(322, 14, tk);
-  panel(14, 14, 300, 128);
-  text(HULLS[state.hull || 'mbt'].name.toUpperCase() + (HULLS[state.hull || 'mbt'].weapons.length > 1 ? '  ·  X arma' : ''), 26, 32, 15, HC.dim, 'left');
-  text('Integrità', 26, 54, 14, HC.text, 'left');
-  bar(104, 47, 196, 14, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
-  text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), 202, 54, 13, '#10140c');
-  text(S.wname, 26, 76, 14, HC.text, 'left');
-  bar(104, 69, 196, 14, 1 - tk.reload / S.reload, tk.reload > 0 ? '#c9a35a' : '#ffe08a');
-  const st = tk.reload > 0 && S.wkind !== 'bullet' ? 'RICARICA' : cmd ? 'TORRETTA FERMA' : tk.aligned ? 'IN LINEA' : 'ALLINEAMENTO';
-  text(st, 202, 76, 13, '#1a120c');
-  const sp = tk.spread * 100;
-  text('Dispersione ' + sp.toFixed(1) + '%', 26, 98, 14, tk.spread < tune.spread_min * 2.2 ? HC.ok : tk.spread < 0.05 ? HC.text : HC.warn, 'left');
-  text('Radio ' + Math.round(S.radio) + ' m', 300, 98, 14, HC.cyan, 'right');
-  gearIcon(34, 122, 8, HC.gold); text(String(state.scrap) + ' rottami', 48, 122, 15, HC.gold, 'left');
-  tagIcon(196, 122, 14, '#c8c2b2'); text(String(meta.piastrine) + ' piastrine', 210, 122, 14, HC.dim, 'left');
-
-  // mode badge
+  // tank panel: integrity, the gun, the scrap (the armour shows for a few seconds after a hit)
+  if (tk.lastHit && state.t - tk.lastHit.t < 4) drawArmor(252, 14, tk);
+  panel(14, 14, 230, 70);
+  text(HULLS[state.hull || 'mbt'].name.toUpperCase() + (HULLS[state.hull || 'mbt'].weapons.length > 1 ? ' · X arma' : ''), 24, 29, 12, HC.dim, 'left');
+  gearIcon(184, 29, 6, HC.gold); text(String(state.scrap), 194, 29, 13, HC.gold, 'left');
+  bar(24, 40, 210, 13, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
+  text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), 129, 47, 11, '#10140c');
+  bar(24, 58, 210, 13, 1 - tk.reload / S.reload, tk.reload > 0 ? '#c9a35a' : '#ffe08a');
+  const st = tk.reload > 0 && S.wkind !== 'bullet' ? 'RICARICA' : cmd ? S.wname : S.wname + (tk.aligned ? ' · IN LINEA' : ' · ALLINEA');
+  text(st, 129, 65, 11, '#1a120c');
+  // mode tag
   if (tp) {
-    rrect(W / 2 - 150, 12, 300, 42, 7, 'rgba(70,52,16,0.94)', '#ffd27a');
-    text('PAUSA TATTICA', W / 2, 28, 18, '#ffd27a');
-    text('Spazio per riprendere · WASD sposta la vista', W / 2, 46, 13, '#e8d8b0');
+    rrect(W / 2 - 120, 10, 240, 26, 6, 'rgba(70,52,16,0.94)', '#ffd27a');
+    text('PAUSA TATTICA · Spazio riprende', W / 2, 23, 13, '#ffd27a');
   } else {
-    rrect(W / 2 - 120, 12, 240, 42, 7, cmd ? 'rgba(18,56,58,0.9)' : 'rgba(60,40,22,0.9)', cmd ? HC.cyan : '#d9a35a');
-    text(cmd ? 'MODALITÀ COMANDO' : 'MODALITÀ CARRO', W / 2, 28, 18, cmd ? HC.cyan : '#ffd9a0');
-    text('Tab per cambiare · Spazio pausa tattica', W / 2, 46, 13, HC.dim);
-  }
-  // order strip: the armed order is lit
-  if (cmd) {
-    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['R', 'Imboscata', 'ambush'], ['G', 'Seguimi', null], ['Z', 'Fermi', null], ['B', 'Sali/scendi', null]];
-    ctx.font = `bold 13px ${FONT}`;
-    const ws = ords.map(o => ctx.measureText(o[0]).width + ctx.measureText(o[1]).width + 30);
-    let ox = W / 2 - (ws.reduce((a, b) => a + b, 0) + 6 * (ords.length - 1)) / 2;
-    ords.forEach((o, i) => {
-      const on = o[2] && state.arm === o[2];
-      const sy = H - 184;
-      rrect(ox, sy, ws[i], 26, 5, on ? 'rgba(86,105,58,0.95)' : 'rgba(20,14,10,0.78)', on ? '#d8f59a' : HC.edge);
-      const kw = ctx.measureText(o[0]).width + 10;
-      rrect(ox + 4, sy + 4, kw, 18, 3, 'rgba(0,0,0,0.45)', null);
-      text(o[0], ox + 4 + kw / 2, sy + 13, 12, on ? '#ffffff' : '#ffd9a0');
-      text(o[1], ox + kw + 10, sy + 13, 13, on ? '#ffffff' : HC.text, 'left');
-      ox += ws[i] + 6;
-    });
+    rrect(W / 2 - 95, 10, 190, 26, 6, cmd ? 'rgba(18,56,58,0.88)' : 'rgba(60,40,22,0.88)', cmd ? HC.cyan : '#d9a35a');
+    text(cmd ? 'COMANDO · WASD vista · Tab' : 'CARRO · Tab comando', W / 2, 23, 13, cmd ? HC.cyan : '#ffd9a0');
   }
 
   // minimap and objective
   const MSZ = 180; drawMinimap(W - MSZ - 20, 20, MSZ);
   const ob = objective();
-  panel(W - MSZ - 26, MSZ + 34, MSZ + 12, 48);
-  text('Obiettivo: ' + ob.site.name, W - MSZ - 16, MSZ + 50, 14, HC.text, 'left');
-  text(Math.round(ob.d) + ' m · campi rimasti ' + ob.left, W - MSZ - 16, MSZ + 69, 13, HC.dim, 'left');
+  text(ob.site.name + ' · ' + Math.round(ob.d) + ' m · campi ' + ob.left, W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
 
   // squad cards
-  let y = 154;
+  let y = 96; UI.cards = [];
+  const dragging = state.dragSoldier && state.dragSoldier.moved ? state.dragSoldier : null;
   state.squads.forEach((sq, i) => {
-    const heard = inRadio(sq), ms = alive(sq), h = 58;
-    rrect(14, y, 226, h, 6, sq.selected ? 'rgba(20,58,60,0.9)' : HC.panel, sq.selected ? HC.cyan : HC.edge);
-    rrect(20, y + 6, 22, 22, 4, 'rgba(0,0,0,0.4)', heard ? HC.cyan : '#6a5a4a');
-    text(String(i + 1), 31, y + 18, 15, heard ? HC.cyan : '#9a8a78');
-    text(sq.name, 50, y + 17, 15, ms.length ? HC.text : '#8a7a68', 'left');
-    sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, 30 + j * 22, y + 42, 18, m && m.alive ? '#a8d870' : '#5a3a32'); if (m && m.alive && m.rank) chevrons(30 + j * 22, y + 31, m.rank, 0.8); });
+    const heard = inRadio(sq), ms = alive(sq), h = 52, col = sqColor(sq), ps = postureOf(sq), card = { sq, x: 14, y, w: 230, h, icons: [] };
+    const over = dragging && cardAt(MS.x, MS.y) && cardAt(MS.x, MS.y).sq === sq && sq !== dragging.m.squad;
+    rrect(14, y, 230, h, 6, over ? 'rgba(60,70,50,0.95)' : sq.selected ? 'rgba(32,36,32,0.92)' : 'rgba(24,18,14,0.72)', sq.selected || over ? col : 'rgba(142,75,39,0.55)');
+    ctx.fillStyle = col; ctx.fillRect(15, y + 4, 4, h - 8);
+    text(String(i + 1), 29, y + 14, 13, heard ? col : '#8a7a68');
+    const renaming = state.rename && state.rename.sq === sq;
+    const nm = renaming ? state.rename.text + (Math.floor(performance.now() / 400) % 2 ? '|' : ' ') : sq.name;
+    ctx.font = `bold 13px ${FONT}`; const nw = Math.min(120, ctx.measureText(nm).width);
+    if (renaming) rrect(39, y + 4, Math.max(90, nw + 12), 19, 3, 'rgba(0,0,0,0.55)', col);
+    text(nm, 44, y + 14, 13, ms.length ? HC.text : '#8a7a68', 'left');
+    card.edit = { x: 46 + nw, y: y + 4, w: 18, h: 19 }; if (!renaming) text('✎', 55 + nw, y + 14, 12, HC.dim);
+    ctx.font = `bold 10px ${FONT}`; const pw = ctx.measureText(ps.short).width + 12;
+    card.post = { x: 238 - pw, y: y + 5, w: pw, h: 17 };
+    rrect(card.post.x, card.post.y, pw, 17, 4, 'rgba(0,0,0,0.45)', ps.col); text(ps.short, card.post.x + pw / 2, y + 14, 10, ps.col);
+    sq.slots.forEach((k, j) => {
+      const m = sq.members[j], ix = 30 + j * 21, iy = y + 37, pk = !!(m && state.picked && state.picked.has(m));
+      if (pk) rrect(ix - 10, iy - 11, 20, 22, 3, 'rgba(255,255,255,0.22)', '#ffffff');
+      const lifted = dragging && m && (dragging.m === m || (pk && state.picked.has(dragging.m)));
+      unitIcon(k, ix, iy, 17, lifted ? 'rgba(168,216,112,0.25)' : m && m.alive ? '#a8d870' : '#5a3a32');
+      if (m && m.alive && m.rank) chevrons(ix, iy - 11, m.rank, 0.7);
+      card.icons.push({ m, x: ix, y: iy });
+    });
+    UI.cards.push(card);
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
     const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
-    text(heard ? ord : 'Fuori portata', 232, y + 42, 13, heard ? HC.dim : HC.warn, 'right');
-    y += h + 6;
+    text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
+    y += h + 5;
   });
+  // dragging a soldier: an empty slot for a new squad, and the soldier under the mouse
+  UI.newCard = null;
+  if (dragging) {
+    if (state.squads.length < tune.max_squads) {
+      UI.newCard = { x: 14, y, w: 230, h: 34 }; const on = inRect(UI.newCard, MS.x, MS.y);
+      rrect(14, y, 230, 34, 6, on ? 'rgba(79,227,224,0.25)' : 'rgba(79,227,224,0.08)', HC.cyan); text('+ nuova squadra', 129, y + 17, 13, HC.cyan);
+    }
+    const n = state.picked && state.picked.has(dragging.m) ? state.picked.size : 1;
+    unitIcon(dragging.m.kind, MS.x + 6, MS.y + 6, 20, '#ffffff'); if (n > 1) text('×' + n, MS.x + 20, MS.y - 6, 12, '#ffffff', 'left');
+  }
 
   // radio log
-  const msgs = state.msgs.filter(m => state.t - m.t < 12).slice(-5);
+  const msgs = state.msgs.filter(m => state.t - m.t < 8).slice(-3);
   if (msgs.length) {
     // with the development panel open the log moves left of it
-    const bw = state.dev ? Math.min(720, W - 352) : 720, bx0 = state.dev ? Math.max(14, W - 324 - bw) : (W - bw) / 2, by = H - 24 - msgs.length * 22;
+    const bw = state.dev ? Math.min(560, W - 352) : 560, bx0 = state.dev ? Math.max(14, W - 324 - bw) : (W - bw) / 2, by = H - 24 - msgs.length * 22;
     rrect(bx0, by - 12, bw, msgs.length * 22 + 14, 6, 'rgba(20,14,10,0.78)', null);
     msgs.forEach((m, i) => {
-      ctx.globalAlpha = Math.max(0.15, Math.min(1, (12 - (state.t - m.t)) / 2));
+      ctx.globalAlpha = Math.max(0.15, Math.min(1, (8 - (state.t - m.t)) / 2));
       ctx.font = `bold 14px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = m.col;
       const yy = by + 3 + i * 22; ctx.fillText(m.who + ':', bx0 + 12, yy);
       const ww = ctx.measureText(m.who + ': ').width;
@@ -309,9 +333,10 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['1-6 squadra   Alt+1-6 forma squadra   \\ tutte', 'Click dx: menu ordini (trascina: direzione)', 'V F C R + click   G segui   Z fermi   B bordo', 'Shift + click dx: tappa   Esc: chiudi menu']
+    ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'Trascina un soldato su un\'altra squadra']
     : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio: pausa tattica   Tab: comando', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
+  else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
   else {
     panel(W - 300, H - 108, 286, 94);
     lines.forEach((l, i) => text(l, W - 290, H - 91 + i * 20, 13, HC.dim, 'left'));
@@ -573,7 +598,7 @@ function drawDevPanel() {
   const x0 = W - 314, y0 = 270, w = 300, h = H - y0 - 14;
   UI.devRect = { x: x0, y: y0, w, h };
   rrect(x0, y0, w, h, 6, 'rgba(26,18,34,0.94)', '#b48cff');
-  text('SVILUPPO', x0 + 12, y0 + 14, 14, '#d8c0ff', 'left'); text('F2 chiude · K: nemico al mouse', x0 + w - 10, y0 + 14, 11, '#a890c8', 'right');
+  text('SVILUPPO', x0 + 12, y0 + 14, 14, '#d8c0ff', 'left'); text('F2 chiude · K nemico · J alleato · L carro', x0 + w - 10, y0 + 14, 11, '#a890c8', 'right');
   let y = y0 + 30;
   if (!state.squads.length) { text('Nessuna squadra: scegli un tipo e "Nuova".', x0 + 12, y + 8, 12, '#a890c8', 'left'); y += 22; }
   state.squads.forEach((sq, i) => {
@@ -601,7 +626,11 @@ function drawDevPanel() {
   B(1, 1, 'Cura carro', () => { state.tank.hp = state.tank.maxhp; });
   B(2, 1, '+500', () => { state.scrap += 500; });
   B(3, 1, state.god ? 'Dio: ON' : 'Dio: off', () => { state.god = !state.god; }, { active: !!state.god });
-  y += 58;
+  B(0, 2, '+5 piastr.', () => { meta.piastrine += 5; saveMeta(); });
+  B(1, 2, tune.fog ? 'Nebbia ON' : 'Nebbia off', () => { CONFIG.fog.value = tune.fog ? 0 : 1; state.fogT = 0; }, { active: !!tune.fog });
+  B(2, 2, 'Uccidi vicini', () => devKillNear(45));
+  B(3, 2, 'Alleato', () => devSpawnAlly(state.devKind || 'rifle', state.tank.x + 5, state.tank.z + 5));
+  y += 84;
   text('Nemico da piazzare (K)', x0 + 12, y + 6, 11, '#a890c8', 'left'); y += 14;
   DEV_ENEMIES.forEach((k, i) => {
     const bx0 = x0 + 8 + i * 57;
