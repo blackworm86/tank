@@ -35,6 +35,8 @@ window.CONFIG = {
   fog_shot_reveal: { value: 1.5, min: 0, max: 6, step: 0.5 },    // seconds a raider's shot gives its place away (near the radio ring)
   turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front
   squad_size: { value: 8, min: 1, max: 12, step: 1 },            // most soldiers in one squad (Alt+1-6)
+  fog_unknown: { value: 0.97, min: 0, max: 1, step: 0.01 },     // how dark the ground nobody has explored yet is drawn (map and minimap)
+  fog_lid: { value: 11, min: 0, max: 30, step: 1 },              // how high the unexplored fog sits above the ground, covering trees and buildings
   fog_dark: { value: 0.7, min: 0, max: 0.9, step: 0.05 },      // how dark the ground nobody sees is drawn
   posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
   stealth_trigger: { value: 0.45, min: 0.1, max: 1, step: 0.05 }, // a stealthy squad opens fire inside this share of its range
@@ -131,7 +133,7 @@ window.CONFIG = {
   mg_damage: { value: 4, min: 1, max: 30, step: 1 },
   mg_rate: { value: 0.16, min: 0.03, max: 1, step: 0.01 },
   mg_acc: { value: 0.3, min: 0.05, max: 1, step: 0.05 },
-  medic_heal: { value: 4, min: 0, max: 30, step: 0.5 },         // hp/s to hurt allies nearby
+  medic_heal: { value: 6, min: 0, max: 30, step: 0.5 },         // hp/s to hurt allies nearby
   medic_radius: { value: 6, min: 1, max: 20, step: 0.5 },
   mortar_range: { value: 44, min: 10, max: 90, step: 1 },
   mortar_min: { value: 8, min: 0, max: 30, step: 1 },
@@ -202,6 +204,41 @@ window.CONFIG = {
   tank_hmg_damage: { value: 11, min: 1, max: 80, step: 1 },     // APC heavy machine gun
   tank_hmg_rate: { value: 0.13, min: 0.03, max: 1, step: 0.01 },
   tank_mg_range: { value: 46, min: 10, max: 100, step: 1 },
+  ammo_cannon: { value: 30, min: 1, max: 200, step: 1 },          // main-gun rounds the battle tank carries
+  ammo_autocannon: { value: 90, min: 1, max: 500, step: 5 },      // autocannon rounds the light tank carries
+  ammo_cost: { value: 5, min: 0, max: 50, step: 1 },              // scrap per round at the garage
+  ammo_crates: { value: 2, min: 0, max: 10, step: 1 },            // crates of rounds lying by the road of each map
+  ammo_crate_size: { value: 6, min: 1, max: 30, step: 1 },
+  ammo_drop_wreck: { value: 0.2, min: 0, max: 1, step: 0.05 },    // chance a wreck hides a few rounds
+  ammo_drop_veh: { value: 0.35, min: 0, max: 1, step: 0.05 },     // chance a destroyed raider vehicle leaves rounds
+  ammo_drop_camp: { value: 0.6, min: 0, max: 1, step: 0.05 },     // chance a cleared camp leaves rounds
+  loot_camp: { value: 0.4, min: 0, max: 1, step: 0.05 },          // chance a cleared camp leaves a hull module
+  loot_technical: { value: 0.25, min: 0, max: 1, step: 0.05 },    // chance a destroyed technical leaves one
+  loot_wreck: { value: 0.1, min: 0, max: 1, step: 0.05 },         // chance a wreck hides one
+  mod_rocket_damage: { value: 70, min: 5, max: 300, step: 5 },    // rocket pod (second weapon)
+  mod_rocket_rate: { value: 1.8, min: 0.3, max: 10, step: 0.1 },
+  mod_cage: { value: 0.45, min: 0, max: 0.9, step: 0.05 },        // rocket damage the cage stops
+  mod_plates_hp: { value: 80, min: 0, max: 400, step: 10 },
+  mod_plates_slow: { value: 0.6, min: 0, max: 4, step: 0.1 },
+  mod_skirts: { value: 0.3, min: 0, max: 0.9, step: 0.05 },       // side and rear damage the skirts stop
+  mod_thermal: { value: 1.4, min: 1, max: 3, step: 0.05 },        // tank sight multiplier
+  mod_autorep: { value: 1.5, min: 0, max: 20, step: 0.5 },        // hp/s once out of fire
+  mod_autorep_wait: { value: 6, min: 0, max: 30, step: 1 },
+  mod_loader: { value: 0.25, min: 0, max: 0.8, step: 0.05 },      // reload time the autoloader cuts
+  mod_rack_ammo: { value: 1.5, min: 1, max: 3, step: 0.1 },       // rounds carried multiplier
+  medic_seek: { value: 16, min: 0, max: 50, step: 1 },            // a medic walks to wounded friends this near
+  medic_save: { value: 0.5, min: 0, max: 1, step: 0.05 },         // chance a soldier falling near a medic is saved
+  medic_save_radius: { value: 10, min: 0, max: 40, step: 1 },
+  eng_radius: { value: 4, min: 1, max: 15, step: 0.5 },           // engineers repair our vehicles this close
+  eng_repair: { value: 4, min: 0, max: 30, step: 0.5 },           // hp/s
+  eng_build_time: { value: 7, min: 1, max: 60, step: 1 },         // seconds between sandbag rows
+  radioman_range: { value: 1.6, min: 1, max: 4, step: 0.1 },      // a radioman hears the tank this much farther
+  radio_relay: { value: 14, min: 0, max: 50, step: 1 },           // and relays orders to friends this near him
+  scout_sight: { value: 54, min: 10, max: 120, step: 1 },
+  scout_speed: { value: 1.25, min: 0.5, max: 2, step: 0.05 },
+  cost_eng: { value: 50, min: 0, max: 300, step: 5 },
+  cost_radio: { value: 45, min: 0, max: 300, step: 5 },
+  cost_scout: { value: 40, min: 0, max: 300, step: 5 },
   sight_range: { value: 34, min: 10, max: 80, step: 1 },        // how far any soldier spots enemies
 
   // ---- Raiders ----

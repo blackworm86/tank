@@ -56,7 +56,7 @@ function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
   if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3 };
-  return { camps: n.enemy, outposts: n.outpost ? 1 : 0, wrecks: [0, 4, 8, 13][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  return { camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 4, 8, 13][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -76,6 +76,7 @@ function carryOut() {
   const squads = [];
   for (const sq of state.squads) {
     const slots = [], mem = [];
+    const with_ = m => m && m.alive && heardAt(m);
     sq.slots.forEach((k, i) => {
       const m = sq.members[i];
       if (!m || !m.alive) return; // the fallen are gone
@@ -84,12 +85,12 @@ function carryOut() {
     });
     if (mem.length) squads.push({ name: sq.name, named: !!sq.named, color: sq.color, posture: sq.posture, slots, mem });
   }
-  return { hp: tk.hp / tk.maxhp, parts: Object.assign({}, state.parts), hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
+  return { hp: tk.hp / tk.maxhp, parts: Object.assign({}, state.parts), mods: Object.assign({}, state.mods), loot: state.loot.slice(), ammo: state.ammo, hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
 }
 /** Who would come along now, and who would stay behind (for the exit prompt). */
 function exitCount() {
   const tk = state.tank, R = tankStats().radio; let go = 0, stay = 0;
-  for (const sq of state.squads) for (const m of alive(sq)) { if (m.inside || dist2(m, tk) <= R * R) go++; else stay++; }
+  for (const sq of state.squads) for (const m of alive(sq)) { if (heardAt(m)) go++; else stay++; }
   return { go, stay };
 }
 /** Brings the carried squads back near (x,z), facing like the tank. */
@@ -134,7 +135,11 @@ function setupMap() {
     }
   }
   if (n.final) setupFinal();
-  else say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
+  else {
+    say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
+    const gs = s.outposts.filter(o => o.shed);
+    if (gs.length) say('SITREP', (gs.length > 1 ? 'Due garage amici: ' : 'Garage amico: ') + gs.map(o => o.name).join(' e ') + ' (croce verde sulla minimappa). Lì modifiche, colpi e pezzi trovati.', '#b6d77a');
+  }
 }
 /** The eighth sector: the army's last camp, its squads and tanks, and the Horde's gate. */
 function setupFinal() {
@@ -454,7 +459,7 @@ function drawCampaign() {
       text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 46, 14, HC.gold, 'left');
       const signs = [];
       if (sel.faction) signs.push(FACTIONS[sel.faction].sign);
-      if (sel.outpost) signs.push('avamposto amico');
+      signs.push(sel.outpost ? '2 garage' : 'garage');
       if (sel.mission === 'rescue') signs.push('segnale di soccorso');
       text('Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), bx + 16, by + 70, 14, HC.text, 'left');
     }

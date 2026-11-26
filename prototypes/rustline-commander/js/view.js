@@ -76,6 +76,8 @@ function initView() {
   makePool('shell', () => new THREE.Mesh(R3.box, new THREE.MeshBasicMaterial({ color: 0xffd27a, fog: false })));
   makePool('mark', () => { const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.05, 24), new THREE.MeshBasicMaterial({ color: 0x4fe3e0, transparent: true, side: THREE.DoubleSide, fog: false })); m.rotation.x = -Math.PI / 2; return m; });
   makePool('pick', () => makePickupModel());
+  makePool('ammo', () => makeCrateModel(0x5a6a30, PC.yel));
+  makePool('loot', () => makeCrateModel(0x2f6f8f, 0x8fe0ff));
   // rings: radio (dashed cyan), dispersion circle, gun line, mouse mark
   R3.radio = makeLoop(128, new THREE.LineDashedMaterial({ color: 0x4fe3e0, dashSize: 1.4, gapSize: 0.9, transparent: true, opacity: 0.9, fog: false }));
   R3.aim = makeLoop(56, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, fog: false }));
@@ -283,6 +285,21 @@ function makeSoldier(kind) {
     bx(s, 0.48, 0.52, 0.28, PC.white, 0, 0.98, -0.3); bx(s, 0.3, 0.08, 0.04, PC.red, 0, 1.02, -0.45); bx(s, 0.08, 0.3, 0.04, PC.red, 0, 1.02, -0.45);
     bx(s, 0.18, 0.06, 0.2, PC.red, -0.36, 1.08, 0.06);
   }
+  if (kind === 'eng') {
+    bx(s, 0.42, 0.16, 0.42, PC.yel, 0, 1.56, 0);
+    bx(s, 0.46, 0.46, 0.26, 0x6a5a30, 0, 0.98, -0.3); bx(s, 0.08, 0.08, 0.9, PC.metal, -0.18, 1.1, -0.4, 0.9);
+    bx(s, 0.3, 0.12, 0.3, PC.metal, -0.18, 0.62, -0.75); bx(s, 0.08, 0.1, 0.8, 0x3a2e24, 0.22, 0.98, 0.38);
+  }
+  if (kind === 'radio') {
+    bx(s, 0.4, 0.16, 0.4, PC.helmet, 0, 1.56, 0);
+    bx(s, 0.5, 0.6, 0.3, 0x4f5a34, 0, 1.0, -0.32); bx(s, 0.04, 1.3, 0.04, PC.black, -0.16, 1.9, -0.36); bx(s, 0.12, 0.06, 0.12, PC.red, -0.16, 2.55, -0.36);
+    bx(s, 0.08, 0.1, 0.8, 0x3a2e24, 0.22, 0.98, 0.38);
+  }
+  if (kind === 'scout') {
+    bx(s, 0.38, 0.12, 0.38, 0x8a7a48, 0, 1.55, 0); bx(s, 0.44, 0.04, 0.5, 0x8a7a48, 0, 1.5, 0.04);
+    bx(s, 0.22, 0.1, 0.1, PC.black, 0, 1.38, 0.18); bx(s, 0.08, 0.1, 0.7, 0x3a2e24, 0.22, 0.98, 0.36);
+    bx(s, 0.5, 0.2, 0.2, 0x8a7a48, 0, 0.75, -0.2);
+  }
   if (kind === 'mortar') {
     bx(s, 0.4, 0.16, 0.4, PC.helmet, 0, 1.56, 0);
     bx(s, 0.7, 0.08, 0.7, PC.metal, 0.62, 0.04, 0.45); bx(s, 0.2, 1.2, 0.2, 0x3a3a35, 0.62, 0.6, 0.6, -0.5);
@@ -436,6 +453,13 @@ function makePickupModel() {
   g.userData = { spin: s };
   return g;
 }
+/** A crate on the battlefield: rounds (olive, yellow band) or a hull module (blue). */
+function makeCrateModel(body, band) {
+  const g = new THREE.Group(), s = new THREE.Group(); g.add(s);
+  bx(s, 1.0, 0.7, 0.7, body, 0, 0.35, 0); bx(s, 1.02, 0.14, 0.72, band, 0, 0.5, 0); bx(s, 0.2, 0.72, 0.74, band, 0, 0.36, 0);
+  g.userData = { spin: s };
+  return g;
+}
 function modelFor(e) {
   if (e.kind === 'tank') { const L = tankLook(); return L.hull === 'apc' ? makeAPCModel() : L.hull === 'light' ? makeLightTankModel() : makeTankModel(L); }
   if (e.kind === 'apc') return makeAPCModel();
@@ -560,13 +584,15 @@ function updateFogMesh() {
   if (R3.fogN === world.visN) return; R3.fogN = world.visN;
   const P = R3.fog.geometry.attributes.position, C = R3.fog.geometry.attributes.color, dark = tune.fog_dark, H = world.hmap;
   const vis = (x, z) => V[Math.max(0, Math.min(G - 1, x)) + G * Math.max(0, Math.min(G - 1, z))];
+  const X = world.exp && world.exp.length === G * G ? world.exp : null, ex = (x, z) => X[Math.max(0, Math.min(G - 1, x)) + G * Math.max(0, Math.min(G - 1, z))];
   const top = (x, z) => { x = Math.max(0, Math.min(N - 1, x)); z = Math.max(0, Math.min(N - 1, z)); return Math.max(world.gsm[x + N * z], H[x + N * z]); };
   for (let z = 0; z <= G; z++) for (let x = 0; x <= G; x++) {
     const i = x + n * z, wx = x * 2, wz = z * 2;
     const v = (vis(x - 1, z - 1) + vis(x, z - 1) + vis(x - 1, z) + vis(x, z)) / 4;
+    const e = X ? (ex(x - 1, z - 1) + ex(x, z - 1) + ex(x - 1, z) + ex(x, z)) / 4 : 0;
     const h = Math.max(world.WL, top(wx - 1, wz - 1), top(wx, wz - 1), top(wx - 1, wz), top(wx, wz));
-    P.setXYZ(i, wx, h + 0.15, wz);
-    C.setXYZW(i, 0.01, 0.02, 0.04, (1 - v) * dark);
+    P.setXYZ(i, wx, h + 0.15 + (1 - e) * tune.fog_lid, wz); // unexplored land is covered by a lid above trees and roofs
+    C.setXYZW(i, 0.01, 0.02, 0.04, (1 - e) * tune.fog_unknown + e * (1 - v) * dark); // unexplored: near black; explored but unseen: dim
   }
   P.needsUpdate = true; C.needsUpdate = true;
 }
@@ -585,7 +611,8 @@ function renderWorld() {
     syncModel(e);
     if (e.model) e.model.visible = !hiddenFoe(e); // the fog of war: a raider nobody sees is not drawn
   }
-  for (const p of state.npcs || []) { // neutral people by the road: plain figures turned to the tank
+  for (const p of state.npcs || []) {
+    if (!explored(p.x, p.z)) { if (p.models) for (const m of p.models) m.visible = false; continue; } // in unexplored land nobody is drawn // neutral people by the road: plain figures turned to the tank
     if (!p.models || p.models[0].parent !== R3.units) { p.models = []; for (let i = 0; i < p.n; i++) { const m = makeSoldier(p.kind); R3.units.add(m); p.models.push(m); } }
     p.models.forEach((m, i) => { const x = p.x + (i - (p.n - 1) / 2) * 1.5, z = p.z + (i % 2) * 0.9; m.position.set(x, surfaceY(x, z), z); m.rotation.set(0, Math.atan2(state.tank.x - x, state.tank.z - z), 0); m.visible = !p.done; });
   }
@@ -611,7 +638,7 @@ function renderWorld() {
   }
   for (const p of state.proj) { const m = poolGet('shell'); m.position.set(p.x, p.y, p.z); m.scale.set(0.3, 0.3, 0.9); m.lookAt(p.x + p.vx, p.y + p.vy, p.z + p.vz); }
   for (const o of state.marks) { const m = poolGet('mark'); const k = o.t / o.life; m.position.set(o.x, o.y + 0.15, o.z); m.scale.setScalar(1.6 - k); m.material.opacity = 1 - k; m.material.color.setHex(o.col); }
-  for (const p of state.pickups) { if (p.taken) continue; const m = poolGet('pick'); m.position.set(p.x, hAt(p.x, p.z) + 0.6 + Math.sin(state.t * 3 + p.x) * 0.2, p.z); m.userData.spin.rotation.y = state.t * 1.5; }
+  for (const p of state.pickups) { if (p.taken) continue; const m = poolGet(p.loot ? 'loot' : p.ammo ? 'ammo' : 'pick'); m.position.set(p.x, hAt(p.x, p.z) + 0.6 + Math.sin(state.t * 3 + p.x) * 0.2, p.z); m.userData.spin.rotation.y = state.t * 1.5; }
   poolsEnd();
   // tracers
   let tn = 0; const tp = R3.tracerPos, tcl = R3.tracerCol;

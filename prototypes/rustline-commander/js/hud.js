@@ -52,6 +52,9 @@ function unitIcon(kind, x, y, s, col) {
     if (kind === 'sniper') { ctx.fillRect(2, -4, 10, 1.4); ctx.fillRect(5, -6, 3, 1.6); }
     if (kind === 'mg') { ctx.fillRect(2, -4, 8, 3); ctx.fillRect(7, -1, 1, 3); }
     if (kind === 'medic') { ctx.fillStyle = dead ? col : '#f2ede2'; ctx.fillRect(-6, -4, 3, 6); ctx.fillStyle = dead ? col : '#c0392b'; ctx.fillRect(-5.6, -2.2, 2.2, 0.9); ctx.fillRect(-5, -3, 1, 2.6); }
+    if (kind === 'eng') { ctx.fillStyle = dead ? col : '#e0b040'; ctx.fillRect(-6, -4, 3, 6); ctx.fillStyle = dead ? col : '#2a2220'; ctx.fillRect(2, -5, 2, 9); ctx.fillRect(1, -6, 4, 2); }
+    if (kind === 'radio') { ctx.fillStyle = dead ? col : '#5a6a40'; ctx.fillRect(-7, -5, 4, 7); ctx.fillStyle = dead ? col : '#2a2220'; ctx.fillRect(-6, -13, 1, 8); ctx.fillRect(2, -4, 6, 1.6); }
+    if (kind === 'scout') { ctx.fillRect(2, -4, 6, 1.4); ctx.fillStyle = dead ? col : '#c8b070'; ctx.fillRect(-3, -10, 6, 2); }
     if (kind === 'mortar') { ctx.save(); ctx.translate(6, 6); ctx.rotate(-0.6); ctx.fillRect(-1.2, -9, 2.4, 9); ctx.restore(); ctx.fillRect(3, 6, 7, 1.5); }
   }
   if (dead) { ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-7, -8); ctx.lineTo(7, 8); ctx.moveTo(7, -8); ctx.lineTo(-7, 8); ctx.stroke(); }
@@ -77,6 +80,7 @@ function partIcon(slot, x, y, s) {
   if (slot === 'engine') { ctx.fillRect(-9, -6, 14, 12); ctx.fillRect(5, -3, 5, 6); ctx.fillRect(-7, -10, 3, 4); ctx.fillRect(-2, -10, 3, 4); ctx.fillStyle = '#5b3a28'; ctx.fillRect(-6, -3, 8, 2); ctx.fillRect(-6, 1, 8, 2); }
   if (slot === 'turret') { ctx.beginPath(); ctx.arc(0, 2, 8, Math.PI, 0); ctx.fill(); ctx.fillRect(-10, 2, 20, 5); ctx.fillRect(4, -3, 9, 3); }
   if (slot === 'seats') { for (const sx of [-7, 0, 7]) { ctx.fillRect(sx - 2, -9, 4, 4); ctx.fillRect(sx - 3, -4, 6, 7); } ctx.fillRect(-11, 4, 22, 4); }
+  if (slot === 'sensor') { ctx.beginPath(); ctx.arc(0, 4, 3, 0, Math.PI * 2); ctx.fill(); for (const r of [6, 10]) { ctx.beginPath(); ctx.arc(0, 4, r, -2.5, -0.6); ctx.stroke(); } ctx.fillRect(-1, 4, 2, 7); }
   if (slot === 'stab') { ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0.5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
@@ -119,7 +123,8 @@ function drawMinimap(x0, y0, S) {
     if (!UI.fogC || UI.fogC.width !== G) { UI.fogC = document.createElement('canvas'); UI.fogC.width = UI.fogC.height = G; UI.fogN = -1; }
     if (UI.fogN !== world.visN) {
       UI.fogN = world.visN; const c2 = UI.fogC.getContext('2d'), im = c2.createImageData(G, G);
-      for (let i = 0; i < G * G; i++) im.data[i * 4 + 3] = Math.round((1 - world.vis[i]) * 175);
+      const X = world.exp && world.exp.length === G * G ? world.exp : null;
+      for (let i = 0; i < G * G; i++) { const e = X ? X[i] : 0; im.data[i * 4] = 14; im.data[i * 4 + 1] = 10; im.data[i * 4 + 2] = 8; im.data[i * 4 + 3] = Math.round((1 - e) * 250 + e * (1 - world.vis[i]) * 175); }
       c2.putImageData(im, 0, 0);
     }
     ctx.imageSmoothingEnabled = true; ctx.drawImage(UI.fogC, 0, 0, G * 2, G * 2); ctx.imageSmoothingEnabled = false;
@@ -127,11 +132,12 @@ function drawMinimap(x0, y0, S) {
   const sites = world.sites;
   const flagMark = (sx, sz, col, s2) => { ctx.fillStyle = '#1d1b1a'; ctx.fillRect(sx - s2 - 1, sz - s2 - 1, s2 * 2 + 2, s2 * 2 + 2); ctx.fillStyle = col; ctx.fillRect(sx - s2, sz - s2, s2 * 2, s2 * 2); };
   for (const o of [sites.start, ...sites.outposts]) { flagMark(o.x, o.z, '#7fc85a', 4); ctx.fillStyle = '#1d1b1a'; ctx.fillRect(o.x - 1, o.z - 2.5, 2, 5); ctx.fillRect(o.x - 2.5, o.z - 1, 5, 2); }
-  for (const c of sites.camps) flagMark(c.x, c.z, c.cleared ? '#8a8378' : '#d0402e', 4);
+  for (const c of sites.camps) if (explored(c.x, c.z) || state.campsKnown) flagMark(c.x, c.z, c.cleared ? '#8a8378' : '#d0402e', 4); // camps show once found
   const f = sites.fortress;
   if (f.kind === 'exit') { ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 2.4 / k; ctx.strokeRect(f.x - 7, f.z - 7, 14, 14); ctx.fillStyle = '#ffd36a'; ctx.fillRect(f.x - 3, f.z - 3, 6, 6); }
   else { flagMark(f.x, f.z, '#d0402e', 7); ctx.fillStyle = '#1d1b1a'; for (let i = -6; i <= 4; i += 4) ctx.fillRect(f.x + i, f.z - 7, 2, 3); }
   if (typeof minimapMarks === 'function') minimapMarks(k);
+  minimapBlips(k);
   ctx.strokeStyle = 'rgba(79,227,224,0.85)'; ctx.lineWidth = 1.2 / k; ctx.setLineDash([3 / k, 2 / k]);
   ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   // the player's view: the screen's corners carried down to the ground
@@ -242,13 +248,14 @@ function drawHUD() {
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#101010'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(p.x, p.y + 6); ctx.lineTo(p.x - 5, p.y - 1); ctx.lineTo(p.x + 5, p.y - 1); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
+  drawBlips3D();
   for (const f of state.floats) { const p = toScreen(f.x, f.y + f.t * 1.5, f.z); if (p.on) { ctx.globalAlpha = Math.max(0, 1 - f.t / 1.6); text(f.s, p.x, p.y, 16, f.col); ctx.globalAlpha = 1; } }
   const hurt = Math.max(0, 1 - (state.t - state.hurtT) * 2.5);
   if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(160,20,10,0)'); g.addColorStop(1, `rgba(160,20,10,${0.45 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
 
   // tank panel: integrity, the gun, the scrap (the armour shows for a few seconds after a hit)
   if (tk.lastHit && state.t - tk.lastHit.t < 4) drawArmor(252, 14, tk);
-  panel(14, 14, 230, 70);
+  panel(14, 14, 230, 88);
   text(HULLS[state.hull || 'mbt'].name.toUpperCase() + (HULLS[state.hull || 'mbt'].weapons.length > 1 ? ' · X arma' : ''), 24, 29, 12, HC.dim, 'left');
   gearIcon(184, 29, 6, HC.gold); text(String(state.scrap), 194, 29, 13, HC.gold, 'left');
   bar(24, 40, 210, 13, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
@@ -256,13 +263,16 @@ function drawHUD() {
   bar(24, 58, 210, 13, 1 - tk.reload / S.reload, tk.reload > 0 ? '#c9a35a' : '#ffe08a');
   const st = tk.reload > 0 && S.wkind !== 'bullet' ? 'RICARICA' : cmd ? S.wname : S.wname + (tk.aligned ? ' · IN LINEA' : ' · ALLINEA');
   text(st, 129, 65, 11, '#1a120c');
+  const am = ammoMax(), sw = secWeapon();
+  text(countedGun() ? 'Colpi ' + state.ammo + ' / ' + am : am ? 'Colpi ' + state.ammo + ' / ' + am + ' (mitragl.)' : 'Colpi: non contati', 24, 86, 12, countedGun() && state.ammo <= Math.ceil(am * 0.2) ? HC.warn : '#ffe08a', 'left');
+  if (sw) text('Dx: ' + MODS[sw.id].name.split(' ')[0] + ((tk.reload2 || 0) > 0.3 ? ' ...' : ''), 234, 86, 12, '#8fe0ff', 'right');
   // mode tag
   if (tp) {
-    rrect(W / 2 - 120, 10, 240, 26, 6, 'rgba(70,52,16,0.94)', '#ffd27a');
-    text('PAUSA TATTICA · Spazio riprende', W / 2, 23, 13, '#ffd27a');
+    rrect(W / 2 - 170, 10, 340, 26, 6, 'rgba(70,52,16,0.94)', '#ffd27a');
+    text('PAUSA TATTICA · ordini · WASD vista · Spazio/Tab riprende', W / 2, 23, 13, '#ffd27a');
   } else {
     rrect(W / 2 - 95, 10, 190, 26, 6, cmd ? 'rgba(18,56,58,0.88)' : 'rgba(60,40,22,0.88)', cmd ? HC.cyan : '#d9a35a');
-    text(cmd ? 'COMANDO · WASD vista · Tab' : 'CARRO · Tab comando', W / 2, 23, 13, cmd ? HC.cyan : '#ffd9a0');
+    text('CARRO · Spazio/Tab: pausa tattica e ordini', W / 2, 23, 13, '#ffd9a0');
   }
 
   // minimap and objective
@@ -271,10 +281,11 @@ function drawHUD() {
   text(state.mission ? missionLine() : ob.site.name + ' · ' + Math.round(ob.d) + ' m', W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
 
   // squad cards
-  let y = 96; UI.cards = [];
+  let y = 114; UI.cards = [];
   const dragging = state.dragSoldier && state.dragSoldier.moved ? state.dragSoldier : null;
   state.squads.forEach((sq, i) => {
-    const heard = inRadio(sq), ms = alive(sq), h = 52, col = sqColor(sq), ps = postureOf(sq), card = { sq, x: 14, y, w: 230, h, icons: [] };
+    squadMod(sq);
+    const heard = inRadio(sq), ms = alive(sq), h = (sq.traits && sq.traits.length) ? 64 : 52, col = sqColor(sq), ps = postureOf(sq), card = { sq, x: 14, y, w: 230, h, icons: [] };
     const over = dragging && cardAt(MS.x, MS.y) && cardAt(MS.x, MS.y).sq === sq && sq !== dragging.m.squad;
     rrect(14, y, 230, h, 6, over ? 'rgba(60,70,50,0.95)' : sq.selected ? 'rgba(32,36,32,0.92)' : 'rgba(24,18,14,0.72)', sq.selected || over ? col : 'rgba(142,75,39,0.55)');
     ctx.fillStyle = col; ctx.fillRect(15, y + 4, 4, h - 8);
@@ -300,6 +311,7 @@ function drawHUD() {
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
     const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
+    if (h > 52) { let tx = 24; ctx.font = 'bold 10px ' + FONT; for (const t of sq.traits) { const tw = ctx.measureText(t.name).width; if (tx + tw > 238) break; text(t.name, tx, y + 55, 10, t.bad ? '#e0a070' : '#b6d77a', 'left'); tx += tw + 8; } }
     y += h + 5;
   });
   // dragging a soldier: an empty slot for a new squad, and the soldier under the mouse
@@ -332,12 +344,12 @@ function drawHUD() {
   if (state.canShop) {
     const py = (state.mode === 'cmd' || state.tpause) ? H - 226 : H - 200;
     rrect(W / 2 - 200, py, 400, 34, 6, 'rgba(40,70,30,0.92)', '#b6d77a');
-    text('Capanno degli attrezzi - ' + state.canShop.name + '   [E] apri', W / 2, py + 17, 15, '#eaf7d0');
+    text('Garage - ' + state.canShop.name + '   [E] apri', W / 2, py + 17, 15, '#eaf7d0');
   }
   // controls
   const lines = cmd
     ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'Trascina un soldato su un\'altra squadra']
-    : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio: pausa tattica   Tab: comando', 'Q/E: ruota camera   Rotella: zoom'];
+    : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio o Tab: pausa tattica (ordini)', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
   else {
@@ -364,20 +376,20 @@ function drawShop() {
   ctx.fillStyle = 'rgba(14,10,8,0.6)'; ctx.fillRect(0, 0, W, H);
   const x0 = 110, y0 = 40, w = W - 220, h = H - 80;
   panel(x0, y0, w, h);
-  text('Capanno degli attrezzi - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
+  text('Garage - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
   gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
-  ['Modifiche', 'Caserma', 'Riparazioni'].forEach((t, i) => button(x0 + 24 + i * 170, y0 + 56, 160, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
+  ['Modifiche', 'Caserma', 'Riparazioni', 'Pezzi trovati'].forEach((t, i) => button(x0 + 24 + i * 170, y0 + 56, 160, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
   const cy = y0 + 106;
   if (state.shopTab === 0) {
     SLOTS.forEach((slot, r) => {
-      const yy = cy + r * 60, P = PARTS[slot];
+      const yy = cy + r * 54, P = PARTS[slot];
       partIcon(slot, x0 + 44, yy + 28, 28);
       text(P.label, x0 + 66, yy + 22, 16, HC.text, 'left');
       const back = partRefund(slot);
       if (back) text('smonti: +' + back, x0 + 66, yy + 40, 12, '#b6d77a', 'left');
       P.opts.forEach((o, i) => {
         const bx0 = x0 + 196 + i * 212, eq = state.parts[slot] === i, afford = state.scrap + back >= o.cost;
-        button(bx0, yy + 1, 204, 56, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
+        button(bx0, yy + 1, 204, 50, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
         text(o.name, bx0 + 8, yy + 16, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
         wrap(o.desc, 188, 12).slice(0, 2).forEach((l, k) => text(l, bx0 + 8, yy + 32 + k * 14, 12, HC.dim, 'left'));
         if (eq || o.cost) text(eq ? 'Montato' : String(o.cost), bx0 + 196, yy + 16, 13, eq ? '#b6d77a' : HC.gold, 'right');
@@ -390,21 +402,28 @@ function drawShop() {
       rrect(x0 + 24, yy, 480, 50, 5, 'rgba(0,0,0,0.3)', '#5a4030');
       text((i + 1) + '. ' + sq.name, x0 + 36, yy + 15, 15, HC.text, 'left');
       sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, x0 + 44 + j * 24, yy + 36, 18, m && m.alive ? '#a8d870' : '#5a3a32'); });
+      squadMod(sq); text((sq.traits || []).map(t => t.name).join(' · '), x0 + 150, yy + 37, 11, '#b6d77a', 'left');
       if (miss) button(x0 + 300, yy + 8, 194, 34, 'Rimpiazza ' + miss + ' (' + c + ')', () => reinforce(sq), { off: state.scrap < c, size: 14 });
       else text('Al completo', x0 + 494, yy + 25, 14, HC.ok, 'right');
     });
     if (!state.squads.length) text('Nessuna squadra.', x0 + 24, cy + 40, 15, HC.dim, 'left');
     const rx = x0 + 540;
     text('Nuova squadra su misura (max ' + tune.squad_max_size + ' soldati)', rx, cy + 6, 17, '#ffd9a0', 'left');
+    let hov = null;
     INF_KINDS.forEach((k, i) => {
       const bx0 = rx + (i % 3) * 154, by0 = cy + 26 + Math.floor(i / 3) * 52;
+      if (MS.x >= bx0 && MS.x <= bx0 + 148 && MS.y >= by0 && MS.y <= by0 + 46) hov = k;
       button(bx0, by0, 148, 46, '', () => { if (state.roster.length < tune.squad_max_size) state.roster.push(k); }, { off: state.roster.length >= tune.squad_max_size });
       unitIcon(k, bx0 + 20, by0 + 24, 24, '#a8d870');
       text('+ ' + UT[k].name, bx0 + 38, by0 + 16, 14, HC.text, 'left'); text(tune[UT[k].cost] + ' rottami', bx0 + 38, by0 + 33, 13, HC.gold, 'left');
     });
-    const ry = cy + 142;
+    const ry = cy + 190;
     rrect(rx, ry, 456, 60, 5, 'rgba(0,0,0,0.3)', '#5a4030');
-    if (state.roster.length) { text(squadName(state.roster), rx + 12, ry + 16, 15, HC.text, 'left'); state.roster.forEach((k, j) => unitIcon(k, rx + 22 + j * 26, ry + 42, 20, '#a8d870')); }
+    const rtr = traitsOf(state.roster);
+    if (state.roster.length) {
+      text(squadName(state.roster), rx + 12, ry + 16, 15, HC.text, 'left'); state.roster.forEach((k, j) => unitIcon(k, rx + 22 + j * 26, ry + 42, 20, '#a8d870'));
+      text(rtr.map(t => t.name).join(' · '), rx + 140, ry + 42, 12, '#b6d77a', 'left');
+    }
     else { text('Scegli i soldati qui sopra: un cecchino solitario, un team', rx + 12, ry + 20, 13, HC.dim, 'left'); text('di mitraglieri, fucilieri con un medico...', rx + 12, ry + 40, 13, HC.dim, 'left'); }
     const rc = rosterCost(state.roster);
     button(rx, ry + 70, 150, 38, 'Svuota', () => { state.roster = []; });
@@ -415,15 +434,43 @@ function drawShop() {
       unitIcon(k, bx0 + 22, ry + 147, 24, '#a8d870');
       text(d.split(':')[0], bx0 + 44, ry + 139, 14, HC.text, 'left'); text(c + ' rottami', bx0 + 44, ry + 157, 13, HC.gold, 'left');
     });
-    text('Squadre: ' + state.squads.length + ' / ' + maxSquads(), rx, ry + 194, 14, HC.dim, 'left');
-  } else {
+    text('Squadre: ' + state.squads.length + ' / ' + maxSquads(), rx, ry + 190, 14, HC.dim, 'left');
+    // the role under the mouse, or what the new squad's make-up gives it
+    if (hov) { text(UT[hov].name, rx, ry + 214, 14, '#ffd9a0', 'left'); wrap(ROLE_DESC[hov], 456, 13).slice(0, 2).forEach((l, k) => text(l, rx, ry + 232 + k * 16, 13, HC.text, 'left')); }
+    else if (rtr.length) rtr.slice(0, 4).forEach((t, k) => text(t.name + ': ' + t.desc, rx, ry + 214 + k * 17, 13, t.bad ? '#e0a070' : '#b6d77a', 'left'));
+    else text('Passa sopra un ruolo per leggere cosa fa. La composizione dà bonus e malus.', rx, ry + 214, 12, HC.dim, 'left');
+  } else if (state.shopTab === 2) {
     const tk = state.tank, miss = Math.ceil(tk.maxhp - tk.hp);
     text('Integrità del carro', x0 + 24, cy + 14, 17, HC.text, 'left');
     bar(x0 + 24, cy + 32, 520, 22, tk.hp / tk.maxhp, '#8fd86a');
     text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), x0 + 284, cy + 43, 14, '#10140c');
     button(x0 + 24, cy + 72, 250, 44, 'Ripara 50 (' + repairCost(Math.min(50, Math.max(0, miss))) + ')', () => repair(false), { off: miss <= 0 });
     button(x0 + 294, cy + 72, 250, 44, 'Ripara tutto (' + repairCost(Math.max(0, miss)) + ')', () => repair(true), { off: miss <= 0 });
-    text('Il carro si ripara solo negli avamposti.', x0 + 24, cy + 140, 14, HC.dim, 'left');
+    text('Il carro si ripara ai garage (e dai genieri sul campo).', x0 + 24, cy + 140, 14, HC.dim, 'left');
+    const am = ammoMax(), room = am - state.ammo;
+    text('Munizioni del cannone', x0 + 24, cy + 190, 17, HC.text, 'left');
+    if (am) {
+      bar(x0 + 24, cy + 208, 520, 22, state.ammo / am, '#ffe08a');
+      text(state.ammo + ' / ' + am + ' colpi', x0 + 284, cy + 219, 14, '#10140c');
+      button(x0 + 24, cy + 246, 250, 44, '+5 colpi (' + Math.min(5, room) * tune.ammo_cost + ')', () => buyAmmo(5), { off: room <= 0 || state.scrap < tune.ammo_cost });
+      button(x0 + 294, cy + 246, 250, 44, 'Riempi (' + room * tune.ammo_cost + ')', () => buyAmmo(0), { off: room <= 0 || state.scrap < tune.ammo_cost });
+      text('Le mitragliatrici non consumano colpi. Casse rare lungo le strade, nei campi e sui mezzi distrutti.', x0 + 24, cy + 310, 13, HC.dim, 'left');
+    } else text('Questo scafo spara solo mitragliatrici: niente colpi da contare.', x0 + 24, cy + 214, 14, HC.dim, 'left');
+  } else {
+    text('Pezzi trovati sul campo: montali o smontali gratis, quando vuoi, a un garage.', x0 + 24, cy + 6, 15, HC.dim, 'left');
+    MOD_SLOTS.forEach(([slot, label], r) => {
+      const yy = cy + 30 + r * 116, own = state.loot.filter(id => MODS[id].slot === slot);
+      text(label, x0 + 24, yy + 12, 17, '#ffd9a0', 'left');
+      [null, ...own].forEach((id, i) => {
+        const bx0 = x0 + 24 + i * 250, eq = state.mods[slot] === id;
+        button(bx0, yy + 26, 240, 70, '', () => mountMod(slot, id), { active: eq });
+        text(id ? MODS[id].name : 'Niente', bx0 + 10, yy + 44, 14, eq ? '#eaf7d0' : HC.text, 'left');
+        if (id) wrap(MODS[id].desc, 220, 12).slice(0, 2).forEach((l, k) => text(l, bx0 + 10, yy + 62 + k * 14, 12, HC.dim, 'left'));
+        if (eq) text('Montato', bx0 + 230, yy + 44, 12, '#b6d77a', 'right');
+      });
+      if (!own.length) text('Ancora nulla per questo slot.', x0 + 290, yy + 61, 13, HC.dim, 'left');
+    });
+    text('Le casse di pezzi (azzurre) stanno nei campi ripuliti, sulle tecniche distrutte e a volte nei relitti.', x0 + 24, cy + 390, 13, HC.dim, 'left');
   }
   if (state.shopMsg) text(state.shopMsg, x0 + w / 2, y0 + h - 26, 16, HC.gold);
   text('Esc o E: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
@@ -470,6 +517,7 @@ function drawTitle() {
   text('Fuggi per 8 settori fino all\'esercito e resisti all\'ultimo assalto dell\'Orda. Se il carro cade, restano solo le piastrine.', W / 2, H - 28, 15, HC.text);
 }
 function drawEnd(win) {
+  UI.buttons = [];
   ctx.fillStyle = 'rgba(14,10,8,0.7)'; ctx.fillRect(0, 0, W, H);
   panel(W / 2 - 360, 80, 720, 540);
   text(state.gained || (win ? 'Vittoria' : 'Game over'), W / 2, 130, 44, win ? '#b6f08a' : '#ff9a7a');
@@ -478,7 +526,8 @@ function drawEnd(win) {
   const rows = [['Settori attraversati', (state.camp ? state.camp.sector : 1) + ' / 8'], ['Campi ripuliti', state.camps], ['Predoni abbattuti', state.kills], ['Rottami in tasca', state.scrap], ['Durata', mm + ' min ' + ss + ' s'], ['Piastrine guadagnate', '+' + state.tagsWon]];
   rows.forEach((r, i) => { text(r[0], W / 2 - 300, 186 + i * 28, 18, HC.text, 'left'); text(String(r[1]), W / 2 + 300, 186 + i * 28, 18, i === 5 ? HC.gold : HC.text, 'right'); });
   drawPerks(W / 2 - 300, 370);
-  text(win ? 'Invio: un nuovo run su una nuova mappa' : 'R o Invio: un nuovo run su una nuova mappa', W / 2, 590, 20, '#fff2d8');
+  button(W / 2 - 330, 556, 320, 46, 'Nuova run · ' + HULLS[HULL_PICK.id].name + '  (R / Invio)', restartRun, { size: 15 });
+  button(W / 2 + 10, 556, 320, 46, 'Menu principale  (Esc)', goTitle, { size: 15 });
 }
 function drawFiguresLabels(labels) {
   rrect(W / 2 - 220, 14, 440, 40, 6, 'rgba(28,20,16,0.82)', null);

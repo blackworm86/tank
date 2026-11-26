@@ -12,7 +12,10 @@ const UT = {
   sniper: { name: 'Cecchino', team: 0, w: 'sniper', cost: 'cost_sniper' },
   mg: { name: 'Mitragliere', team: 0, w: 'mg', cost: 'cost_mg' },
   medic: { name: 'Medico', team: 0, w: 'pistol', cost: 'cost_medic' },
-  mortar: { name: 'Mortaio', team: 0, w: 'mortar', cost: 'cost_mortar' },
+  eng: { name: 'Geniere', team: 0, w: 'carbine', cost: 'cost_eng' },
+  radio: { name: 'Operatore radio', team: 0, w: 'carbine', cost: 'cost_radio' },
+  scout: { name: 'Esploratore', team: 0, w: 'scout', cost: 'cost_scout' },
+  mortar: { name: 'Artigliere', team: 0, w: 'mortar', cost: 'cost_mortar' },
   at: { name: 'Cannone anticarro', team: 0, w: 'atgun', cost: 'cost_at' },
   car: { name: 'Autoblindo', team: 0, veh: true, rad: 1.6, w: 'autocannon', cost: 'cost_car' },
   ltank: { name: 'Carro di supporto', team: 0, veh: true, rad: 1.9, w: 'ltgun', cost: 'cost_ltank' },
@@ -22,7 +25,7 @@ const UT = {
   technical: { name: 'Tecnica', team: 1, veh: true, rad: 1.6, w: 'r_mount' },
   boss: { name: 'Carro del Capo', team: 1, veh: true, rad: 2.8, w: 'boss' },
 };
-const INF_KINDS = ['rifle', 'sniper', 'mg', 'medic', 'mortar', 'at'];
+const INF_KINDS = ['rifle', 'mg', 'medic', 'eng', 'radio', 'scout', 'sniper', 'mortar', 'at'];
 const VEH_KINDS = ['car', 'ltank'];
 /** Vehicles whose hull shrugs off rifle fire. */
 const HEAVY = new Set(['tank', 'boss', 'ltank']);
@@ -34,6 +37,8 @@ function weapon(k) {
     case 'mg': return { kind: 'bullet', range: tune.mg_range, dmg: tune.mg_damage, rate: tune.mg_rate, acc: tune.mg_acc, snd: 'mg', chip: 0.5, arc: tune.mg_arc, turn: tune.mg_turn };
     case 'atgun': return { kind: 'ap', range: tune.at_range, dmg: tune.at_damage, rate: tune.at_rate, blast: 0.8, arc: tune.at_arc, turn: tune.at_turn };
     case 'ltgun': return { kind: 'shell', range: tune.ltank_range, dmg: tune.ltank_damage, rate: tune.ltank_reload, blast: 1.4 };
+    case 'carbine': return { kind: 'bullet', range: tune.rifle_range * 0.85, dmg: tune.rifle_damage * 0.8, rate: tune.rifle_rate * 0.9, acc: tune.rifle_acc * 0.95 };
+    case 'scout': return { kind: 'bullet', range: tune.rifle_range * 0.95, dmg: tune.rifle_damage * 0.85, rate: tune.rifle_rate, acc: tune.rifle_acc };
     case 'pistol': return { kind: 'bullet', range: 14, dmg: 4, rate: 1.4, acc: 0.45 };
     case 'mortar': return { kind: 'mortar', range: tune.mortar_range, min: tune.mortar_min, dmg: tune.mortar_damage, rate: tune.mortar_rate, blast: tune.mortar_blast, indirect: true };
     case 'autocannon': return { kind: 'bullet', heavy: true, range: tune.car_range, dmg: tune.car_damage, rate: tune.car_rate, acc: 0.6, snd: 'mg' };
@@ -85,19 +90,25 @@ const PARTS = {
     { name: 'Maniglie esterne', cost: 90, desc: '+2 posti: fanti aggrappati allo scafo.', mod: { seats: 2 } },
     { name: 'Vano ampliato', cost: 220, desc: '+4 posti, un po\' più lento.', mod: { seats: 4, speedAdd: -0.3 } },
   ] },
+  sensor: { label: 'Sensori', opts: [
+    { name: 'Nessun sensore', cost: 0, desc: 'La mappa si scopre solo guardando.', mod: {} },
+    { name: 'Sensori sismici', cost: 130, desc: 'Rivela la mappa fino a 70 attorno al carro.', mod: { sensor: 70 } },
+    { name: 'Radar di scoperta', cost: 260, desc: 'Mappa fino a 95, blip dei nemici entro 85 ogni 5 s.', mod: { sensor: 95, radar: 85, radarT: 5 } },
+    { name: 'Radar tattico', cost: 420, desc: 'Mappa fino a 125, blip entro 115 ogni 2.5 s.', mod: { sensor: 125, radar: 115, radarT: 2.5 } },
+  ] },
   stab: { label: 'Stabilizzatore', opts: [
     { name: 'Nessuno', cost: 0, desc: 'In movimento il tiro si allarga molto.', mod: {} },
     { name: 'Giroscopio', cost: 150, desc: '-40% dispersione in movimento.', mod: { moveSpread: 0.6 } },
     { name: 'Stabilizzatore attivo', cost: 300, desc: '-70% dispersione in movimento, mira più rapida.', mod: { moveSpread: 0.3, aim: 0.7 } },
   ] },
 };
-const SLOTS = ['cannon', 'tracks', 'engine', 'armor', 'radio', 'turret', 'stab', 'seats'];
+const SLOTS = ['cannon', 'tracks', 'engine', 'armor', 'radio', 'sensor', 'turret', 'stab', 'seats'];
 /**
  * The hulls the run can start with. Numbers live in config.js as hull_<id>_* multipliers on the
  * tank's own values (the battle tank is the 1.0 of everything).
  */
 const HULLS = {
-  mbt: { name: 'Carro da battaglia', short: 'MBT', desc: ['Cannone pesante,', 'corazza spessa.', 'Posti: al capanno.'], weapons: ['cannon'], rad: 2.2 },
+  mbt: { name: 'Carro da battaglia', short: 'MBT', desc: ['Cannone pesante e', 'mitragl. coassiale,', 'corazza spessa.'], weapons: ['cannon'], rad: 2.2 },
   light: { name: 'Carro leggero', short: 'Leggero', desc: ['Veloce, corazza sottile.', 'Cannoncino o mitragl.', 'Tasto X. 2 posti.'], weapons: ['autocannon', 'mg'], rad: 1.9 },
   apc: { name: 'Trasporto truppe', short: 'APC', desc: ['Mitragl. pesante,', '6 posti fanteria,', 'corazza leggera.'], weapons: ['hmg'], rad: 2.0 },
 };
@@ -136,7 +147,7 @@ function tankStats() {
     speed: tune.tank_speed, reverse: tune.tank_reverse, turn: tune.tank_turn, climb: tune.tank_climb,
     hp: tune.tank_hp + perk('hull') * 40, armor: tune.tank_armor, turret: tune.turret_speed,
     reload: tune.cannon_reload, dmg: tune.cannon_damage, blast: tune.cannon_blast, spread: 1, moveSpread: 1, aim: 1, accel: tune.tank_accel,
-    radio: tune.radio_range + perk('radio') * 6, barrel: 2.6, seats: 0, hullArmor: 1,
+    radio: tune.radio_range + perk('radio') * 6, barrel: 2.6, seats: 0, hullArmor: 1, sensor: 0, radar: 0, radarT: 0,
   };
   const p = state.parts || {};
   for (const slot of SLOTS) {
@@ -146,6 +157,7 @@ function tankStats() {
     if (m.speed) { s.speed *= m.speed; s.reverse *= m.speed; } if (m.hp) s.hp += m.hp; if (m.armor) s.armor += m.armor;
     if (m.speedAdd) { s.speed += m.speedAdd; s.reverse += m.speedAdd * 0.5; } if (m.radio) s.radio *= m.radio;
     if (m.turret) s.turret *= m.turret; if (m.moveSpread) s.moveSpread *= m.moveSpread; if (m.aim) s.aim *= m.aim;
+    if (m.sensor) s.sensor = m.sensor; if (m.radar) { s.radar = m.radar; s.radarT = m.radarT; }
     if (m.accel) s.accel *= m.accel; if (m.reverse) s.reverse *= m.reverse; if (m.seats) s.seats += m.seats;
   }
   s.reload = Math.max(0.3, s.reload);
@@ -163,6 +175,7 @@ function tankStats() {
   else if (w === 'mg' || w === 'hmg') {
     s.wkind = 'bullet'; s.dmg = tune['tank_' + w + '_damage'] * dk; s.reload = tune['tank_' + w + '_rate']; s.range = tune.tank_mg_range; s.fireSpread = tune.spread_fire * 0.06;
   }
+  applyMods(s);
   state.stats = s; state.statsStep = state.stepN;
   return s;
 }
@@ -209,7 +222,7 @@ function unitHp(e) {
 }
 function unitSpeed(e) {
   const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1) * (!e.team && !e.veh && posture(e) === 'stealth' ? tune.stealth_speed : 1);
-  return k * baseSpeed(e);
+  return k * baseSpeed(e) * modOf(e).speed;
 }
 function baseSpeed(e) {
   switch (e.kind) {
@@ -219,6 +232,7 @@ function baseSpeed(e) {
     case 'technical': return tune.technical_speed;
     case 'boss': return 2.6;
     case 'mortar': case 'mg': case 'r_mg': return tune.inf_speed * 0.85;
+    case 'scout': return tune.inf_speed * tune.scout_speed;
     default: return tune.inf_speed * (e.team ? 0.92 : 1);
   }
 }
@@ -278,14 +292,17 @@ function newRun(carry) {
   genWorld();
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
-    parts: { cannon: 0, tracks: 0, engine: 0, armor: 0, radio: 0, turret: 0, stab: 0, seats: 0 }, lookKey: 1,
+    parts: { cannon: 0, tracks: 0, engine: 0, armor: 0, radio: 0, sensor: 0, turret: 0, stab: 0, seats: 0 }, lookKey: 1, blips: [], radarT: 0,
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapons[0], stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap + perk('scrap') * 60, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
     hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 0, shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
     boss: null, menu: null, picked: null, rename: null, dragSoldier: null, event: null, campsKnown: false, goScene: null,
+    mods: startMods(HULL_PICK.id), loot: startLoot(HULL_PICK.id), ammo: 0, relayL: null,
   });
   // the next sector: the tank, its parts and its scrap come along
-  if (carry) Object.assign(state, { parts: Object.assign({}, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps });
+  if (carry) Object.assign(state, { parts: Object.assign({ sensor: 0 }, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
+    mods: Object.assign({}, carry.mods || startMods(carry.hull)), loot: (carry.loot || startLoot(carry.hull)).slice() });
+  state.ammo = carry && carry.ammo != null ? Math.min(carry.ammo, ammoMax()) : ammoMax();
   const s = world.sites, rm = s.roadMain;
   const tk = spawn('tank', s.start.x + 0.5, s.start.z + 0.5); tk.rad = HULLS[state.hull].rad;
   if (rm.length > 6) tk.heading = tk.turretYaw = Math.atan2(rm[6][0] - rm[0][0], rm[6][1] - rm[0][1]);
@@ -322,7 +339,8 @@ function newRun(carry) {
   for (let i = 0; i < 8; i++) { const p = spotNear(f.x + (i % 4 - 1.5) * 5, f.z + (i < 4 ? -5 : 6), i); addRaider(fg, i % 3 === 2 ? 'r_rpg' : 'r_rifle', p.x, p.z, 3); }
   for (let i = 0; i < 2; i++) { const p = spotNear(f.x + (i ? 8 : -8), f.z + 2, i); addRaider(fg, 'technical', p.x, p.z, 3); }
   }
-  for (const w of s.wrecks) state.pickups.push({ x: w.x, z: w.z, value: w.value, taken: false, wreck: true });
+  for (const w of s.wrecks) { state.pickups.push({ x: w.x, z: w.z, value: w.value, taken: false, wreck: true }); dropLoot(w.x + 1.5, w.z, tune.loot_wreck); dropAmmo(w.x - 1.5, w.z, 4, tune.ammo_drop_wreck); }
+  scatterCrates();
   cam.x = tk.x; cam.z = tk.z; cam.y = tk.y; cam.dist = tune.cam_dist;
   // the camera starts behind the tank, on one of the four isometric bearings
   const behind = tk.heading + Math.PI, q4 = Math.PI / 2;
@@ -346,12 +364,12 @@ function squadName(slots) {
   if (k.size === 1) {
     const t = slots[0], n = slots.length;
     return { rifle: n > 1 ? 'Fucilieri' : 'Fuciliere', sniper: n > 1 ? 'Team cecchini' : 'Cecchino solitario', mg: n > 1 ? 'Mitraglieri' : 'Mitragliere',
-      medic: n > 1 ? 'Medici' : 'Medico', mortar: n > 1 ? 'Batteria mortai' : 'Pezzo di artiglieria', car: n > 1 ? 'Autoblinde' : 'Autoblindo',
+      medic: n > 1 ? 'Medici' : 'Medico', mortar: n > 1 ? 'Batteria mortai' : 'Artigliere', car: n > 1 ? 'Autoblinde' : 'Autoblindo',
+      eng: n > 1 ? 'Genieri' : 'Geniere', radio: n > 1 ? 'Operatori radio' : 'Operatore radio', scout: n > 1 ? 'Esploratori' : 'Esploratore',
       at: n > 1 ? 'Batteria anticarro' : 'Cannone anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto' }[t];
   }
-  if (k.has('medic')) return 'Squadra con medico';
-  if (k.has('mg')) return 'Squadra d\'appoggio';
-  return 'Squadra mista';
+  const tr = traitsOf(slots).find(t => t.squad);
+  return tr ? tr.squad : 'Squadra mista';
 }
 /** The squads' colours: on their cards, rings, paths and minimap numbers. */
 const SQ_COLORS = ['#4fe3e0', '#ffd36a', '#ff8ad8', '#9fe35a', '#b48cff', '#ff9a4a'];
@@ -392,7 +410,7 @@ function addSquad(slots, x, z, force) {
   return sq;
 }
 function alive(sq) { return sq.members.filter(m => m && m.alive); }
-function inRadio(sq) { const tk = state.tank, R = tankStats().radio; return tk.alive && alive(sq).some(m => dist2(m, tk) <= R * R); }
+function inRadio(sq) { return state.tank.alive && alive(sq).some(heardAt); }
 function setDest(m, x, z) {
   if (m.fixed) return;
   // paths go around the vehicles standing still (the command tank above all)
@@ -529,7 +547,7 @@ function seatsFree() { return tankStats().seats - passengers().length; }
 /** Sends the squad's infantry to the command vehicle to climb in. */
 function orderBoard(sq) {
   const S = tankStats();
-  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali al capanno degli attrezzi (Posti).', '#e0a070'); return false; }
+  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali al garage (Vano truppe).', '#e0a070'); return false; }
   if (!alive(sq).some(m => canRide(m) && !m.inside)) { say(sq.name, sq.members.some(m => m && m.inside) ? 'Siamo già a bordo.' : 'Non possiamo salire.', '#e0a070'); return false; }
   sq.order = { t: 'board' }; sq.tick = 0;
   say(sq.name, 'Arriviamo, teneteci un posto!');
@@ -570,7 +588,7 @@ function springAmbush(sq) {
 }
 /** How each kind fights: cover = how far it looks for cover, back = how far it keeps behind the threat. */
 const ROLE = {
-  rifle: { cover: 6, back: 0 }, mg: { cover: 8, back: 3 }, medic: { cover: 6, back: 6 },
+  rifle: { cover: 6, back: 0 }, mg: { cover: 8, back: 3 }, medic: { cover: 6, back: 6 }, eng: { cover: 6, back: 3 }, radio: { cover: 6, back: 5 }, scout: { cover: 7, back: 0 },
   mortar: { cover: 6, back: 12 }, at: { cover: 5, back: 0 },
 };
 /**
@@ -790,7 +808,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
   }
-  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala al capanno degli attrezzi.', '#9fe3a0'); } }
+  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala al garage di un avamposto.', '#9fe3a0'); } }
   return any;
 }
 /** B: the selected squads climb in, or get out if some of them ride. */
@@ -854,6 +872,10 @@ function inRect(r, x, y) { return !!r && x >= r.x && x <= r.x + r.w && y >= r.y 
  * mouse was the cards' this step.
  */
 function cardInput() {
+  if (!state.tpause) { // driving: the cards are only a display, and a click on one is not a shot
+    if (MS.lp && cardAt(MS.x, MS.y)) { MS.lp = false; state.menuBlock = true; return true; }
+    return false;
+  }
   const d = state.dragSoldier, add = down.has('ShiftLeft') || down.has('ShiftRight');
   if (d) {
     if (Math.hypot(MS.x - d.x0, MS.y - d.y0) > 6) d.moved = true;
@@ -891,13 +913,13 @@ function cardInput() {
 /** Marks each raider seen or not: in sight and line of sight of the tank or of a friend inside the radio ring; a shot gives it away for a moment. */
 function updateFog() {
   const tk = state.tank, R = tankStats().radio;
-  const eyes = state.ents.filter(f => f.alive && f.team === 0 && !f.inside && (f === tk || (tk.alive && dist2(f, tk) <= R * R)));
+  const eyes = state.ents.filter(f => f.alive && f.team === 0 && !f.inside && (f === tk || heardAt(f)));
   for (const e of state.ents) {
     if (e.team !== 1 || !e.alive) continue;
     if (!tune.fog) { e.seen = true; continue; }
     let s = state.t - (e.firedT || -99) < tune.fog_shot_reveal && tk.alive && dist2(e, tk) < (R + 25) ** 2;
     for (let k = 0; k < eyes.length && !s; k++) {
-      const f = eyes[k], r = f === tk ? tune.tank_sight : f.kind === 'sniper' ? tune.sniper_sight : tune.sight_range;
+      const f = eyes[k], r = sightOf(f);
       if (dist2(f, e) <= r * r && canSee(f, e)) s = true;
     }
     e.seen = s;
@@ -913,9 +935,9 @@ function updateVision() {
   if (!world.vis || world.vis.length !== G * G) { world.vis = new Float32Array(G * G); world.visT = new Uint8Array(G * G); world.visG = G; }
   const T = world.visT; T.fill(tune.fog ? 0 : 1);
   if (tune.fog) {
-    const eyes = state.ents.filter(f => f.alive && f.team === 0 && !f.inside && (f === tk || (tk.alive && dist2(f, tk) <= R * R)));
+    const eyes = state.ents.filter(f => f.alive && f.team === 0 && !f.inside && (f === tk || heardAt(f)));
     for (const f of eyes) {
-      const r = f === tk ? tune.tank_sight : f.kind === 'sniper' ? tune.sniper_sight : tune.sight_range;
+      const r = Math.round(sightOf(f));
       const ey = (f === tk ? tk.vy : f.y) + eyeH(f), nr = Math.ceil(Math.PI * 2 * r / 1.3);
       const fx = Math.floor(f.x), fz = Math.floor(f.z); if (inMap(fx, fz)) T[(fx >> 1) + G * (fz >> 1)] = 1;
       for (let a = 0; a < nr; a++) {
@@ -929,6 +951,7 @@ function updateVision() {
       }
     }
   }
+  exploreUpdate(T, G);
   const V = world.vis; for (let i = 0; i < V.length; i++) V[i] += (T[i] - V[i]) * 0.6;
   world.visN = (world.visN || 0) + 1;
 }
@@ -1014,10 +1037,16 @@ function panCamera(dt) {
   cam.x = Math.max(0, Math.min(world.N, cam.x)); cam.z = Math.max(0, Math.min(world.N, cam.z));
   cam.y += (Math.min(40, hAt(cam.x, cam.z)) - cam.y) * Math.min(1, dt * 3);
 }
-/** Space: the tactical pause. Time stops; selection, orders and the camera still work. */
+/**
+ * Space or Tab: the tactical pause, the one place orders are given. Time stops; the squads are
+ * picked and told what to do, the view moves with WASD; the orders start the moment play resumes.
+ */
 function setTacticalPause(on) {
-  state.tpause = on; state.arm = null; MS.drag = null;
-  say('Radio', on ? 'Pausa tattica: seleziona squadre e dai ordini, Spazio per riprendere.' : 'Si riprende.', '#ffd27a');
+  state.tpause = on; state.mode = on ? 'cmd' : 'tank'; state.arm = null; MS.drag = null; state.gest = null;
+  if (!on) { state.menu = null; state.dragSoldier = null; }
+  const before = state.pauseOrders || new Map(), n = on ? 0 : state.squads.filter(sq => before.has(sq) && before.get(sq) !== sq.order).length;
+  state.pauseOrders = on ? new Map(state.squads.map(sq => [sq, sq.order])) : null; // to tell at the resume who got new orders
+  say('Radio', on ? 'Pausa tattica: scegli le squadre e dai gli ordini; partono quando riprendi (Spazio o Tab).' : n ? 'Ordini ricevuti, si parte!' : 'Si riprende.', '#ffd27a');
 }
 function enemyUnderMouse() {
   let best = null, bd = 26 * 26;
@@ -1084,20 +1113,19 @@ function handleInput() {
     if (MS.rp || !tk.alive) state.menu = null; // a new right-click: a new order (and a new menu)
     else { menuInput(); return; }
   }
-  if (pressed('Tab')) {
-    state.mode = state.mode === 'tank' ? 'cmd' : 'tank';
-    say('Radio', state.mode === 'cmd' ? 'Modalità Comando: seleziona squadre e dai ordini col click destro.' : 'Modalità Carro: il mouse punta il cannone.', '#cfd8e0');
-  }
+  if (pressed('Tab') && tk.alive && !state.rename) setTacticalPause(!state.tpause); // Tab works as Space
   if (pressed('KeyQ')) cam.yawT -= Math.PI / 2;
   if (pressed('KeyE') && !state.canShop) cam.yawT += Math.PI / 2;
   if (MS.wheel) cam.dist = Math.max(tune.cam_dist_min, Math.min(tune.cam_dist_max, cam.dist * (MS.wheel > 0 ? 1.1 : 0.9)));
   // the left hand: 1-6 pick a squad (Shift adds), Alt+1-6 puts the chosen soldiers in that squad, the key left of 1 picks them all
   const alt = down.has('AltLeft') || down.has('AltRight');
-  for (let i = 0; i < 6; i++) if (pressed('Digit' + (i + 1))) { if (alt) regroupTo(i); else { selectSquad(state.squads[i], down.has('ShiftLeft') || down.has('ShiftRight')); state.picked = null; } }
-  if (pressed('Backquote') || pressed('IntlBackslash')) { for (const s of state.squads) s.selected = alive(s).length > 0; state.picked = null; }
-  if (pressed('KeyG')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderFollow(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
-  if (pressed('KeyZ')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderHold(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
-  if (pressed('KeyB')) boardOrUnload();
+  if (state.tpause) { // squads are picked and ordered only in the tactical pause
+    for (let i = 0; i < 6; i++) if (pressed('Digit' + (i + 1))) { if (alt) regroupTo(i); else { selectSquad(state.squads[i], down.has('ShiftLeft') || down.has('ShiftRight')); state.picked = null; } }
+    if (pressed('Backquote') || pressed('IntlBackslash')) { for (const s of state.squads) s.selected = alive(s).length > 0; state.picked = null; }
+    if (pressed('KeyG')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderFollow(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
+    if (pressed('KeyZ')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderHold(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
+    if (pressed('KeyB')) boardOrUnload();
+  }
   if (pressed('KeyX')) {
     const ws = HULLS[state.hull].weapons;
     if (ws.length > 1) { state.weapon = ws[(ws.indexOf(state.weapon) + 1) % ws.length]; state.stats = null; tk.reload = Math.max(tk.reload, 0.6); say('Radio', 'Arma: ' + ({ autocannon: 'cannoncino', mg: 'mitragliatrice' })[state.weapon] + '.', '#cfd8e0'); }
@@ -1116,7 +1144,7 @@ function handleInput() {
   } else state.arm = null;
   // the order gesture: press on the ground (right button, or left with an armed order), drag the
   // arrow for the bearing to hold, let go to send it
-  if (state.mouse3 && (MS.rp || (cmd && state.arm && MS.lp))) {
+  if (cmd && state.mouse3 && (MS.rp || (state.arm && MS.lp))) {
     state.gest = { btn: MS.rp ? 'r' : 'l', sx: MS.x, sy: MS.y, p: { x: state.mouse3.x, y: state.mouse3.y, z: state.mouse3.z }, tgt: enemyUnderMouse(),
       kind: state.arm || (down.has('KeyF') ? 'attack' : null), face: null };
     if (state.gest.btn === 'l') { MS.lp = false; MS.drag = null; }
@@ -1284,10 +1312,11 @@ function updateTank(dt) {
     state.aimP = { x: ax, y: ay, z: az, dist: d };
     state.fireLine = lineOfFire(tk, S, state.aimP);
   }
-  if (state.mode === 'tank' && MS.l && !state.menu && !state.menuBlock && tk.reload <= 0 && state.aimP) { if (S.wkind === 'bullet') fireTankMG(tk, S); else fireCannon(tk, S); }
+  if (state.mode === 'tank' && MS.l && !state.menu && !state.menuBlock && tk.reload <= 0 && state.aimP) { if (S.wkind === 'bullet') fireTankMG(tk, S); else if (useRound()) fireCannon(tk, S); else tk.reload = 0.4; }
+  tankSystems(tk, dt);
   // tutorial: the first moves
   if (state.tut === 0 && Math.hypot(tk.x - state.startPos.x, tk.z - state.startPos.z) > 6) {
-    state.tut = 1; say('Radio', 'Il mouse punta il cannone, ma la torretta gira lenta. Da fermo il cerchio si stringe. Click sinistro: fuoco.', '#9fe3a0');
+    state.tut = 1; say('Radio', 'Il mouse punta il cannone, ma la torretta gira lenta. Da fermo il cerchio si stringe. Click sinistro: cannone (colpi contati). Click destro: arma secondaria.', '#9fe3a0');
   }
 }
 /**
@@ -1330,14 +1359,15 @@ function fireCannon(tk, S) {
   tk.reload = S.reload; tk.recoil = state.weapon === 'cannon' ? 1 : 0.35; tk.spread += S.fireSpread;
   state.lastShot = state.t;
   muzzle(mx, my, mz, 1.3); sfx('cannon', tk.x, tk.z); cam.shake = Math.max(cam.shake, tune.shake * 0.6);
-  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel colpo. Tab: modalità Comando. Seleziona una squadra (click o 1-6) e click destro: il menu degli ordini (vai, riparo, entra, imboscata...).', '#9fe3a0'); }
+  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel colpo. Spazio o Tab: pausa tattica. Lì scegli una squadra (click o 1-6) e click destro: il menu degli ordini, che partono alla ripresa.', '#9fe3a0'); }
 }
 /**
  * The hull's machine gun: one round along the gun line into the dispersion circle. The first enemy
  * near the line that the gun can see is hit (cover makes it miss more); a miss chews soft cover.
  */
-function fireTankMG(tk, S) {
-  const a = state.aimP, d = Math.min(a.dist, S.range), R = tk.spread * d + 0.25;
+function fireTankMG(tk, S, sec) {
+  const W = sec || { dmg: S.dmg, range: S.range, heavy: state.weapon === 'hmg' };
+  const a = state.aimP, d = Math.min(a.dist, W.range), R = tk.spread * d + 0.25;
   const ang = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * R;
   const ex = tk.x + Math.sin(tk.turretYaw) * d + Math.cos(ang) * rr, ez = tk.z + Math.cos(tk.turretYaw) * d + Math.sin(ang) * rr;
   const ey = d < a.dist ? tk.vy + 1.6 : (tk.aligned ? a.y : hAt(ex, ez)) + 0.6;
@@ -1357,17 +1387,17 @@ function fireTankMG(tk, S) {
   if (best) {
     const cov = best.veh ? 0 : coverFrom(best, tk.x, tk.z), miss = cov === 2 ? 0.55 : cov === 1 ? 0.3 : 0;
     hx = best.x; hy = best.y + chestH(best); hz = best.z;
-    if (rng() >= miss) dmgTo(best, S.dmg, state.weapon === 'hmg' ? 'heavy' : 'bullet', tk);
+    if (rng() >= miss) dmgTo(best, W.dmg, W.heavy ? 'heavy' : 'bullet', tk);
     else if (rng() < tune.cover_chip) chipCover(best, tk);
   } else if (rng() < 0.25) { // a burst chews soft cover where it lands
     const ix = Math.floor(ex), iz = Math.floor(ez), g = hAt(ex, ez), v = getV(ix, g - 1, iz);
     if (SOFTV.has(v)) { setV(ix, g - 1, iz, 0); recomputeColumn(ix, iz); spawnDebris([ix, g - 1, iz, v], ix + 0.5, g - 0.5, iz + 0.5, 1); }
   }
   tracer(mx, my, mz, hx, hy, hz, [1, 0.9, 0.5]);
-  tk.reload = S.reload; tk.recoil = 0.25; tk.spread += S.fireSpread;
+  if (sec) tk.spread += tune.spread_fire * 0.03; else { tk.reload = S.reload; tk.recoil = 0.25; tk.spread += S.fireSpread; }
   state.lastShot = state.t;
   sfx('mg', tk.x, tk.z);
-  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel tiro. Tab: modalità Comando. Seleziona una squadra (click o 1-6) e click destro per muoverla: vicino a un riparo si coprono.', '#9fe3a0'); }
+  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel tiro. Spazio o Tab: pausa tattica. Lì scegli una squadra (click o 1-6) e click destro per muoverla: partirà alla ripresa.', '#9fe3a0'); }
 }
 /** Sends a projectile on a ballistic arc from (x,y,z) to (tx,ty,tz). */
 function launch(p, x, y, z, tx, ty, tz, speed, g) {
@@ -1379,7 +1409,7 @@ function launch(p, x, y, z, tx, ty, tz, speed, g) {
 // ---- Units: think, move, fire ---------------------------------------------------------------------------
 function updateUnits(dt) {
   const tk = state.tank;
-  state.fogT = (state.fogT || 0) - dt; if (state.fogT <= 0) { state.fogT = 0.2; updateFog(); updateVision(); }
+  state.fogT = (state.fogT || 0) - dt; if (state.fogT <= 0) { state.fogT = 0.2; updateFog(); updateVision(); radarUpdate(0.2); }
   state.bldT = (state.bldT || 0) - dt; if (state.bldT <= 0) { state.bldT = 1; checkBuildings(); }
   for (const e of state.ents) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
@@ -1427,12 +1457,12 @@ function updateUnits(dt) {
         const ps = posture(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory;
         if (ps === 'hold' || (ps === 'return' && !hit) || (ps === 'stealth' && !hit && dist2(e, t) > (w.range * tune.stealth_trigger) ** 2)) aligned = false;
       }
-      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : 1 - (e.rank || 0) * tune.rank_rate); }
+      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
     } else if (!e.moving) {
       if (e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
       if (e.veh) e.turretYaw = turnToward(e.turretYaw, e.heading, tune.turret_return * dt);
     }
-    if (e.kind === 'medic') for (const o of state.ents) if (o.alive && o.team === 0 && !o.veh && o.hp < o.maxhp && dist2(o, e) < tune.medic_radius ** 2) o.hp = Math.min(o.maxhp, o.hp + tune.medic_heal * dt);
+    if (e.kind === 'medic' || e.kind === 'eng') roleSkill(e, dt);
   }
   // soldiers keep a little space between them
   const inf = state.ents.filter(e => e.alive && !e.veh && !e.fixed && !e.inside);
@@ -1644,11 +1674,12 @@ function fire(e, t, w) {
     let acc = w.acc * Math.max(0.35, Math.min(1, 1.25 - d / w.range * 0.6));
     if (e.moving) acc *= 0.5;
     if (t.moving) acc *= 0.8;
-    if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc'));
+    if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc') * modOf(e).acc);
     if (suppressed(e)) acc *= tune.suppress_acc;
     if (e.squad && e.squad.order.sprungT != null && state.t - e.squad.order.sprungT < 4) acc = Math.min(0.97, acc * tune.ambush_bonus);
     const cover = t.veh ? 0 : coverFrom(t, e.x, e.z);
     if (cover === 2) acc *= tune.cover_factor; else if (cover === 1) acc *= tune.cover_light;
+    if (cover) acc *= modOf(t).coverK;
     if (t.veh) acc = Math.min(1, acc * 1.7);
     const col = e.team ? [1, 0.45, 0.25] : [1, 0.88, 0.45];
     if (rng() < acc) {
@@ -1659,13 +1690,13 @@ function fire(e, t, w) {
       if (cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
     }
     // machine guns pin infantry down: slower, worse aim for a while
-    if (w.chip && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time; }
+    if (w.chip && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup; }
     sfx(w.snd || 'small', e.x, e.z);
   } else if (w.kind === 'rpg') {
     launch({ kind: 'rpg', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, mx, my, mz, t.x + (rng() - 0.5) * 1.5, t.y + chestH(t), t.z + (rng() - 0.5) * 1.5, tune.rpg_speed, 3);
     muzzle(mx, my, mz, 0.6); sfx('rpg', e.x, e.z);
   } else if (w.kind === 'mortar') {
-    const sc = tune.mortar_scatter, tx = t.x + (rng() - 0.5) * 2 * sc, tz = t.z + (rng() - 0.5) * 2 * sc;
+    const sc = tune.mortar_scatter * modOf(e).scatter, tx = t.x + (rng() - 0.5) * 2 * sc, tz = t.z + (rng() - 0.5) * 2 * sc;
     const D = Math.hypot(tx - e.x, tz - e.z);
     launch({ kind: 'mortar', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, mx, my + 0.6, mz, tx, hAt(tx, tz), tz, D / (2.4 + D / 25), 14);
     muzzle(mx, my + 0.6, mz, 0.5); sfx('mortar', e.x, e.z);
@@ -1716,6 +1747,7 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.veh && kind !== 'crush' && kind !== 'drown') {
     const side = armorSide(e, hit, src);
     amt *= tune['armor_' + side];
+    if (e.kind === 'tank') amt *= tankModDmg(side, kind, src);
     if (kind !== 'bullet' && kind !== 'heavy') {
       e.lastHit = { side, t: state.t };
       if (e.kind === 'tank' || (src && src.team === 0)) floatText(e.x, e.y + 3.4, e.z, SIDE_NAME[side] + ' x' + tune['armor_' + side].toFixed(1), side === 'front' ? '#c8c8c8' : side === 'side' ? '#ffd36a' : '#ff8a4a');
@@ -1724,13 +1756,14 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.kind === 'tank' && kind !== 'bullet' && kind !== 'heavy') amt *= 1 - Math.min(0.9, tankStats().armor);
   if (e.kind === 'tank') amt *= tankStats().hullArmor;
   if (e.kind === 'boss' && kind === 'blast') amt *= 0.8;
+  if (e.team === 0 && !e.veh) amt *= modOf(e).taken;
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
   if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; if (!e.team && e.squad) e.squad.attackedT = state.t; }
   if (lurking(e)) springAmbush(e.squad);
   if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit); }
   if (e.team === 0 && e.squad && src && src.team === 1 && state.t - (e.squad.fireMsgT || -99) > 12) { e.squad.fireMsgT = state.t; say(e.squad.name, 'Siamo sotto fuoco!', '#ff9a7a'); }
-  if (e.hp <= 0) kill(e, src, kind);
+  if (e.hp <= 0 && !medicSave(e, kind)) kill(e, src, kind);
 }
 function kill(e, src, kind) {
   e.alive = false; e.hp = 0; e.deathT = state.t; e.path = null; e.moving = false; e.selected = false;
@@ -1738,7 +1771,11 @@ function kill(e, src, kind) {
     blastFx(e.x, e.y + 1.2, e.z, 2.2);
     for (let i = 0; i < 6; i++) state.fx.push({ kind: 'smoke', x: e.x + (rng() - 0.5) * 2, y: e.y + 2, z: e.z + (rng() - 0.5) * 2, t: -i * 0.4, life: 3.5, s: 1.4, rise: 7, col: 0x2e2824 });
     sfx('boom', e.x, e.z);
-    if (e.team === 1) state.pickups.push({ x: e.x, z: e.z, value: tune.scrap_vehicle, taken: false });
+    if (e.team === 1) {
+      state.pickups.push({ x: e.x, z: e.z, value: tune.scrap_vehicle, taken: false });
+      dropAmmo(e.x + 1.5, e.z + 1, 3, tune.ammo_drop_veh);
+      dropLoot(e.x - 1.5, e.z - 1, e.kind === 'boss' ? 1 : tune.loot_technical);
+    }
   }
   if (e.team === 1) {
     state.kills++;
@@ -1851,6 +1888,7 @@ function updateRun(dt) {
   if (tk.alive) {
     for (const p of state.pickups) {
       if (p.taken || Math.hypot(p.x - tk.x, p.z - tk.z) > 3.6) continue;
+      if (p.ammo || p.loot) { if (takeCrate(p)) p.taken = true; continue; }
       p.taken = true; state.scrap += p.value; floatText(p.x, hAt(p.x, p.z) + 2, p.z, '+' + p.value + ' rottami', '#ffd36a'); sfx('coin');
       if (p.wreck) say('Radio', 'Relitto smontato: ' + p.value + ' rottami.', '#ffd36a');
     }
@@ -1861,8 +1899,9 @@ function updateRun(dt) {
       g.cleared = true; g.site.cleared = true; state.camps++;
       for (const sq of state.squads) for (const m of alive(sq)) giveXp(m, tune.xp_camp);
       const bonus = Math.round(tune.scrap_camp * g.site.tier);
+      dropLoot(g.home.x + 2, g.home.z + 1, tune.loot_camp); dropAmmo(g.home.x - 2, g.home.z - 1, 6, tune.ammo_drop_camp);
       state.scrap += bonus; sfx('coin');
-      say('Radio', g.site.name + ' ripulito! +' + bonus + ' rottami. Spendili in un avamposto.', '#9fe3a0');
+      say('Radio', g.site.name + ' ripulito! +' + bonus + ' rottami. Spendili al garage di un avamposto.', '#9fe3a0');
       floatText(g.home.x, g.site.g + 4, g.home.z, '+' + bonus + ' rottami', '#ffd36a');
     }
   }
