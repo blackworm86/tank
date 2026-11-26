@@ -142,8 +142,19 @@ function objective() {
 }
 
 // ---- The play HUD ------------------------------------------------------------------------------------------
+/** Rank chevrons (1 to 3) centred at (x,y). */
+function chevrons(x, y, n, s = 1) {
+  ctx.save(); ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 1.6 * s; ctx.lineCap = 'round';
+  for (let k = 0; k < n; k++) { const yy = y - k * 3.4 * s; ctx.beginPath(); ctx.moveTo(x - 4 * s, yy); ctx.lineTo(x, yy - 2.6 * s); ctx.lineTo(x + 4 * s, yy); ctx.stroke(); }
+  ctx.restore();
+}
 function drawHUD() {
   const tk = state.tank, S = tankStats(), cmd = state.mode === 'cmd' || state.tpause, tp = state.tpause;
+  // promoted soldiers wear their chevrons over their heads
+  for (const e of state.ents) {
+    if (!e.alive || e.team !== 0 || e.veh || e.inside || !e.rank) continue;
+    const p = toScreen(e.x, surfaceY(e.x, e.z) + 2.3, e.z); if (p.on) chevrons(p.x, p.y, e.rank, 1);
+  }
   if (tp) { ctx.fillStyle = 'rgba(10,22,34,0.22)'; ctx.fillRect(0, 0, W, H); ctx.strokeStyle = 'rgba(255,210,122,0.55)'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, W - 4, H - 4); }
   // drawn paths: each selected squad's remaining stops (every squad's in the tactical pause)
   for (const sq of state.squads) {
@@ -219,7 +230,7 @@ function drawHUD() {
   }
   // order strip: the armed order is lit
   if (cmd) {
-    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['Shift', 'Tappa percorso', null], ['G', 'Seguimi', null], ['H', 'Fermi', null]];
+    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['I', 'Imboscata', 'ambush'], ['Shift', 'Tappa', null], ['G', 'Seguimi', null], ['H', 'Fermi', null]];
     ctx.font = `bold 13px ${FONT}`;
     const ws = ords.map(o => ctx.measureText(o[0]).width + ctx.measureText(o[1]).width + 30);
     let ox = W / 2 - (ws.reduce((a, b) => a + b, 0) + 6 * (ords.length - 1)) / 2;
@@ -250,9 +261,9 @@ function drawHUD() {
     rrect(20, y + 6, 22, 22, 4, 'rgba(0,0,0,0.4)', heard ? HC.cyan : '#6a5a4a');
     text(String(i + 1), 31, y + 18, 15, heard ? HC.cyan : '#9a8a78');
     text(sq.name, 50, y + 17, 15, ms.length ? HC.text : '#8a7a68', 'left');
-    sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, 30 + j * 22, y + 42, 18, m && m.alive ? '#a8d870' : '#5a3a32'); });
+    sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, 30 + j * 22, y + 42, 18, m && m.alive ? '#a8d870' : '#5a3a32'); if (m && m.alive && m.rank) chevrons(30 + j * 22, y + 31, m.rank, 0.8); });
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
-    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
+    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
     text(heard ? ord : 'Fuori portata', 232, y + 42, 13, heard ? HC.dim : HC.warn, 'right');
     y += h + 6;
   });

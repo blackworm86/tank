@@ -21,12 +21,13 @@ window.CONFIG = {
   grass_tufts: { value: 1.4, min: 0, max: 3, step: 0.1 },       // dry grass tufts per grassy cell (looks only)
   stone_density: { value: 0.08, min: 0, max: 0.4, step: 0.01 }, // loose stones and boulders (looks only)
   terrain_smooth: { value: 2, min: 0, max: 5, step: 1 },        // blur passes over the hills: more = gentler ramps (cliffs stay)
-  road_half_width: { value: 2, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide
+  road_half_width: { value: 3, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide (map rule M4: 7 wide)
   road_shoulder: { value: 6, min: 2, max: 10, step: 1 },        // how far the 1-per-voxel ramp beside a road reaches
   camp_count: { value: 5, min: 2, max: 8, step: 1 },            // raider camps per run
   patrol_count: { value: 6, min: 0, max: 14, step: 1 },         // roaming raider patrols
-  ruin_count: { value: 22, min: 0, max: 50, step: 1 },          // ruined buildings and walls
-  rock_count: { value: 26, min: 0, max: 60, step: 1 },          // rock pillars and arches
+  ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
+  rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
+  map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },   // steepest smoothed rise between cells the tank takes (map report)
 
   // ---- Camera ----
   cam_pitch: { value: 55, min: 35, max: 75, step: 1 },          // degrees down from horizon
@@ -44,7 +45,7 @@ window.CONFIG = {
   tank_ground_climb: { value: 2.3, min: 1, max: 4, step: 0.1 }, // max step on natural ground (a slope, not a wall) for the tank and vehicle paths (voxels)
   tank_unstick_time: { value: 0.8, min: 0.2, max: 3, step: 0.1 }, // seconds pushing without moving before the hull slides free
   tank_climb: { value: 1.25, min: 0.5, max: 3, step: 0.05 },    // max step one point of the hull can climb at once (voxels)
-  tank_slope_span: { value: 6, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
+  tank_slope_span: { value: 5.5, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
   tank_glance: { value: 70, min: 0, max: 180, step: 5 },        // deg/s the hull steers itself off a corner it is caught on
   tank_hp: { value: 300, min: 50, max: 1500, step: 10 },        // base integrity
   tank_armor: { value: 0.3, min: 0, max: 0.9, step: 0.05 },     // fraction of heavy damage blocked
@@ -75,7 +76,26 @@ window.CONFIG = {
   rifle_damage: { value: 6, min: 1, max: 50, step: 1 },
   rifle_rate: { value: 1.2, min: 0.1, max: 5, step: 0.05 },     // seconds between shots
   rifle_acc: { value: 0.5, min: 0.05, max: 1, step: 0.05 },
-  sniper_range: { value: 40, min: 10, max: 80, step: 1 },
+  sniper_range: { value: 50, min: 10, max: 90, step: 1 },
+  sniper_sight: { value: 54, min: 20, max: 100, step: 1 },        // how far a sniper spots enemies
+  sniper_standoff: { value: 24, min: 8, max: 50, step: 1 },       // a sniper keeps this far from the enemy
+  ambush_trigger: { value: 0.6, min: 0.2, max: 1, step: 0.05 },   // an ambush opens fire when the enemy is within this share of its range
+  ambush_reveal: { value: 8, min: 2, max: 30, step: 1 },          // raiders see an unsprung ambush only this close
+  ambush_bonus: { value: 1.6, min: 1, max: 3, step: 0.1 },        // aim multiplier for 4 s after an ambush springs
+  at_ambush: { value: 0.7, min: 0.3, max: 1, step: 0.05 },        // an unseen AT gun waits till its target is this close (share of range)
+  suppress_time: { value: 2.5, min: 0.5, max: 8, step: 0.5 },     // seconds a machine-gun burst pins infantry down
+  suppress_acc: { value: 0.5, min: 0.1, max: 1, step: 0.05 },     // aim while pinned down
+  suppress_speed: { value: 0.6, min: 0.2, max: 1, step: 0.05 },   // speed while pinned down
+  xp_kill: { value: 10, min: 0, max: 50, step: 1 },               // xp for a kill (x3 for a vehicle)
+  xp_hit: { value: 1, min: 0, max: 10, step: 1 },                 // xp for each hit on an enemy
+  xp_camp: { value: 8, min: 0, max: 50, step: 1 },                // xp to every soldier alive when a camp falls
+  rank_xp_1: { value: 15, min: 1, max: 200, step: 1 },            // xp for Esperto
+  rank_xp_2: { value: 40, min: 1, max: 400, step: 1 },            // xp for Veterano
+  rank_xp_3: { value: 80, min: 1, max: 800, step: 1 },            // xp for Elite
+  rank_speed: { value: 0.06, min: 0, max: 0.3, step: 0.01 },      // speed per rank
+  rank_acc: { value: 0.1, min: 0, max: 0.5, step: 0.01 },         // aim per rank
+  rank_hp: { value: 0.1, min: 0, max: 0.5, step: 0.01 },          // health per rank
+  rank_rate: { value: 0.07, min: 0, max: 0.2, step: 0.01 },       // shorter time between shots per rank
   sniper_damage: { value: 28, min: 5, max: 100, step: 1 },
   sniper_rate: { value: 3.4, min: 0.5, max: 10, step: 0.1 },
   sniper_acc: { value: 0.85, min: 0.05, max: 1, step: 0.05 },

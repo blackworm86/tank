@@ -180,6 +180,21 @@ function spawn(kind, x, z, extra) {
   state.ents.push(e);
   return e;
 }
+// ---- Ranks: soldiers who live through fights get better ------------------------------------------------
+const RANKS = ['Recluta', 'Esperto', 'Veterano', 'Élite'];
+/** XP to a soldier of ours; past each rank_xp_N threshold it is promoted (faster, steadier aim, tougher, quicker to fire). */
+function giveXp(e, n) {
+  if (!e || !e.alive || e.team !== 0 || e.veh) return;
+  e.xp = (e.xp || 0) + n;
+  let r = 0; for (let k = 1; k <= 3; k++) if (e.xp >= tune['rank_xp_' + k]) r = k;
+  if (r > (e.rank || 0)) {
+    const hp0 = e.maxhp; e.rank = r; e.maxhp = unitHp(e); e.hp += e.maxhp - hp0;
+    floatText(e.x, e.y + 2.6, e.z, 'Promosso: ' + RANKS[r], '#ffd36a');
+    if (e.squad) say(e.squad.name, UT[e.kind].name + ' promosso a ' + RANKS[r] + '.', '#ffd36a');
+  }
+}
+function rankK(e, key) { return 1 + (e.rank || 0) * tune[key]; }
+function suppressed(e) { return state.t < (e.supT || 0); }
 function unitHp(e) {
   const tier = e.tier || 1, k = 1 + (tier - 1) * tune.tier_scale;
   switch (e.kind) {
@@ -189,10 +204,14 @@ function unitHp(e) {
     case 'at': return tune.at_hp;
     case 'technical': return tune.technical_hp * k;
     case 'boss': return tune.boss_hp;
-    default: return (e.team ? tune.raider_hp * k : tune.inf_hp) * (e.kind === 'r_mg' ? 1.25 : 1);
+    default: return (e.team ? tune.raider_hp * k : tune.inf_hp * rankK(e, 'rank_hp')) * (e.kind === 'r_mg' ? 1.25 : 1);
   }
 }
 function unitSpeed(e) {
+  const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1);
+  return k * baseSpeed(e);
+}
+function baseSpeed(e) {
   switch (e.kind) {
     case 'car': return tune.car_speed;
     case 'ltank': return tune.ltank_speed;
@@ -461,6 +480,96 @@ function unloadSelected() {
   for (const sq of sqs) unloadSquad(sq);
   sfx('radio');
 }
+/** An ambush: the squad hides in cover at (x,z) and holds fire until the enemy comes close, then all fire at once. */
+function orderAmbush(sq, x, z, face) {
+  orderMove(sq, x, z, 'cover', false, face);
+  sq.order.ambush = true; sq.order.sprung = false; sq.order.sprungT = null;
+  say(sq.name, 'Ricevuto: ci appostiamo e aspettiamo.');
+}
+/** True for a soldier of an ambush that has not fired yet (in place, out of sight). */
+function lurking(e) { const o = e.squad && e.squad.order; return !!(o && o.ambush && !o.sprung && o.done && !e.moving); }
+function springAmbush(sq) {
+  const o = sq && sq.order; if (!o || !o.ambush || o.sprung) return;
+  o.sprung = true; o.sprungT = state.t;
+  say(sq.name, 'Fuoco! Imboscata!', '#ffb070');
+}
+/** How each kind fights: cover = how far it looks for cover, back = how far it keeps behind the threat. */
+const ROLE = {
+  rifle: { cover: 6, back: 0 }, mg: { cover: 8, back: 3 }, medic: { cover: 6, back: 6 },
+  mortar: { cover: 6, back: 12 }, at: { cover: 5, back: 0 },
+};
+/**
+ * The soldiers' own sense, every squad tick: in a fight, out of cover, each kind finds cover toward the
+ * threat within its reach (support kinds a little behind); the sniper keeps a high post far off.
+ */
+function roleUpkeep(sq, ms) {
+  if (sq.order.t === 'board' || sq.order.t === 'inside') return;
+  const marching = sq.order.t === 'move' && !sq.order.done;
+  let told = false;
+  for (const m of ms) {
+    if (m.veh || m.inside) continue;
+    const th = (m.target && m.target.alive && m.target) || (m.shotBy && m.shotBy.alive && state.t - m.shotT < 6 && m.shotBy) || null;
+    if (th) { m.combatT = state.t; m.threat = th; }
+    if (m.kind === 'sniper') { sniperUpkeep(m, sq); continue; }
+    if (marching || sq.order.ambush || m.moving) continue;
+    if (!(state.t - (m.combatT || -99) < 6 && m.threat && m.threat.alive)) continue;
+    if (state.t - (m.coverT || -99) < 4) continue;
+    const R = ROLE[m.kind] || ROLE.rifle, t = m.threat;
+    const dx = t.x - m.x, dz = t.z - m.z, L = Math.hypot(dx, dz) || 1, dir = { x: dx / L, z: dz / L };
+    const w = weapon(UT[m.kind].w), tooClose = R.back && L < Math.min(w.range * 0.7, 18);
+    if (m.cover > 0 && !tooClose) continue;
+    m.coverT = state.t;
+    const ax = m.x - dir.x * (tooClose ? R.back : 0), az = m.z - dir.z * (tooClose ? R.back : 0);
+    const spots = coverSpotsAt(ax, az, 5, dir).filter(sp => Math.hypot(sp.x - m.x, sp.z - m.z) <= R.cover + R.back
+      && Math.hypot(t.x - sp.x, t.z - sp.z) > L - 2
+      && !state.ents.some(o => o !== m && o.alive && o.team === 0 && !o.veh && Math.hypot((o.dest ? o.dest.x : o.x) - sp.x, (o.dest ? o.dest.z : o.z) - sp.z) < 1));
+    const sp = spots[0];
+    if (sp) { setDest(m, sp.x, sp.z); m.face = Math.atan2(dx, dz); if (!told) { told = true; if (state.t - (sq.coverMsgT || -99) > 15) { sq.coverMsgT = state.t; say(sq.name, 'Al riparo!'); } } }
+  }
+}
+/** The sniper: a high post with a line of fire, well back from the enemy; it moves when they close in or the squad moves on. */
+function sniperUpkeep(m, sq) {
+  if (m.moving && state.t - (m.snipeT || -99) < 5) return;
+  const tk = state.tank, o = sq.order;
+  let ax = m.x, az = m.z, R = 9;
+  if (o.t === 'follow') { ax = tk.x - Math.sin(tk.heading) * 14; az = tk.z - Math.cos(tk.heading) * 14; R = 12; }
+  else if (o.t === 'move') { const p = o.pts[Math.min(o.i, o.pts.length - 1)]; ax = p.x; az = p.z; R = 10; }
+  else if (o.t === 'attack' && o.target && o.target.alive) {
+    const t = o.target, d = Math.hypot(m.x - t.x, m.z - t.z) || 1, keep = Math.min(d, tune.sniper_range * 0.8);
+    ax = t.x + (m.x - t.x) / d * keep; az = t.z + (m.z - t.z) / d * keep; R = 12;
+  }
+  const en = m.threat && m.threat.alive && state.t - (m.combatT || -99) < 8 ? m.threat : nearestEnemyTo(m.x, m.z, 0, tune.sniper_sight);
+  const close = en && Math.hypot(en.x - m.x, en.z - m.z) < tune.sniper_standoff * 0.6;
+  const far = Math.hypot(ax - m.x, az - m.z) > R;
+  if (!close && !far && m.post && state.t - (m.snipeT || -99) < 10) return;
+  m.snipeT = state.t;
+  const sp = overwatchSpot(ax, az, R, en);
+  if (sp && Math.hypot(sp.x - m.x, sp.z - m.z) > 1.2) {
+    setDest(m, sp.x, sp.z); m.post = sp;
+    if (en) m.face = Math.atan2(en.x - sp.x, en.z - sp.z);
+    if (close) say(sq.name, 'Cecchino: troppo vicini, cambio posizione.');
+  } else m.post = sp || { x: m.x, z: m.z };
+}
+/** The best sniper post near (ax,az): high ground, a clear line to the enemy, cover toward it, beyond sniper_standoff. */
+function overwatchSpot(ax, az, R, en) {
+  let best = null, bs = -1e9;
+  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+    if (dx * dx + dz * dz > R * R) continue;
+    const x = Math.floor(ax + dx), z = Math.floor(az + dz);
+    if (!walkable(x, z) || perch(x, z) || shallow(x + 0.5, z + 0.5)) continue;
+    const h = hAt(x, z); let s = h * 1.2 - Math.hypot(dx, dz) * 0.12;
+    if (en) {
+      const d = Math.hypot(en.x - x - 0.5, en.z - z - 0.5);
+      if (d < tune.sniper_standoff) s -= (tune.sniper_standoff - d) * 2;
+      if (d > tune.sniper_range) s -= d - tune.sniper_range;
+      if (lineClear(x + 0.5, h + 1.15, z + 0.5, en.x, en.y + 1.2, en.z)) s += 20; // a post that cannot see is no post
+      if (inCoverFrom(x, z, en.x, en.z)) s += 3;
+    }
+    if (state.ents.some(o => o.alive && o.team === 0 && o.kind !== 'sniper' && Math.abs(o.x - x - 0.5) < 1 && Math.abs(o.z - z - 0.5) < 1)) s -= 4;
+    if (s > bs) { bs = s; best = { x: x + 0.5, z: z + 0.5 }; }
+  }
+  return best;
+}
 function orderFollow(sq) { sq.order = { t: 'follow' }; sq.tick = 0; say(sq.name, 'Ricevuto, vi seguiamo.'); }
 function orderHold(sq) { for (const m of alive(sq)) { m.path = null; m.pref = null; } sq.order = { t: 'hold' }; say(sq.name, 'Teniamo la posizione.'); }
 function squadUpkeep(sq, dt) {
@@ -486,7 +595,9 @@ function squadUpkeep(sq, dt) {
   if (sq.order.t === 'follow') {
     if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; }
     ms.forEach((m, i) => {
-      const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0);
+      if (m.kind === 'sniper' && !m.veh) return; // its own post (roleUpkeep)
+      if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
+      const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0) + (m.kind === 'mortar' || m.kind === 'medic' ? 4 : 0);
       const px = tk.x + Math.sin(a) * r, pz = tk.z + Math.cos(a) * r;
       if ((m.x - px) ** 2 + (m.z - pz) ** 2 > 9 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5)) setDest(m, px, pz);
     });
@@ -494,6 +605,7 @@ function squadUpkeep(sq, dt) {
     const t = sq.order.target;
     if (!t || !t.alive) { sq.order = { t: 'hold' }; say(sq.name, 'Bersaglio eliminato.'); return; }
     for (const m of ms) {
+      if (m.kind === 'sniper' || m.kind === 'medic') continue; // the sniper picks a post, the medic stays with the wounded
       const w = weapon(UT[m.kind].w), ok = dist2(m, t) <= (w.range * 0.9) ** 2 && (w.indirect || canSee(m, t));
       if (ok) m.path = null; else if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5) setDest(m, t.x + (m.id % 3 - 1) * 2, t.z + (m.id % 2 - 0.5) * 3);
     }
@@ -501,9 +613,10 @@ function squadUpkeep(sq, dt) {
     const o = sq.order;
     if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
       if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how, p.face) > 0; sq.tick = 0.4; }
-      else { o.done = true; if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
+      else { o.done = true; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
     }
   }
+  roleUpkeep(sq, ms);
 }
 function selectedSquads() { return state.squads.filter(s => s.selected && alive(s).length); }
 /**
@@ -517,21 +630,22 @@ function issueOrder(kind, append, pt, face, tgt) {
   if (!sel.length) { say('Radio', 'Nessuna squadra selezionata: click o tasti 1-6.', '#e0a070'); return false; }
   pt = pt || state.mouse3; if (!pt) return false;
   if (kind === 'attack' && !tgt) tgt = nearestEnemyTo(pt.x, pt.z, 0, 4);
-  if (kind === 'move' || kind === 'cover') tgt = null;
+  if (kind === 'move' || kind === 'cover' || kind === 'ambush') tgt = null;
   let any = false;
   for (const sq of sel) {
     if (!inRadio(sq)) { say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); continue; }
     any = true;
     if (!kind && !tgt && Math.hypot(pt.x - state.tank.x, pt.z - state.tank.z) < state.tank.rad + 0.9) { orderBoard(sq); continue; } // right-click on the vehicle: climb in
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
-    if (tgt) orderAttack(sq, tgt);
+    if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
+    else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
   }
   if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala al capanno degli attrezzi.', '#9fe3a0'); } }
   return any;
 }
 /** The order the next click gives, armed with a hotkey (V, F, C). */
-const ARM = { move: 'VAI', attack: 'ATTACCA', cover: 'COPERTURA' };
+const ARM = { move: 'VAI', attack: 'ATTACCA', cover: 'COPERTURA', ambush: 'IMBOSCATA' };
 /** Space: the tactical pause. Time stops; selection, orders and the camera still work. */
 function setTacticalPause(on) {
   state.tpause = on; state.arm = null; MS.drag = null;
@@ -621,6 +735,7 @@ function handleInput() {
     if (pressed('KeyV')) state.arm = state.arm === 'move' ? null : 'move';
     if (pressed('KeyF')) state.arm = state.arm === 'attack' ? null : 'attack';
     if (pressed('KeyC')) state.arm = state.arm === 'cover' ? null : 'cover';
+    if (pressed('KeyI')) state.arm = state.arm === 'ambush' ? null : 'ambush';
   } else state.arm = null;
   // the order gesture: press on the ground (right button, or left with an armed order), drag the
   // arrow for the bearing to hold, let go to send it
@@ -654,39 +769,48 @@ function handleInput() {
 }
 
 // ---- The command tank ------------------------------------------------------------------------------------
-function tankFootprint(x, z, h) {
+function tankFootprint(x, z, h, dense) {
   const s = Math.sin(h), c = Math.cos(h), out = [];
-  for (const lx of [-1.3, 0, 1.3]) for (const lz of [-2.3, 0, 2.3]) out.push({ x: x + c * lx + s * lz, z: z - s * lx + c * lz, lx, lz });
+  for (const lx of [-1.3, 0, 1.3]) for (const lz of dense ? [-2.3, -1.15, 0, 1.15, 2.3] : [-2.3, 0, 2.3]) out.push({ x: x + c * lx + s * lz, z: z - s * lx + c * lz, lx, lz });
   return out;
 }
+/** Ground under a hull point: the smoothed relief (as drawn), or the top of something low and hard it drives onto. */
+function rideH(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return 99;
+  const i = ix + world.N * iz, s = smoothH(x, z), top = world.hmap[i];
+  return top > world.groundRaw[i] ? Math.max(s, top) : s;
+}
+/** The tank flattens what is soft in a column it drives into (trees, sandbags, junk, planks). */
+function crushColumn(ix, iz, g, px, pz, tk) {
+  const rem = [];
+  for (let y = world.hmap[ix + world.N * iz] - 1; y >= g; y--) { const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } else break; }
+  if (rem.length) { recomputeColumn(ix, iz); spawnDebris(rem, px, tk.y + 1, pz, 3); sfx('crunch', px, pz); }
+}
 /**
- * Can the tank move to (x,z,h)? Each footprint point is compared with where the same point of the
- * hull stands now, so a 1-voxel step or a ramp is climbable and a cliff is not. A footprint whose
- * height span grows past tank_slope_span is too steep. Crushes soft voxels in the way.
+ * Can the tank stand at (x,z,h)? The hull rides the smoothed relief, the same ground that is drawn:
+ * natural steps never stop it, only a footprint steeper than tank_slope_span does (a cliff). Built
+ * things stop it when they rise more than climb above the ground there; soft ones it crushes.
  * Returns the footprint or null.
  */
 function tankFits(tk, x, z, h, climb) {
-  const pts = tankFootprint(x, z, h), now = tankFootprint(tk.x, tk.z, tk.heading);
-  let lo = 1e9, hi = -1e9, lo0 = 1e9, hi0 = -1e9;
+  const pts = tankFootprint(x, z, h, true), now = tankFootprint(tk.x, tk.z, tk.heading, true), N = world.N;
+  let lo = 1e9, hi = -1e9, l0 = 1e9, h0 = -1e9;
   for (let k = 0; k < pts.length; k++) {
-    const p = pts[k];
-    if (!inMap(Math.floor(p.x), Math.floor(p.z)) || deepWater(p.x, p.z)) return null;
-    const g = hAt(p.x, p.z), g0 = Math.min(hAt(now[k].x, now[k].z), tk.y + 3);
-    lo = Math.min(lo, g); hi = Math.max(hi, g); lo0 = Math.min(lo0, g0); hi0 = Math.max(hi0, g0);
-    const lim = natTop(Math.floor(p.x) + world.N * Math.floor(p.z)) ? climb + tune.tank_ground_climb - tune.tank_climb : climb; // a slope of ground, not a wall
-    if (g - g0 > lim) {
-      // crush a low soft obstacle (sandbags, junk, wood)
-      const ix = Math.floor(p.x), iz = Math.floor(p.z), top = getV(ix, g - 1, iz);
-      if (g - g0 <= 2.2 && SOFTV.has(top)) {
-        const rem = [];
-        for (let y = g - 1; y >= Math.ceil(g0); y--) { const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } }
-        recomputeColumn(ix, iz); spawnDebris(rem, p.x, tk.y + 1, p.z, 3);
-        sfx('crunch', p.x, p.z);
-      }
-      return null;
+    const p = pts[k], ix = Math.floor(p.x), iz = Math.floor(p.z);
+    if (!inMap(ix, iz) || deepWater(p.x, p.z)) return null;
+    const i = ix + N * iz, g = world.groundRaw[i], s = smoothH(p.x, p.z);
+    let top = world.hmap[i];
+    if (top > g && top - s > 0.6) { // something built or grown stands here
+      const t = world.vox[VH * i + top - 1];
+      if (SOFTV.has(t)) { crushColumn(ix, iz, g, p.x, p.z, tk); top = world.hmap[i]; }
+      // hard: a wall when it rises past climb above where this point of the hull rides now (a bridge deck does not)
+      if (top > g && top - Math.min(rideH(now[k].x, now[k].z), tk.y + 3) > climb) return null;
     }
+    const r = rideH(p.x, p.z), r0 = rideH(now[k].x, now[k].z);
+    lo = Math.min(lo, r); hi = Math.max(hi, r); l0 = Math.min(l0, r0); h0 = Math.max(h0, r0);
   }
-  if (hi - lo > tune.tank_slope_span && hi - lo > hi0 - lo0 + 0.01) return null;
+  // too steep (a cliff), unless no steeper than where the hull stands now
+  if (hi - lo > tune.tank_slope_span && hi - lo > h0 - l0 + 0.01) return null;
   return pts;
 }
 function updateTank(dt) {
@@ -709,10 +833,13 @@ function updateTank(dt) {
     const nx = tk.x + Math.sin(tk.heading) * tk.speed * dt, nz = tk.z + Math.cos(tk.heading) * tk.speed * dt;
     let pts = tankFits(tk, nx, nz, tk.heading, S.climb), bx = nx, bz = nz;
     if (pts && vehicleBlocked(tk, nx, nz)) pts = null;
-    if (!pts) { // slide along the obstacle
-      pts = tankFits(tk, nx, tk.z, tk.heading, S.climb); bx = nx; bz = tk.z;
-      if (!pts || vehicleBlocked(tk, bx, bz)) { pts = tankFits(tk, tk.x, nz, tk.heading, S.climb); bx = tk.x; bz = nz; }
-      if (pts && vehicleBlocked(tk, bx, bz)) pts = null;
+    if (!pts) { // slide along the obstacle: the nearest bearing off the line of travel that fits
+      const v = tk.speed * dt;
+      for (const a of [0.3, -0.3, 0.65, -0.65, 1.0, -1.0, 1.35, -1.35]) {
+        const k = Math.cos(a), mx = tk.x + Math.sin(tk.heading + a) * v * k, mz = tk.z + Math.cos(tk.heading + a) * v * k;
+        const p2 = tankFits(tk, mx, mz, tk.heading, S.climb);
+        if (p2 && !vehicleBlocked(tk, mx, mz)) { pts = p2; bx = mx; bz = mz; break; }
+      }
       if (!pts) { // a caught corner: steer the hull a little off it and try again
         for (const sg of [1, -1]) {
           const nh = tk.heading + sg * tune.tank_glance * Math.PI / 180 * dt, mx = tk.x + Math.sin(nh) * tk.speed * dt * 0.6, mz = tk.z + Math.cos(nh) * tk.speed * dt * 0.6;
@@ -720,7 +847,7 @@ function updateTank(dt) {
           if (p2 && !vehicleBlocked(tk, mx, mz)) { pts = p2; bx = mx; bz = mz; tk.heading = nh; break; }
         }
       }
-      tk.speed *= 0.6;
+      tk.speed *= pts ? 0.92 : 0.6;
     }
     if (pts) { tk.x = bx; tk.z = bz; }
   }
@@ -729,9 +856,9 @@ function updateTank(dt) {
   tk.stuckT = tried && still ? (tk.stuckT || 0) + dt : 0;
   if (tk.stuckT > tune.tank_unstick_time) {
     tk.stuckT = 0;
-    search: for (const r of [0.4, 0.8, 1.2, 1.7]) for (let k = 0; k < 16; k++) {
+    search: for (const r of [0.4, 0.8, 1.2, 1.7, 2.3, 3.0]) for (let k = 0; k < 16; k++) {
       const a = k / 16 * Math.PI * 2, nx = tk.x + Math.sin(a) * r, nz = tk.z + Math.cos(a) * r;
-      for (const dh of [0, 0.25, -0.25]) {
+      for (const dh of [0, 0.3, -0.3, 0.7, -0.7]) {
         if (tankFits(tk, nx, nz, tk.heading + dh, S.climb + 1) && !vehicleBlocked(tk, nx, nz)) { tk.x = nx; tk.z = nz; tk.heading += dh; tk.speed = 0; break search; }
       }
     }
@@ -739,8 +866,8 @@ function updateTank(dt) {
   // ground, pitch and roll from the footprint
   const pts = tankFootprint(tk.x, tk.z, tk.heading);
   let sum = 0, front = 0, backH = 0, left = 0, right = 0;
-  for (const p of pts) { const g = Math.min(hAt(p.x, p.z), tk.y + 3); sum += g; if (p.lz > 0) front += g; if (p.lz < 0) backH += g; if (p.lx < 0) right += g; if (p.lx > 0) left += g; }
-  tk.y = Math.max(sum / pts.length, hAt(tk.x, tk.z) - 0.5);
+  for (const p of pts) { const g = Math.min(rideH(p.x, p.z), tk.y + 3); sum += g; if (p.lz > 0) front += g; if (p.lz < 0) backH += g; if (p.lx < 0) right += g; if (p.lx > 0) left += g; }
+  tk.y = Math.max(sum / pts.length, rideH(tk.x, tk.z) - 0.5);
   tk.vy += (tk.y - tk.vy) * Math.min(1, dt * 10);
   tk.pitch += (-(front - backH) / 3 / 4.6 - tk.pitch) * Math.min(1, dt * 8);
   tk.roll += ((left - right) / 3 / 2.6 - tk.roll) * Math.min(1, dt * 8);
@@ -876,7 +1003,12 @@ function updateUnits(dt) {
       let aligned = !e.veh || Math.abs(angDiff(e.turretYaw, want)) < (e.kind === 'boss' ? 0.05 : 0.2);
       if (w.arc && Math.abs(angDiff(e.heading, want)) > w.arc * Math.PI / 180) aligned = false; // outside the arc: swing first
       if (w.kind === 'ap' && e.moving) aligned = false;
-      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.cool = w.rate * (0.85 + rng() * 0.3); }
+      if (e.kind === 'sniper' && e.moving) aligned = false; // a sniper shoots from a position, never on the move
+      if (lurking(e)) { // an ambush: hold fire till they walk into it (or someone is hit)
+        if (dist2(e, t) <= (w.range * tune.ambush_trigger) ** 2 || state.t - (e.shotT || -99) < 1) springAmbush(e.squad); else aligned = false;
+      }
+      if (e.kind === 'at' && !e.revealed && dist2(e, t) > (w.range * tune.at_ambush) ** 2) aligned = false; // the gun waits for a sure shot
+      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : 1 - (e.rank || 0) * tune.rank_rate); }
     } else if (!e.moving) {
       if (e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
       if (e.veh) e.turretYaw = turnToward(e.turretYaw, e.heading, 0.8 * dt);
@@ -928,13 +1060,14 @@ function moveAlong(e, dt) {
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */
 function pickTarget(e, w) {
-  const sight = e.team ? tune.raider_sight : tune.sight_range;
+  const sight = (e.team ? tune.raider_sight : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
   const R = w.indirect ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
   if (e.pref && e.pref.alive && dist2(e, e.pref) <= R * R && (w.indirect ? seenByTeam(e.pref, e.team) : canSee(e, e.pref))) return e.pref;
   const c = [];
   for (const o of state.ents) {
     if (!o.alive || o.team === e.team || o.inside) continue;
     const d = dist2(e, o); if (d > R * R) continue;
+    if (e.team === 1 && lurking(o) && d > tune.ambush_reveal ** 2) continue; // an ambush still unseen
     if (w.min && d < w.min * w.min) continue;
     c.push([d, o]);
   }
@@ -1003,6 +1136,9 @@ function fire(e, t, w) {
     let acc = w.acc * Math.max(0.35, Math.min(1, 1.25 - d / w.range * 0.6));
     if (e.moving) acc *= 0.5;
     if (t.moving) acc *= 0.8;
+    if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc'));
+    if (suppressed(e)) acc *= tune.suppress_acc;
+    if (e.squad && e.squad.order.sprungT != null && state.t - e.squad.order.sprungT < 4) acc = Math.min(0.97, acc * tune.ambush_bonus);
     const cover = t.veh ? 0 : coverFrom(t, e.x, e.z);
     if (cover === 2) acc *= tune.cover_factor; else if (cover === 1) acc *= tune.cover_light;
     if (t.veh) acc = Math.min(1, acc * 1.7);
@@ -1014,6 +1150,8 @@ function fire(e, t, w) {
       tracer(mx, my, mz, t.x + (rng() - 0.5) * 3, t.y + 0.4 + rng(), t.z + (rng() - 0.5) * 3, col);
       if (cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
     }
+    // machine guns pin infantry down: slower, worse aim for a while
+    if (w.chip && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time; }
     sfx(w.snd || 'small', e.x, e.z);
   } else if (w.kind === 'rpg') {
     launch({ kind: 'rpg', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, mx, my, mz, t.x + (rng() - 0.5) * 1.5, t.y + chestH(t), t.z + (rng() - 0.5) * 1.5, tune.rpg_speed, 3);
@@ -1080,7 +1218,9 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.kind === 'boss' && kind === 'blast') amt *= 0.8;
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
-  if (e.team === 1 && src && src.team === 0) alertGroup(e.group, src);
+  if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; }
+  if (lurking(e)) springAmbush(e.squad);
+  if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit); }
   if (e.team === 0 && e.squad && src && src.team === 1 && state.t - (e.squad.fireMsgT || -99) > 12) { e.squad.fireMsgT = state.t; say(e.squad.name, 'Siamo sotto fuoco!', '#ff9a7a'); }
   if (e.hp <= 0) kill(e, src, kind);
 }
@@ -1094,6 +1234,7 @@ function kill(e, src, kind) {
   }
   if (e.team === 1) {
     state.kills++;
+    if (src && src.team === 0) giveXp(src, tune.xp_kill * (e.veh ? 3 : 1));
     if (!e.veh) { state.scrap += tune.scrap_infantry; floatText(e.x, e.y + 2.2, e.z, '+' + tune.scrap_infantry, '#ffd36a'); }
     if (e.kind === 'boss' && !e.dev) { state.result = 'win'; state.endT = state.t + 3; say('Radio', 'Il Carro del Capo è in fiamme! La fortezza è nostra!', '#9fe3a0'); }
   } else if (e.kind === 'tank') {
@@ -1210,6 +1351,7 @@ function updateRun(dt) {
     if (g.cleared || g.kind !== 'camp') continue;
     if (g.members.every(m => !m.alive)) {
       g.cleared = true; g.site.cleared = true; state.camps++;
+      for (const sq of state.squads) for (const m of alive(sq)) giveXp(m, tune.xp_camp);
       const bonus = Math.round(tune.scrap_camp * g.site.tier);
       state.scrap += bonus; sfx('coin');
       say('Radio', g.site.name + ' ripulito! +' + bonus + ' rottami. Spendili in un avamposto.', '#9fe3a0');

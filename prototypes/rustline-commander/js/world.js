@@ -14,12 +14,22 @@ const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 
 const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD, V.TREE]);
 /** Voxel kinds that are natural ground (the drawn terrain), as opposed to walls, huts, junk and trees. */
 const GROUNDV = new Set([V.BED, V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
+/** True when a hard built column (a wall, a post) taller than 1, or deep water, lies in the 3x3 around (x,z): too tight for a hull. */
+function hardNear(x, z) {
+  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
+    const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
+    const i = xx + world.N * zz, h = world.hmap[i];
+    if (h < world.WL - 1) return true; // deep water beside: a hull would hang over it
+    if (h - world.groundRaw[i] > 1 && !SOFTV.has(world.vox[VH * i + h - 1]) && world.road[i] !== 2) return true;
+  }
+  return false;
+}
 /** True when column i ends in natural ground: its steps are slopes a vehicle can take, not walls. */
 function natTop(i) { const h = world.hmap[i]; return h > 0 && GROUNDV.has(world.vox[VH * i + h - 1]); }
 const VH = 40; // world height in voxels
 
 /** The one world of the current run. */
-const world = { N: 0, WL: 4, vox: null, hmap: null, road: null, scorch: null, dirty: new Set(), sites: null, gen: 0, mapDirty: true };
+const world = { N: 0, WL: 4, vox: null, hmap: null, road: null, scorch: null, groundRaw: null, gsm: null, dirty: new Set(), sites: null, gen: 0, mapDirty: true };
 
 // ---- Noise (seeded hash, value noise) -----------------------------------------------------
 function hash2(x, z, s) {
@@ -96,6 +106,7 @@ function genWorld() {
   world.hmap = new Uint8Array(N * N);
   world.road = new Uint8Array(N * N);
   world.scorch = new Uint8Array(N * N);
+  world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
   const flipX = rng() < 0.5, flipZ = rng() < 0.5;
@@ -299,7 +310,7 @@ function genWorld() {
     sites.firstWall = { x: a[0], z: a[1] };
     // a rock for the squad to hide behind, and a first patrol beyond it
     const r = rm[ir], q = rm[ip];
-    rockPillar(Math.round(r[0] + px * 4), Math.round(r[1] + pz * 4), 1.6, 4);
+    rockOutcrop(Math.round(r[0] + px * 7), Math.round(r[1] + pz * 7), 3, 3);
     sites.patrols.push({ x: q[0] + px * 3, z: q[1] + pz * 3, n: 3, tier: 1, first: true });
     recomputeAll();
   }
@@ -326,7 +337,7 @@ function genWorld() {
   for (let k = 0; k < Math.round(tune.ruin_count); k++) { const s = freeSpot(18, 2); if (s) { buildRuin(s); recomputeAll(); } }
   for (let k = 0; k < Math.round(tune.rock_count); k++) {
     const s = freeSpot(14, 3); if (!s) continue;
-    if (rng() < 0.25) rockArch(s.x, s.z); else rockPillar(s.x, s.z, 1.2 + rng() * 1.6, 5 + Math.floor(rng() * 8));
+    rockOutcrop(s.x + 2, s.z + 2, 2.5 + rng() * 2.5, 2 + Math.floor(rng() * 3));
     recomputeAll();
   }
   for (let k = 0; k < 9; k++) {
@@ -336,6 +347,8 @@ function genWorld() {
   recomputeAll();
   plantTrees(placed, ns);
   recomputeAll();
+  applyMapRules(sites);
+  updateGround(0, 0, N - 1, N - 1);
   // roaming patrols, away from the start
   for (let k = 0; k < Math.round(tune.patrol_count); k++) {
     for (let tries = 0; tries < 40; tries++) {
@@ -377,6 +390,33 @@ function plantTrees(placed, ns) {
     if (hash2(x, z, ns + 23) >= p) continue;
     put(x, h, z, V.TREE); put(x, h + 1, z, V.TREE);
   }
+}
+// ---- The smoothed relief (what the tank drives on, what the terrain shows) --------------------------
+/** Height of the natural ground in column (x,z): ground voxels stacked from the bottom. */
+function groundOf(x, z) {
+  const base = VH * (x + world.N * z);
+  let y = 0; while (y < VH && GROUNDV.has(world.vox[base + y])) y++;
+  return y;
+}
+const BIN5 = [1, 4, 6, 4, 1];
+/** Recomputes ground heights and the 5x5 binomial blur of them (world.gsm) for the box, plus a margin. */
+function updateGround(x0, z0, x1, z1) {
+  const N = world.N, R = world.groundRaw, S = world.gsm;
+  const cl = v => v < 0 ? 0 : v >= N ? N - 1 : v;
+  for (let z = cl(z0 - 2); z <= cl(z1 + 2); z++) for (let x = cl(x0 - 2); x <= cl(x1 + 2); x++) R[x + N * z] = groundOf(x, z);
+  for (let z = cl(z0); z <= cl(z1); z++) for (let x = cl(x0); x <= cl(x1); x++) {
+    let t = 0;
+    for (let b = 0; b < 5; b++) for (let a = 0; a < 5; a++) t += BIN5[a] * BIN5[b] * R[cl(x + a - 2) + N * cl(z + b - 2)];
+    S[x + N * z] = t / 256;
+  }
+}
+/** The smoothed ground height at a point (bilinear over column centres): the relief as drawn, without bumps. */
+function smoothH(x, z) {
+  const N = world.N, u = x - 0.5, v = z - 0.5;
+  const ix = Math.floor(u), iz = Math.floor(v), fx = u - ix, fz = v - iz;
+  const at = (a, b) => world.gsm[(a < 0 ? 0 : a >= N ? N - 1 : a) + N * (b < 0 ? 0 : b >= N ? N - 1 : b)];
+  const p = at(ix, iz), q = at(ix + 1, iz), r = at(ix, iz + 1), s = at(ix + 1, iz + 1);
+  return (p + (q - p) * fx) * (1 - fz) + (r + (s - r) * fx) * fz;
 }
 function recomputeAll() { for (let z = 0; z < world.N; z++) for (let x = 0; x < world.N; x++) recomputeColumn(x, z); world.mapDirty = true; }
 
@@ -533,7 +573,9 @@ function buildShed(s, R) {
   const { cx, cz } = best;
   let top = 0;
   for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) top = Math.max(top, colTop(cx + a, cz + b));
-  for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (let y = colTop(cx + a, cz + b); y < top + 3; y++) put(cx + a, y, cz + b, V.RUST);
+  // two posts at the back, the side away from the outpost: the front stays open to drive up to
+  const bx = Math.sign(cx - s.x) || 1, bz = Math.sign(cz - s.z) || 1, back = Math.abs(cx - s.x) >= Math.abs(cz - s.z) ? [[bx, -1], [bx, 1]] : [[-1, bz], [1, bz]];
+  for (const [a, b] of back) for (let y = colTop(cx + a, cz + b); y < top + 3; y++) put(cx + a, y, cz + b, V.RUST);
   for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) put(cx + a, top + 3, cz + b, (a + b) & 1 ? V.YEL : V.RUST);
   s.shed = { x: cx + 0.5, z: cz + 0.5 };
 }
@@ -620,6 +662,81 @@ function buildRuin(s) {
     }
   }
 }
+/** A rounded mound of rock (natural ground): cover for infantry, a hill a tank drives round or over. */
+function rockOutcrop(x0, z0, r, h) {
+  const ns = Math.floor(rng() * 9999), R = Math.ceil(r) + 1;
+  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+    const x = x0 + dx, z = z0 + dz; if (!inMap(x, z)) continue;
+    const d = Math.hypot(dx, dz) / (r * (0.85 + vnoise(x * 0.5, z * 0.5, ns) * 0.3));
+    if (d >= 1) continue;
+    const g = colTop(x, z), top = Math.round(h * Math.sqrt(1 - d * d));
+    for (let y = 0; y < top; y++) put(x, g + y, z, ((g + y) % 4 < 2) ? V.RED : V.ROCK);
+  }
+}
+/**
+ * The map rules applied after everything is placed (the brief's Map rules):
+ * M4 a road and 2 cells either side hold nothing built or grown (bridges and the first raider wall excepted);
+ * M5 no natural spike: a column more than 3 voxels above all four neighbours comes down to 1 above the highest.
+ */
+function applyMapRules(sites) {
+  const N = world.N, keep = sites.firstWall;
+  const pads = [sites.start, ...sites.outposts, ...sites.camps, sites.fortress].map(o => ({ x: o.x, z: o.z, r: o.kind === 'fortress' ? 20 : o.kind === 'camp' ? 10 : 13 }));
+  const near = new Uint8Array(N * N);
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) if (world.road[x + N * z] === 1) {
+    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) if (inMap(x + a, z + b)) near[x + a + N * (z + b)] = 1;
+  }
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const i = x + N * z; if (!near[i] || world.road[i] === 2) continue;
+    if (keep && Math.hypot(x - keep.x, z - keep.z) < 6) continue;
+    if (pads.some(o => Math.hypot(x - o.x, z - o.z) < o.r)) continue; // a site keeps its own layout
+    const base = VH * i;
+    let g = 0; while (g < VH && GROUNDV.has(world.vox[base + g])) g++;
+    for (let y = g; y < VH; y++) world.vox[base + y] = 0;
+  }
+  recomputeAll();
+  for (let pass = 0; pass < 2; pass++) for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
+    const i = x + N * z, h = world.hmap[i]; if (!natTop(i)) continue;
+    const m = Math.max(world.hmap[i - 1], world.hmap[i + 1], world.hmap[i - N], world.hmap[i + N]);
+    if (h - m > 3) { for (let y = m + 1; y < h; y++) world.vox[VH * i + y] = 0; recomputeColumn(x, z); }
+  }
+}
+/**
+ * Checks the map against the rules and reports observations (no verdict): sites the tank reaches from
+ * the start over the smoothed relief, the share of dry land it reaches, spikes left, built voxels on roads.
+ */
+function mapReport() {
+  const N = world.N, WL = world.WL, grade = tune.map_max_grade;
+  const ok = new Uint8Array(N * N), rh = new Float32Array(N * N);
+  const pads = [world.sites.start, ...world.sites.outposts, ...world.sites.camps, world.sites.fortress];
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const i = x + N * z;
+    rh[i] = world.road[i] === 2 ? world.hmap[i] : world.gsm[i]; // a bridge deck is ridden on
+    if (world.hmap[i] < WL - 1 && world.road[i] !== 2) continue; // deep water
+    const built = world.hmap[i] - world.groundRaw[i];
+    if (world.road[i] !== 2 && built > 1 && !SOFTV.has(world.vox[VH * i + world.hmap[i] - 1])) continue; // a wall
+    ok[i] = 1;
+  }
+  const seen = new Uint8Array(N * N), s = world.sites.start, q = [s.x + N * s.z]; seen[q[0]] = 1;
+  while (q.length) {
+    const i = q.pop(), x = i % N, z = (i / N) | 0;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
+      const j = xx + N * zz; if (seen[j] || !ok[j] || Math.abs(rh[j] - rh[i]) > grade) continue;
+      seen[j] = 1; q.push(j);
+    }
+  }
+  const reach = site => { for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++) if (inMap(site.x + a, site.z + b) && seen[site.x + a + N * (site.z + b)]) return true; return false; };
+  const f = world.sites.fortress, gate = { x: f.x + (f.gateDir ? f.gateDir.x : 0) * 19, z: f.z + (f.gateDir ? f.gateDir.z : 0) * 19, name: f.name }; // the gate is shot open: its outside must be reachable
+  const all = [...world.sites.camps, ...world.sites.outposts, gate];
+  let dry = 0, got = 0, spikes = 0, roadside = 0;
+  for (let i = 0; i < N * N; i++) if (world.hmap[i] >= WL) { dry++; if (seen[i]) got++; }
+  for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
+    const i = x + N * z; if (natTop(i) && world.hmap[i] - Math.max(world.hmap[i - 1], world.hmap[i + 1], world.hmap[i - N], world.hmap[i + N]) > 3) spikes++;
+    const fw = world.sites.firstWall;
+    if (world.road[i] === 1 && world.hmap[i] > world.groundRaw[i] && !(fw && Math.hypot(x - fw.x, z - fw.z) < 6) && !pads.some(o => Math.hypot(x - o.x, z - o.z) < (o.kind === 'fortress' ? 20 : 13))) roadside++;
+  }
+  return { sites: all.length, unreachable: all.filter(s => !reach(s)).map(s => s.name), reachLand: +(got / Math.max(1, dry)).toFixed(2), spikes, builtOnRoad: roadside };
+}
 function rockPillar(x0, z0, r, h) {
   const ns = Math.floor(rng() * 9999);
   for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
@@ -699,6 +816,7 @@ function blastVoxels(cx, cy, cz, r) {
   if (removed.length) {
     collapse(Math.floor(cx), Math.floor(cz), R + 6, removed);
     for (let z = z0 - 6; z <= z1 + 6; z++) for (let x = x0 - 6; x <= x1 + 6; x++) if (inMap(x, z)) recomputeColumn(x, z);
+    updateGround(x0 - 3, z0 - 3, x1 + 3, z1 + 3);
   }
   return removed;
 }
@@ -771,6 +889,7 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxSte
       // natural ground (both columns): a vehicle takes a taller step there, a wall stays a wall
       const lim = natStep > maxStep && natTop(n) && natTop(c) ? natStep : maxStep;
       if (up > lim || -up > Math.max(maxDrop, lim)) continue;
+      if (natStep > maxStep && hardNear(nx, nz) && (Math.abs(nx - ax) > 2 || Math.abs(nz - az) > 2)) continue; // a vehicle keeps a cell clear of walls and posts
       if (dx && dz) { // no cutting corners
         const a = cx + dx + N * cz, b = cx + N * (cz + dz);
         if (!walkable(cx + dx, cz) || !walkable(cx, cz + dz) || Math.abs(hm[a] - hm[c]) > lim || Math.abs(hm[b] - hm[c]) > lim) continue;
