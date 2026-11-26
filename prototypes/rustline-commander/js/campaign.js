@@ -56,7 +56,7 @@ function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
   if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3 };
-  return { camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 4, 8, 13][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  return { camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -85,7 +85,8 @@ function carryOut() {
     });
     if (mem.length) squads.push({ name: sq.name, named: !!sq.named, color: sq.color, posture: sq.posture, slots, mem });
   }
-  return { hp: tk.hp / tk.maxhp, parts: Object.assign({}, state.parts), mods: Object.assign({}, state.mods), loot: state.loot.slice(), ammo: state.ammo, hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
+  return { hp: tk.hp / tk.maxhp, parts: Object.assign({}, state.parts), systems: state.systems.slice(), owned: state.owned.slice(), weaponsOwned: state.weaponsOwned.slice(),
+    ammo: Object.assign({}, state.ammo), shell: state.shell, techKills: state.techKills, crushes: state.crushes, newAch: (state.newAch || []).slice(), hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
 }
 /** Who would come along now, and who would stay behind (for the exit prompt). */
 function exitCount() {
@@ -216,6 +217,7 @@ function campaignUpdate(dt) {
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
 function leaveSector() {
   const c = carryOut();
+  if (!c.lost && c.squads.length >= 3) grantAch('allhome');
   state.carry = c; state.carryT = c.time; state.camp.lost = c.lost;
   state.goScene = 'campaign'; sfx('radio');
 }
@@ -268,7 +270,7 @@ function joinSquad(kinds, name, x, z) {
 }
 /** A free step up on a random part of the tank; returns its name (or null if all are at the top). */
 function freeUpgrade() {
-  const opts = SLOTS.filter(sl => PARTS[sl] && state.parts[sl] + 1 < PARTS[sl].opts.length);
+  const opts = hullSlots().filter(sl => state.parts[sl] + 1 < PARTS[sl].opts.length);
   if (!opts.length) return null;
   const sl = opts[Math.floor(rng() * opts.length)], hp0 = tankStats().hp;
   state.parts[sl]++; state.lookKey++; state.stats = null;

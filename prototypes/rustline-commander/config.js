@@ -47,11 +47,10 @@ window.CONFIG = {
   wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
   exit_radius: { value: 10, min: 4, max: 20, step: 1 },           // how close to the exit the tank must be to leave
   npc_radius: { value: 7, min: 3, max: 15, step: 1 },             // how close the tank must come to talk to people
-  mission_scrap: { value: 80, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
+  mission_scrap: { value: 50, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
   final_waves: { value: 6, min: 1, max: 15, step: 1 },            // waves in the last stand (the last brings the Chief)
   final_prep: { value: 60, min: 10, max: 300, step: 5 },          // seconds to set up before the first wave of the last stand
   final_gap: { value: 70, min: 20, max: 200, step: 5 },           // seconds between last-stand waves (sooner once a wave is beaten)
-  tags_per_sector: { value: 1, min: 0, max: 10, step: 1 },        // piastrine per sector crossed
   context_menu: { value: 1, min: 0, max: 1, step: 1 },          // 1: right-click opens the menu of orders; 0: right-click orders at once (move/attack/enter)
   garrison_cap: { value: 6, min: 1, max: 12, step: 1 },          // most soldiers one building takes
   garrison_ruin: { value: 0.45, min: 0.1, max: 0.9, step: 0.05 }, // share of its walls left below which a building throws its soldiers out
@@ -193,7 +192,7 @@ window.CONFIG = {
   hull_apc_speed: { value: 1.2, min: 0.5, max: 2.5, step: 0.05 },
   hull_apc_turn: { value: 1.1, min: 0.5, max: 2.5, step: 0.05 },
   hull_apc_armor: { value: 1.2, min: 0.5, max: 3, step: 0.05 },
-  hull_apc_seats: { value: 6, min: 0, max: 12, step: 1 },
+  hull_apc_seats: { value: 4, min: 0, max: 12, step: 1 },
   board_radius: { value: 3, min: 1, max: 8, step: 0.5 },        // how close to the hull infantry climb in
   // the light hull's guns and the APC's heavy machine gun
   tank_ac_damage: { value: 22, min: 2, max: 150, step: 1 },     // autocannon round
@@ -204,22 +203,31 @@ window.CONFIG = {
   tank_hmg_damage: { value: 11, min: 1, max: 80, step: 1 },     // APC heavy machine gun
   tank_hmg_rate: { value: 0.13, min: 0.03, max: 1, step: 0.01 },
   tank_mg_range: { value: 46, min: 10, max: 100, step: 1 },
-  ammo_cannon: { value: 30, min: 1, max: 200, step: 1 },          // main-gun rounds the battle tank carries
-  ammo_autocannon: { value: 90, min: 1, max: 500, step: 5 },      // autocannon rounds the light tank carries
+  ammo_ac: { value: 60, min: 1, max: 400, step: 5 },              // rounds the 25mm autocannon's racks hold
+  ammo_gl: { value: 36, min: 1, max: 300, step: 1 },              // grenade launcher
+  ammo_c75: { value: 30, min: 1, max: 200, step: 1 },             // 75mm cannon
+  ammo_c105: { value: 20, min: 1, max: 200, step: 1 },            // 105mm cannon
+  ac_vs_heavy: { value: 0.12, min: 0, max: 1, step: 0.02 },       // 25mm damage on tanks (light, medium, heavy), x
+  gl_vs_heavy: { value: 0.3, min: 0, max: 1, step: 0.05 },
+  gl_reload: { value: 1.1, min: 0.2, max: 5, step: 0.1 },
+  gl_weight: { value: 0.2, min: 0, max: 3, step: 0.1 },           // speed the weapon costs the hull (APC x1, light x0.5, MBT x0.15)
+  c75_weight: { value: 0.7, min: 0, max: 3, step: 0.1 },
+  c105_weight: { value: 1.3, min: 0, max: 3, step: 0.1 },
+  sys_cost: { value: 170, min: 0, max: 1000, step: 10 },          // an advanced system at a garage (active ones x1.35)
+  mod_relay: { value: 1.4, min: 1, max: 3, step: 0.05 },          // radio range with the onboard relay
+  mod_medbay: { value: 2, min: 0, max: 20, step: 0.5 },           // hp/s the field hospital gives soldiers near the hull
+  smoke_radius: { value: 8, min: 2, max: 20, step: 1 },
   ammo_cost: { value: 5, min: 0, max: 50, step: 1 },              // scrap per round at the garage
-  ammo_crates: { value: 2, min: 0, max: 10, step: 1 },            // crates of rounds lying by the road of each map
+  ammo_crates: { value: 1, min: 0, max: 10, step: 1 },            // crates of rounds lying by the road of each map
   ammo_crate_size: { value: 6, min: 1, max: 30, step: 1 },
-  ammo_drop_wreck: { value: 0.2, min: 0, max: 1, step: 0.05 },    // chance a wreck hides a few rounds
-  ammo_drop_veh: { value: 0.35, min: 0, max: 1, step: 0.05 },     // chance a destroyed raider vehicle leaves rounds
-  ammo_drop_camp: { value: 0.6, min: 0, max: 1, step: 0.05 },     // chance a cleared camp leaves rounds
-  loot_camp: { value: 0.4, min: 0, max: 1, step: 0.05 },          // chance a cleared camp leaves a hull module
-  loot_technical: { value: 0.25, min: 0, max: 1, step: 0.05 },    // chance a destroyed technical leaves one
-  loot_wreck: { value: 0.1, min: 0, max: 1, step: 0.05 },         // chance a wreck hides one
+  ammo_drop_wreck: { value: 0.08, min: 0, max: 1, step: 0.05 },    // chance a wreck hides a few rounds
+  ammo_drop_veh: { value: 0.15, min: 0, max: 1, step: 0.05 },     // chance a destroyed raider vehicle leaves rounds
+  ammo_drop_camp: { value: 0.35, min: 0, max: 1, step: 0.05 },     // chance a cleared camp leaves rounds
+  loot_camp: { value: 0.12, min: 0, max: 1, step: 0.05 },          // chance a cleared camp leaves a hull module
+  loot_technical: { value: 0.06, min: 0, max: 1, step: 0.05 },    // chance a destroyed technical leaves one
+  loot_wreck: { value: 0.02, min: 0, max: 1, step: 0.05 },         // chance a wreck hides one
   mod_rocket_damage: { value: 70, min: 5, max: 300, step: 5 },    // rocket pod (second weapon)
-  mod_rocket_rate: { value: 1.8, min: 0.3, max: 10, step: 0.1 },
   mod_cage: { value: 0.45, min: 0, max: 0.9, step: 0.05 },        // rocket damage the cage stops
-  mod_plates_hp: { value: 80, min: 0, max: 400, step: 10 },
-  mod_plates_slow: { value: 0.6, min: 0, max: 4, step: 0.1 },
   mod_skirts: { value: 0.3, min: 0, max: 0.9, step: 0.05 },       // side and rear damage the skirts stop
   mod_thermal: { value: 1.4, min: 1, max: 3, step: 0.05 },        // tank sight multiplier
   mod_autorep: { value: 1.5, min: 0, max: 20, step: 0.5 },        // hp/s once out of fire
@@ -259,11 +267,11 @@ window.CONFIG = {
   leash: { value: 22, min: 5, max: 80, step: 1 },               // how far camp raiders chase from home
 
   // ---- Economy ----
-  start_scrap: { value: 120, min: 0, max: 2000, step: 10 },
-  scrap_infantry: { value: 8, min: 0, max: 100, step: 1 },      // per raider killed
-  scrap_vehicle: { value: 45, min: 0, max: 300, step: 5 },
-  scrap_camp: { value: 90, min: 0, max: 600, step: 10 },        // bonus per camp cleared (x tier)
-  scrap_wreck: { value: 25, min: 0, max: 200, step: 5 },        // per wreck picked up
+  start_scrap: { value: 80, min: 0, max: 2000, step: 10 },
+  scrap_infantry: { value: 3, min: 0, max: 100, step: 1 },      // per raider killed
+  scrap_vehicle: { value: 20, min: 0, max: 300, step: 5 },
+  scrap_camp: { value: 40, min: 0, max: 600, step: 10 },        // bonus per camp cleared (x tier)
+  scrap_wreck: { value: 12, min: 0, max: 200, step: 5 },        // per wreck picked up
   repair_cost: { value: 0.5, min: 0, max: 5, step: 0.1 },       // scrap per integrity point
   cost_rifle: { value: 30, min: 0, max: 300, step: 5 },
   cost_sniper: { value: 60, min: 0, max: 300, step: 5 },
@@ -278,10 +286,6 @@ window.CONFIG = {
   shop_radius: { value: 6, min: 3, max: 20, step: 1 },          // how near the tool shed the tank must be for the menu to open
   part_refund: { value: 0.7, min: 0, max: 1, step: 0.05 },      // share of a part's cost paid back when it is taken off
 
-  // ---- Between runs (piastrine) ----
-  tags_per_camp: { value: 2, min: 0, max: 20, step: 1 },
-  tags_per_10_kills: { value: 1, min: 0, max: 10, step: 1 },
-  tags_win: { value: 8, min: 0, max: 50, step: 1 },
 
   // ---- Effects ----
   debris_max: { value: 500, min: 0, max: 2000, step: 50 },

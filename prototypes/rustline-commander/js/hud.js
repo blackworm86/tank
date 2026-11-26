@@ -81,6 +81,7 @@ function partIcon(slot, x, y, s) {
   if (slot === 'turret') { ctx.beginPath(); ctx.arc(0, 2, 8, Math.PI, 0); ctx.fill(); ctx.fillRect(-10, 2, 20, 5); ctx.fillRect(4, -3, 9, 3); }
   if (slot === 'seats') { for (const sx of [-7, 0, 7]) { ctx.fillRect(sx - 2, -9, 4, 4); ctx.fillRect(sx - 3, -4, 6, 7); } ctx.fillRect(-11, 4, 22, 4); }
   if (slot === 'sensor') { ctx.beginPath(); ctx.arc(0, 4, 3, 0, Math.PI * 2); ctx.fill(); for (const r of [6, 10]) { ctx.beginPath(); ctx.arc(0, 4, r, -2.5, -0.6); ctx.stroke(); } ctx.fillRect(-1, 4, 2, 7); }
+  if (slot === 'frame') { ctx.strokeRect(-10, -7, 20, 14); ctx.fillRect(-10, -1, 20, 2); ctx.fillRect(-1, -7, 2, 14); for (const [a, b] of [[-10, -7], [10, -7], [-10, 7], [10, 7]]) { ctx.beginPath(); ctx.arc(a, b, 2.2, 0, 6.3); ctx.fill(); } }
   if (slot === 'stab') { ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0.5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
@@ -255,17 +256,33 @@ function drawHUD() {
 
   // tank panel: integrity, the gun, the scrap (the armour shows for a few seconds after a hit)
   if (tk.lastHit && state.t - tk.lastHit.t < 4) drawArmor(252, 14, tk);
-  panel(14, 14, 230, 88);
-  text(HULLS[state.hull || 'mbt'].name.toUpperCase() + (HULLS[state.hull || 'mbt'].weapons.length > 1 ? ' · X arma' : ''), 24, 29, 12, HC.dim, 'left');
+  const nsys = state.systems.length;
+  panel(14, 14, 230, nsys ? 110 : 88);
+  text(HULLS[state.hull || 'apc'].name.toUpperCase(), 24, 29, 12, HC.dim, 'left');
   gearIcon(184, 29, 6, HC.gold); text(String(state.scrap), 194, 29, 13, HC.gold, 'left');
   bar(24, 40, 210, 13, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
   text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), 129, 47, 11, '#10140c');
   bar(24, 58, 210, 13, 1 - tk.reload / S.reload, tk.reload > 0 ? '#c9a35a' : '#ffe08a');
   const st = tk.reload > 0 && S.wkind !== 'bullet' ? 'RICARICA' : cmd ? S.wname : S.wname + (tk.aligned ? ' · IN LINEA' : ' · ALLINEA');
   text(st, 129, 65, 11, '#1a120c');
-  const am = ammoMax(), sw = secWeapon();
-  text(countedGun() ? 'Colpi ' + state.ammo + ' / ' + am : am ? 'Colpi ' + state.ammo + ' / ' + am + ' (mitragl.)' : 'Colpi: non contati', 24, 86, 12, countedGun() && state.ammo <= Math.ceil(am * 0.2) ? HC.warn : '#ffe08a', 'left');
-  if (sw) text('Dx: ' + MODS[sw.id].name.split(' ')[0] + ((tk.reload2 || 0) > 0.3 ? ' ...' : ''), 234, 86, 12, '#8fe0ff', 'right');
+  // the rounds by type (X changes the loaded one), the coax on the right button
+  if (countedGun()) {
+    let tx = 24; ctx.font = 'bold 12px ' + FONT;
+    for (const k of SHELL_IDS) {
+      const s = SHELLS[k].short + ' ' + state.ammo[k], on = state.shell === k, tw = ctx.measureText(s).width;
+      if (on) rrect(tx - 3, 78, tw + 6, 16, 3, 'rgba(255,224,138,0.18)', '#ffe08a');
+      text(s, tx, 86, 12, on ? '#ffe08a' : state.ammo[k] ? HC.text : '#7a6a58', 'left'); tx += tw + 10;
+    }
+    text('X', tx + 2, 86, 11, HC.dim, 'left');
+  } else text('Colpi non contati', 24, 86, 12, '#ffe08a', 'left');
+  text('Dx coass.', 234, 86, 11, '#8fe0ff', 'right');
+  // the advanced systems: key, name, recharge
+  state.systems.forEach((id, i) => {
+    const S2 = SYSTEMS[id], bx = 24 + i * 42, wait = S2.active ? sysWait(id) : 0;
+    rrect(bx, 96, 39, 16, 3, S2.active ? (wait ? 'rgba(60,40,30,0.9)' : 'rgba(30,70,80,0.9)') : 'rgba(40,40,36,0.8)', S2.active ? '#8fe0ff' : '#6a6458');
+    if (wait) { ctx.fillStyle = 'rgba(143,224,255,0.35)'; ctx.fillRect(bx, 96, 39 * (1 - wait / S2.cd), 16); }
+    text((S2.active ? (i + 1) + ' ' : '') + S2.short.slice(0, S2.active ? 4 : 6), bx + 19.5, 104, 9, S2.active ? '#eaf7ff' : '#b8b0a0');
+  });
   // mode tag
   if (tp) {
     rrect(W / 2 - 170, 10, 340, 26, 6, 'rgba(70,52,16,0.94)', '#ffd27a');
@@ -281,7 +298,7 @@ function drawHUD() {
   text(state.mission ? missionLine() : ob.site.name + ' · ' + Math.round(ob.d) + ' m', W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
 
   // squad cards
-  let y = 114; UI.cards = [];
+  let y = nsys ? 134 : 112; UI.cards = [];
   const dragging = state.dragSoldier && state.dragSoldier.moved ? state.dragSoldier : null;
   state.squads.forEach((sq, i) => {
     squadMod(sq);
@@ -378,10 +395,10 @@ function drawShop() {
   panel(x0, y0, w, h);
   text('Garage - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
   gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
-  ['Modifiche', 'Caserma', 'Riparazioni', 'Pezzi trovati'].forEach((t, i) => button(x0 + 24 + i * 170, y0 + 56, 160, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
+  ['Sistemi base', 'Arma e colpi', 'Sistemi avanzati', 'Caserma', 'Riparazioni'].forEach((t, i) => button(x0 + 24 + i * 176, y0 + 56, 168, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
   const cy = y0 + 106;
   if (state.shopTab === 0) {
-    SLOTS.forEach((slot, r) => {
+    hullSlots().forEach((slot, r) => {
       const yy = cy + r * 54, P = PARTS[slot];
       partIcon(slot, x0 + 44, yy + 28, 28);
       text(P.label, x0 + 66, yy + 22, 16, HC.text, 'left');
@@ -391,11 +408,13 @@ function drawShop() {
         const bx0 = x0 + 196 + i * 212, eq = state.parts[slot] === i, afford = state.scrap + back >= o.cost;
         button(bx0, yy + 1, 204, 50, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
         text(o.name, bx0 + 8, yy + 16, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
-        wrap(o.desc, 188, 12).slice(0, 2).forEach((l, k) => text(l, bx0 + 8, yy + 32 + k * 14, 12, HC.dim, 'left'));
+        text(wrap(o.desc, 188, 12)[0], bx0 + 8, yy + 31, 12, HC.dim, 'left');
+        if (o.bad) text(wrap(o.bad, 188, 12)[0], bx0 + 8, yy + 44, 12, '#e08a6a', 'left'); // the malus, in red
+        else if (wrap(o.desc, 188, 12)[1]) text(wrap(o.desc, 188, 12)[1], bx0 + 8, yy + 44, 12, HC.dim, 'left');
         if (eq || o.cost) text(eq ? 'Montato' : String(o.cost), bx0 + 196, yy + 16, 13, eq ? '#b6d77a' : HC.gold, 'right');
       });
     });
-  } else if (state.shopTab === 1) {
+  } else if (state.shopTab === 3) {
     text('Le tue squadre', x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
     state.squads.forEach((sq, i) => {
       const yy = cy + 24 + i * 56, miss = missingIn(sq).length, c = reinforceCost(sq);
@@ -439,7 +458,7 @@ function drawShop() {
     if (hov) { text(UT[hov].name, rx, ry + 214, 14, '#ffd9a0', 'left'); wrap(ROLE_DESC[hov], 456, 13).slice(0, 2).forEach((l, k) => text(l, rx, ry + 232 + k * 16, 13, HC.text, 'left')); }
     else if (rtr.length) rtr.slice(0, 4).forEach((t, k) => text(t.name + ': ' + t.desc, rx, ry + 214 + k * 17, 13, t.bad ? '#e0a070' : '#b6d77a', 'left'));
     else text('Passa sopra un ruolo per leggere cosa fa. La composizione dà bonus e malus.', rx, ry + 214, 12, HC.dim, 'left');
-  } else if (state.shopTab === 2) {
+  } else if (state.shopTab === 4) {
     const tk = state.tank, miss = Math.ceil(tk.maxhp - tk.hp);
     text('Integrità del carro', x0 + 24, cy + 14, 17, HC.text, 'left');
     bar(x0 + 24, cy + 32, 520, 22, tk.hp / tk.maxhp, '#8fd86a');
@@ -447,30 +466,56 @@ function drawShop() {
     button(x0 + 24, cy + 72, 250, 44, 'Ripara 50 (' + repairCost(Math.min(50, Math.max(0, miss))) + ')', () => repair(false), { off: miss <= 0 });
     button(x0 + 294, cy + 72, 250, 44, 'Ripara tutto (' + repairCost(Math.max(0, miss)) + ')', () => repair(true), { off: miss <= 0 });
     text('Il carro si ripara ai garage (e dai genieri sul campo).', x0 + 24, cy + 140, 14, HC.dim, 'left');
-    const am = ammoMax(), room = am - state.ammo;
-    text('Munizioni del cannone', x0 + 24, cy + 190, 17, HC.text, 'left');
-    if (am) {
-      bar(x0 + 24, cy + 208, 520, 22, state.ammo / am, '#ffe08a');
-      text(state.ammo + ' / ' + am + ' colpi', x0 + 284, cy + 219, 14, '#10140c');
-      button(x0 + 24, cy + 246, 250, 44, '+5 colpi (' + Math.min(5, room) * tune.ammo_cost + ')', () => buyAmmo(5), { off: room <= 0 || state.scrap < tune.ammo_cost });
-      button(x0 + 294, cy + 246, 250, 44, 'Riempi (' + room * tune.ammo_cost + ')', () => buyAmmo(0), { off: room <= 0 || state.scrap < tune.ammo_cost });
-      text('Le mitragliatrici non consumano colpi. Casse rare lungo le strade, nei campi e sui mezzi distrutti.', x0 + 24, cy + 310, 13, HC.dim, 'left');
-    } else text('Questo scafo spara solo mitragliatrici: niente colpi da contare.', x0 + 24, cy + 214, 14, HC.dim, 'left');
-  } else {
-    text('Pezzi trovati sul campo: montali o smontali gratis, quando vuoi, a un garage.', x0 + 24, cy + 6, 15, HC.dim, 'left');
-    MOD_SLOTS.forEach(([slot, label], r) => {
-      const yy = cy + 30 + r * 116, own = state.loot.filter(id => MODS[id].slot === slot);
-      text(label, x0 + 24, yy + 12, 17, '#ffd9a0', 'left');
-      [null, ...own].forEach((id, i) => {
-        const bx0 = x0 + 24 + i * 250, eq = state.mods[slot] === id;
-        button(bx0, yy + 26, 240, 70, '', () => mountMod(slot, id), { active: eq });
-        text(id ? MODS[id].name : 'Niente', bx0 + 10, yy + 44, 14, eq ? '#eaf7d0' : HC.text, 'left');
-        if (id) wrap(MODS[id].desc, 220, 12).slice(0, 2).forEach((l, k) => text(l, bx0 + 10, yy + 62 + k * 14, 12, HC.dim, 'left'));
-        if (eq) text('Montato', bx0 + 230, yy + 44, 12, '#b6d77a', 'right');
-      });
-      if (!own.length) text('Ancora nulla per questo slot.', x0 + 290, yy + 61, 13, HC.dim, 'left');
+  } else if (state.shopTab === 1) {
+    // the main weapon: bought once, swapped free after
+    text('Arma principale (comprata una volta, poi si cambia gratis)', x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
+    const cw = Math.floor((w - 48 - 4 * 10) / 5);
+    WEAPON_IDS.forEach((id, i) => {
+      const W0 = WEAPONS[id], bx0 = x0 + 24 + i * (cw + 10), own = state.weaponsOwned.includes(id), eq = state.weapon === id, afford = own || state.scrap >= W0.cost;
+      button(bx0, cy + 24, cw, 92, '', () => equipWeapon(id), { active: eq, off: !afford });
+      text(W0.name, bx0 + 8, cy + 40, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
+      wrap(W0.desc, cw - 16, 12).slice(0, 3).forEach((l, k) => text(l, bx0 + 8, cy + 58 + k * 14, 12, HC.dim, 'left'));
+      text(eq ? 'Montata' : own ? 'Tua: monta' : W0.cost + ' rottami', bx0 + cw - 8, cy + 104, 12, eq ? '#b6d77a' : own ? HC.text : HC.gold, 'right');
     });
-    text('Le casse di pezzi (azzurre) stanno nei campi ripuliti, sulle tecniche distrutte e a volte nei relitti.', x0 + 24, cy + 390, 13, HC.dim, 'left');
+    // the rounds: three types share the racks
+    const am = ammoMax(), tot = ammoTotal(), room = am - tot;
+    text('Colpi dell\'arma principale', x0 + 24, cy + 146, 17, '#ffd9a0', 'left');
+    if (am) {
+      bar(x0 + 24, cy + 164, 520, 20, tot / am, '#ffe08a'); text(tot + ' / ' + am + ' colpi nelle rastrelliere', x0 + 284, cy + 174, 13, '#10140c');
+      SHELL_IDS.forEach((k, r) => {
+        const yy = cy + 200 + r * 58, S0 = SHELLS[k], c = shellCost(k);
+        rrect(x0 + 24, yy, 780, 52, 5, state.shell === k ? 'rgba(255,224,138,0.1)' : 'rgba(0,0,0,0.3)', state.shell === k ? '#ffe08a' : '#5a4030');
+        text(S0.short + '  ' + S0.name, x0 + 36, yy + 16, 15, HC.text, 'left'); text(S0.desc, x0 + 36, yy + 36, 12, HC.dim, 'left');
+        text(String(state.ammo[k]), x0 + 520, yy + 26, 20, '#ffe08a', 'right');
+        button(x0 + 540, yy + 8, 120, 36, '+5 (' + Math.min(5, Math.max(0, room)) * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
+        button(x0 + 670, yy + 8, 126, 36, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
+      });
+      text('In marcia X cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 384, 13, HC.dim, 'left');
+    } else text('La mitragliatrice pesante non usa colpi contati.', x0 + 24, cy + 176, 14, HC.dim, 'left');
+  } else {
+    // advanced systems: the slots, the store, this garage's stock
+    const n = sysSlots(), cw = Math.floor((w - 48 - 4 * 10) / 5);
+    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti 1-5 usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
+    const card = (bx0, by, id, label, fn, opts) => {
+      button(bx0, by, cw, 78, '', fn, opts);
+      const S0 = SYSTEMS[id];
+      text(S0.name, bx0 + 8, by + 16, 13, HC.text, 'left');
+      wrap(S0.desc, cw - 16, 11).slice(0, 3).forEach((l, k) => text(l, bx0 + 8, by + 33 + k * 13, 11, S0.active ? '#9fd8ff' : HC.dim, 'left'));
+      if (label) text(label, bx0 + cw - 8, by + 68, 11, HC.gold, 'right');
+    };
+    for (let i = 0; i < 5; i++) {
+      const bx0 = x0 + 24 + i * (cw + 10), id = state.systems[i];
+      if (id) card(bx0, cy + 22, id, SYSTEMS[id].active ? 'tasto ' + (i + 1) : '', () => unmountSystem(id), { active: true });
+      else { rrect(bx0, cy + 22, cw, 78, 5, 'rgba(0,0,0,0.25)', i < n ? '#5a4030' : '#2e241c'); text(i < n ? 'Slot libero' : (state.hull === 'apc' ? 'Serve un telaio migliore' : 'Non su questo scafo'), bx0 + cw / 2, cy + 61, 12, i < n ? HC.dim : '#5a4a3a'); }
+    }
+    const store = state.owned.filter(id => !modOn(id));
+    text('In magazzino (click per montare)', x0 + 24, cy + 124, 15, '#ffd9a0', 'left');
+    if (!store.length) text('Vuoto.', x0 + 24, cy + 150, 13, HC.dim, 'left');
+    store.slice(0, 10).forEach((id, i) => card(x0 + 24 + (i % 5) * (cw + 10), cy + 140 + Math.floor(i / 5) * 86, id, '', () => mountSystem(id), { off: state.systems.length >= n }));
+    const stock = garageStock(state.shopSite), sy = cy + 140 + (store.length > 5 ? 172 : store.length ? 86 : 30);
+    text('In vendita in questo garage', x0 + 24, sy, 15, '#ffd9a0', 'left');
+    if (!stock.length) text('Niente di nuovo da vendere.', x0 + 24, sy + 26, 13, HC.dim, 'left');
+    stock.forEach((id, i) => card(x0 + 24 + i * (cw + 10), sy + 16, id, systemCost(id) + ' rottami', () => buySystem(id), { off: state.scrap < systemCost(id) }));
   }
   if (state.shopMsg) text(state.shopMsg, x0 + w / 2, y0 + h - 26, 16, HC.gold);
   text('Esc o E: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
@@ -488,16 +533,14 @@ function drawShop() {
 }
 
 // ---- Title and end screens ------------------------------------------------------------------------------
-function drawPerks(x, y) {
-  text('Deposito piastrine', x, y, 18, '#ffd9a0', 'left');
-  tagIcon(x + 190, y, 16, '#c8c2b2'); text(String(meta.piastrine), x + 206, y, 18, HC.text, 'left');
-  PERKS.forEach((p, i) => {
-    const l = perk(p.id), full = l >= p.max, c = p.cost(l);
-    const yy = y + 28 + i * 26;
-    text((i + 1) + '  ' + p.name + ' (' + p.desc + ')', x, yy, 14, full ? HC.ok : HC.text, 'left');
-    text(full ? 'max' : 'liv ' + l + '/' + p.max + ' · ' + c, x + 410, yy, 14, full ? HC.ok : meta.piastrine >= c ? HC.gold : '#9a8a78', 'right');
+/** The achievements: done ones ticked, with the hull each unlocks. */
+function drawAchievements(x, y) {
+  text('Achievement  (' + ACHIEVEMENTS.filter(a => meta.ach[a.id]).length + ' / ' + ACHIEVEMENTS.length + ')', x, y, 18, '#ffd9a0', 'left');
+  ACHIEVEMENTS.forEach((a, i) => {
+    const yy = y + 26 + i * 22, done = !!meta.ach[a.id];
+    text((done ? '✔ ' : '· ') + a.name, x, yy, 14, done ? HC.ok : HC.text, 'left');
+    text(a.desc + (a.unlock ? '  → ' + HULLS[a.unlock].short : ''), x + 170, yy, 12, done ? '#8fa87a' : HC.dim, 'left');
   });
-  text(state.perkMsg || 'Tasti 1-4: compra un miglioramento permanente', x, y + 28 + PERKS.length * 26 + 4, 13, state.perkMsg ? HC.gold : HC.dim, 'left');
 }
 function drawTitle() {
   UI.buttons = [];
@@ -510,11 +553,13 @@ function drawTitle() {
   text('Comandi', W / 2 - 450, 246, 18, '#ffd9a0', 'left');
   CONTROLS.forEach((c, i) => text(c, W / 2 - 450, 276 + i * 24, 14, HC.text, 'left'));
   panel(W / 2 + 20, 220, 450, 190);
-  drawPerks(W / 2 + 40, 246);
+  drawAchievements(W / 2 + 40, 246);
   drawHullPicker(W / 2 + 20, 420);
   rrect(W / 2 - 200, H - 100, 400, 50, 8, 'rgba(60,40,22,0.92)', '#d9a35a');
   text('Invio per iniziare', W / 2, H - 75, 26, '#fff2d8');
-  text('Fuggi per 8 settori fino all\'esercito e resisti all\'ultimo assalto dell\'Orda. Se il carro cade, restano solo le piastrine.', W / 2, H - 28, 15, HC.text);
+  text(state.titleMsg || 'Fuggi per 8 settori fino all\'esercito e resisti all\'ultimo assalto dell\'Orda. Nuovi mezzi solo con gli achievement.', W / 2, H - 28, 15, state.titleMsg ? HC.gold : HC.text);
+  // development only: wipes achievements and unlocked hulls
+  button(W - 170, 16, 150, 32, 'RESET dati', resetMeta, { size: 13 });
 }
 function drawEnd(win) {
   UI.buttons = [];
@@ -523,9 +568,9 @@ function drawEnd(win) {
   text(state.gained || (win ? 'Vittoria' : 'Game over'), W / 2, 130, 44, win ? '#b6f08a' : '#ff9a7a');
   const mins = Math.floor(state.t / 60), secs = Math.floor(state.t % 60);
   const T = (state.carryT || 0) + state.t, mm = Math.floor(T / 60), ss = Math.floor(T % 60);
-  const rows = [['Settori attraversati', (state.camp ? state.camp.sector : 1) + ' / 8'], ['Campi ripuliti', state.camps], ['Predoni abbattuti', state.kills], ['Rottami in tasca', state.scrap], ['Durata', mm + ' min ' + ss + ' s'], ['Piastrine guadagnate', '+' + state.tagsWon]];
-  rows.forEach((r, i) => { text(r[0], W / 2 - 300, 186 + i * 28, 18, HC.text, 'left'); text(String(r[1]), W / 2 + 300, 186 + i * 28, 18, i === 5 ? HC.gold : HC.text, 'right'); });
-  drawPerks(W / 2 - 300, 370);
+  const rows = [['Settori attraversati', (state.camp ? state.camp.sector : 1) + ' / 8'], ['Campi ripuliti', state.camps], ['Predoni abbattuti', state.kills], ['Rottami in tasca', state.scrap], ['Durata', mm + ' min ' + ss + ' s'], ['Nuovi achievement', (state.newAch || []).length ? state.newAch.join(', ') : 'nessuno']];
+  rows.forEach((r, i) => { text(r[0], W / 2 - 300, 186 + i * 28, 18, HC.text, 'left'); text(String(r[1]), W / 2 + 300, 186 + i * 28, i === 5 ? 14 : 18, i === 5 ? HC.gold : HC.text, 'right'); });
+  drawAchievements(W / 2 - 300, 370);
   button(W / 2 - 330, 556, 320, 46, 'Nuova run · ' + HULLS[HULL_PICK.id].name + '  (R / Invio)', restartRun, { size: 15 });
   button(W / 2 + 10, 556, 320, 46, 'Menu principale  (Esc)', goTitle, { size: 15 });
 }
@@ -679,7 +724,7 @@ function drawDevPanel() {
   B(1, 1, 'Cura carro', () => { state.tank.hp = state.tank.maxhp; });
   B(2, 1, '+500', () => { state.scrap += 500; });
   B(3, 1, state.god ? 'Dio: ON' : 'Dio: off', () => { state.god = !state.god; }, { active: !!state.god });
-  B(0, 2, '+5 piastr.', () => { meta.piastrine += 5; saveMeta(); });
+  B(0, 2, 'Sblocca mezzi', () => { meta.unlocked = HULL_IDS.slice(); saveMeta(); });
   B(1, 2, tune.fog ? 'Nebbia ON' : 'Nebbia off', () => { CONFIG.fog.value = tune.fog ? 0 : 1; state.fogT = 0; }, { active: !!tune.fog });
   B(2, 2, 'Uccidi vicini', () => devKillNear(45));
   B(3, 2, 'Alleato', () => devSpawnAlly(state.devKind || 'rifle', state.tank.x + 5, state.tank.z + 5));
@@ -697,11 +742,15 @@ function drawHullPicker(x, y) {
   panel(x, y, 450, 184);
   text('Mezzo di comando  (click o frecce)', x + 20, y + 18, 16, '#ffd9a0', 'left');
   HULL_IDS.forEach((id, i) => {
-    const H0 = HULLS[id], bx0 = x + 14 + i * 144, on = HULL_PICK.id === id;
-    button(bx0, y + 34, 138, 140, '', () => { HULL_PICK.id = id; }, { active: on });
-    hullIcon(id, bx0 + 69, y + 66, on ? '#b6d77a' : '#8a9a6a');
-    text(H0.name, bx0 + 69, y + 98, 14, on ? '#eaf7d0' : HC.text);
-    H0.desc.forEach((l, k) => text(l, bx0 + 69, y + 120 + k * 15, 11, HC.dim));
+    const H0 = HULLS[id], bx0 = x + 14 + i * 144, on = HULL_PICK.id === id, open = meta.unlocked.includes(id);
+    button(bx0, y + 34, 138, 140, '', () => { if (open) HULL_PICK.id = id; }, { active: on, off: !open });
+    hullIcon(id, bx0 + 69, y + 66, !open ? '#4a4038' : on ? '#b6d77a' : '#8a9a6a');
+    text(H0.name, bx0 + 69, y + 98, 14, on ? '#eaf7d0' : open ? HC.text : '#7a6a58');
+    if (open) H0.desc.forEach((l, k) => text(l, bx0 + 69, y + 120 + k * 15, 11, HC.dim));
+    else { // locked: which achievements open it
+      text('BLOCCATO', bx0 + 69, y + 120, 12, '#e08a6a');
+      ACHIEVEMENTS.filter(a => a.unlock === id).forEach((a, k) => text(a.name, bx0 + 69, y + 137 + k * 14, 10, HC.dim));
+    }
   });
 }
 /** A side view of a hull, drawn small. */

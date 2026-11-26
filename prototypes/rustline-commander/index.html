@@ -41,18 +41,17 @@ const PIXEL = false;
 const FONT = '"Trebuchet MS", "Segoe UI", sans-serif';
 const TITLE = 'Rustline Commander';
 const CONTROLS = [
-  'W / S: avanti e indietro    A / D: ruota lo scafo',
-  'Mouse: punta il cannone (la torretta segue lenta)',
-  'Click sinistro: cannone (colpi contati)   Click destro: arma secondaria',
-  'Spazio o Tab: pausa tattica',
-  'Gli ordini si danno solo in pausa e partono alla ripresa',
-  'In pausa: WASD vista, click dx menu degli ordini (Shift+click dx: tappa)',
-  'V vai   F attacca   C copertura   R imboscata   Shift+click dx: tappa',
-  'Trascina col click dx: freccia della direzione da tenere sul posto',
-  '1-6 squadre   Alt+1-6 forma squadra   G seguimi   Z fermi   B sali/scendi   R imboscata',
-  'X: cannoncino / mitragliatrice (carro leggero)',
-  'Garage (uno o due per settore): avvicinati per modifiche, colpi, pezzi trovati   Q/E: ruota camera',
-  'Rotella: zoom   P: pausa   M: muto   F2: pannello sviluppo',
+  'W/S avanti e indietro   A/D ruota lo scafo',
+  'Mouse: punta (la torretta segue lenta)',
+  'Click sx: arma principale   Click dx: coassiale',
+  'X: colpo HE / AP / FRAG   1-5: sistemi attivi',
+  'Spazio o Tab: pausa tattica: lì si danno gli ordini',
+  'In pausa: WASD vista, click dx menu ordini',
+  'V vai  F attacca  C copertura  R imboscata',
+  'Shift+click dx: tappa   trascina: direzione',
+  '1-6 squadre  Alt+1-6 forma  G seguimi  Z fermi  B a bordo',
+  'Garage: modifiche, arma, colpi, sistemi, soldati',
+  'Q/E camera  Rotella zoom  P pausa  M muto  F2 sviluppo',
 ];
 const clock = window.GAME_CLOCK || { now: () => performance.now() / 1000 }; // a check may inject one
 const CHEAP = params.get('render') === 'cheap'; // a headless shot or check: 3D draws cheap; players never see it
@@ -143,7 +142,7 @@ function reset() {
 }
 /** A new run with the same hull, straight into its first sector. */
 function restartRun() { reset(); scene = 'play'; }
-/** Back to the title screen (a fresh map behind it), where the hull and the perks are picked. */
+/** Back to the title screen (a fresh map behind it), where the hull is picked. */
 function goTitle() { reset(); scene = 'title'; }
 /** The end screens: R or Enter for a new run, Esc for the title, or their buttons. */
 function endKeys() {
@@ -152,7 +151,6 @@ function endKeys() {
   else clickButtons();
   MS.lp = MS.rp = MS.lr = MS.rr = false;
 }
-function perkKeys() { for (let i = 0; i < 4; i++) if (pressed('Digit' + (i + 1))) state.perkMsg = buyPerk(i); }
 function follow() { const g = state.goScene; if (g) { state.goScene = null; scene = g; } }
 const scenes = {
   figures: {
@@ -164,9 +162,8 @@ const scenes = {
       state.t += dt;
       cam.yawT += dt * 0.08; cam.yaw = cam.yawT; cam.dist = 95;
       const s = state.tank; cam.x = s.x; cam.z = s.z; cam.y = s.y;
-      perkKeys();
       // the hull for the run: click a card, or the arrows
-      if (pressed('ArrowRight') || pressed('ArrowLeft')) { const i = HULL_IDS.indexOf(HULL_PICK.id); HULL_PICK.id = HULL_IDS[(i + (pressed('ArrowRight') ? 1 : 2)) % 3]; }
+      if (pressed('ArrowRight') || pressed('ArrowLeft')) { const U = HULL_IDS.filter(h => meta.unlocked.includes(h)), i = Math.max(0, U.indexOf(HULL_PICK.id)); HULL_PICK.id = U[(i + (pressed('ArrowRight') ? 1 : U.length - 1)) % U.length]; }
       clickButtons();
       if (pressed('Enter') || pressed('Space') || pressed('NumpadEnter')) { reset(); scene = 'play'; }
       MS.lp = MS.rp = MS.lr = MS.rr = false;
@@ -196,7 +193,7 @@ const scenes = {
   },
   shop: {
     update() {
-      for (let i = 0; i < 4; i++) if (pressed('Digit' + (i + 1))) state.shopTab = i;
+      for (let i = 0; i < 5; i++) if (pressed('Digit' + (i + 1))) state.shopTab = i;
       clickButtons();
       if (state.confirm) { if (pressed('Escape')) state.confirm = null; else if (pressed('Enter')) { const f = state.confirm.yes; state.confirm = null; f(); } }
       else if (pressed('Escape') || pressed('KeyE')) scene = 'play';
@@ -215,11 +212,11 @@ const scenes = {
     },
   },
   over: {
-    update() { perkKeys(); endKeys(); },
+    update() { endKeys(); },
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawEnd(false); },
   },
   results: {
-    update() { perkKeys(); endKeys(); },
+    update() { endKeys(); },
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawEnd(true); },
   },
 };
