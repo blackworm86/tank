@@ -601,6 +601,7 @@ function roleUpkeep(sq, ms) {
     }
     if (marching || sq.order.ambush || m.moving) continue;
     if (!(state.t - (m.combatT || -99) < 6 && m.threat && m.threat.alive)) continue;
+    if (tune.smart_soldiers) { soldierPosition(m, sq); continue; } // tactics.js: the best spot by role against every threat
     if (state.t - (m.coverT || -99) < 4) continue;
     const R = ROLE[m.kind] || ROLE.rifle, t = m.threat;
     const dx = t.x - m.x, dz = t.z - m.z, L = Math.hypot(dx, dz) || 1, dir = { x: dx / L, z: dz / L };
@@ -756,7 +757,8 @@ function squadUpkeep(sq, dt) {
     }
   } else if (sq.order.t === 'move' && !sq.order.done) {
     const o = sq.order;
-    if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
+    if (boundStep(sq, ms, o)) { /* tactics.js: bounding under fire */ }
+    else if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
       if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how, p.face) > 0; sq.tick = 0.4; }
       else { o.done = true; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
     }
@@ -1462,7 +1464,8 @@ function updateUnits(dt) {
         if (e.team === 1 && v.team === 0 && (v.kind === 'tank' ? Math.abs(v.speed) > tune.crush_speed : v.moving)) continue; // run over, not pushed aside
         const wp = e.moving && e.path && e.path[e.pi];
         if (wp && (wp.x - v.x) ** 2 + (wp.z - v.z) ** 2 >= r * r) continue;
-        const d = Math.sqrt(d2), p = (r - d) * (e.moving ? 0.25 : 1); nudge(e, dx / d * p, dz / d * p);
+        if (wp && e.pi < e.path.length - 1) e.pi++; // a waypoint under the hull: skip it, or he walks into it for ever
+        const d = Math.sqrt(d2), p = (r - d) * (e.moving ? 0.6 : 1); nudge(e, dx / d * p, dz / d * p);
       }
     }
   }
@@ -1563,6 +1566,8 @@ function raiderThink(e, w) {
   }
   if (e.fixed) return;
   if (!e.veh && raiderTactics(e, w)) return;
+  if (tune.smart_raiders && !e.veh && raiderRole(e, w)) return; // tactics.js: pin, flank, buildings, retreat
+  if (tune.smart_raiders && e.kind === 'technical' && circleTarget(e)) return; // technicals circle, firing on the move
   if (e.target && !e.veh) { e.path = null; return; }
   if (e.target && e.veh && dist2(e, e.target) < 16 * 16) { e.path = null; return; }
   if (g.known && (!e.path || e.pi >= e.path.length || state.t - e.pathT > 3)) {
@@ -1622,7 +1627,7 @@ function raiderTactics(e, w) {
   }
   // 3. a fight: into cover against the target, once in a while
   const t = e.target;
-  if (t && !e.inCover && state.t - (e.coverT || -99) > 5) {
+  if (!tune.smart_raiders && t && !e.inCover && state.t - (e.coverT || -99) > 5) {
     e.coverT = state.t;
     const dx = t.x - e.x, dz = t.z - e.z, L = Math.hypot(dx, dz) || 1;
     const spots = findCoverSpots(e.x, e.z, 1, { x: dx / L, z: dz / L }, 6);

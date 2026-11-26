@@ -49,6 +49,18 @@ window.CONFIG = {
   wave_size: { value: 3, min: 1, max: 12, step: 1 },              // raiders in the first wave
   wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
   exit_radius: { value: 10, min: 4, max: 20, step: 1 },           // how close to the exit the tank must be to leave
+  smart_soldiers: { value: 1, min: 0, max: 1, step: 1 },        // 1 = soldiers score cover against every threat and take positions by role
+  smart_raiders: { value: 1, min: 0, max: 1, step: 1 },         // 1 = raider groups pin, flank, use buildings, call help and fall back
+  bounding: { value: 1, min: 0, max: 1, step: 1 },              // 1 = squads ordered to move under fire advance in bounds, half covering
+  cover_rethink: { value: 3, min: 1, max: 8, step: 0.5 },       // seconds between a unit's looks for a better position
+  cover_margin: { value: 4, min: 0, max: 15, step: 1 },         // how much better a spot must score before a unit moves to it
+  flank_share: { value: 0.34, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
+  flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
+  reinforce_loss: { value: 0.3, min: 0.1, max: 0.9, step: 0.05 }, // losses at which a raider group calls the nearest calm group
+  reinforce_range: { value: 90, min: 20, max: 200, step: 5 },   // how far that call reaches
+  retreat_loss: { value: 0.6, min: 0.3, max: 1, step: 0.05 },   // losses at which a raider group falls back
+  retreat_time: { value: 20, min: 5, max: 60, step: 1 },        // seconds a beaten group stays back before fighting on
+  circle_radius: { value: 18, min: 8, max: 35, step: 1 },       // the distance technicals circle their target at
   rep_friend: { value: 30, min: 10, max: 80, step: 5 },          // reputation at which a faction is a friend (and minus it, an enemy)
   rep_discount: { value: 0.35, min: 0, max: 0.8, step: 0.05 },   // price change at full reputation (friends pay less, enemies more)
   job_scrap: { value: 100, min: 20, max: 300, step: 10 },         // pay for a faction job (delivery, defence)

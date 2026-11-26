@@ -186,6 +186,9 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Culto della Ruggine (santuario di totem di rottami e relitti): offerte, un sistema antico in baratto, la benedizione che ripara tutto se amici; spogliare i relitti nei loro settori li offende, e da ostili tendono imboscate coi lanciarazzi
 - [x] Ratti di Ferro (accampamento con tende e moto): nei loro settori metà dei relitti è già spolpata; spartire il bottino, assoldare esploratori che scoprono la zona e cerchiano i campi, o cacciarli
 - [x] Gli insediamenti si riaprono allontanandosi e tornando; una fazione ostile accoglie il carro con un gruppo armato; etichetta col nome sopra l'insediamento
+- [x] Coperture e posizioni dei soldati: ogni posto attorno viene valutato contro tutti i nemici noti (copertura pesante o leggera da ciascuno, se da lì si può ancora sparare, distanza giusta per l'arma, strada da fare, compagni già lì), e si cambia posto solo se ce n'è uno chiaramente migliore; per ruolo: la mitragliatrice va di lato alla squadra con una buona visuale, l'anticarro si sposta fuori dal fronte del mezzo nemico, medici, radio e mortai stanno indietro
+- [x] Avanzata a sbalzi: una squadra mandata avanti sotto il fuoco muove metà uomini alla copertura successiva mentre l'altra metà resta ferma e spara, poi si scambiano
+- [x] Nemici più furbi: ogni gruppo in allarme si divide in chi inchioda il bersaglio da dietro le coperture e chi lo aggira sul fianco; avanzano di copertura in copertura, si buttano a terra quando sono soppressi, entrano negli edifici vicini per sparare dalle finestre (e ne escono se il bersaglio si allontana); i lanciarazzi cercano fianco e retro dei mezzi, le tecniche girano attorno al bersaglio sparando in movimento; con un terzo di perdite chiamano rinforzi dal gruppo vicino, battuti ripiegano per un po'
 
 ## Map rules
 - M1 Rilievo: il terreno è sfumato (media 5x5) e il carro guida su quella superficie; blocca solo una pendenza più ripida di tank_slope_span sotto l'impronta del carro. Un gradino di map_cliff o più è una scogliera e non viene sfumato.
@@ -208,6 +211,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - mappa generata proceduralmente · in the slice
 - biomi e tipi di zona con strutture leggibili · in the slice
 - cinque fazioni con insediamenti, dialoghi e reputazione · in the slice
+- tattiche: coperture valutate, ruoli, avanzata a sbalzi, nemici che inchiodano, aggirano, chiamano rinforzi e ripiegano · in the slice
 - truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice
 - raggio radio limitato e migliorabile · in the slice
 - pausa tattica e percorsi a tappe · in the slice
@@ -253,7 +257,6 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 -
 
 ## Out of scope
-- AI di nemici e soldati (coperture, posizioni, nemici più furbi): iteration 15
 - Un hub tra i run con personaggi e storia: grow it
 - Molti biomi e boss: grow it
 - Modificatori di difficoltà dopo una vittoria: change it after play
