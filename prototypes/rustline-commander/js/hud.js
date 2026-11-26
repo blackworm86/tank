@@ -276,7 +276,7 @@ function drawHUD() {
   if (state.canShop) {
     const py = (state.mode === 'cmd' || state.tpause) ? H - 226 : H - 200;
     rrect(W / 2 - 200, py, 400, 34, 6, 'rgba(40,70,30,0.92)', '#b6d77a');
-    text('[E] Officina e caserma - ' + state.canShop.name, W / 2, py + 17, 15, '#eaf7d0');
+    text('Capanno degli attrezzi - ' + state.canShop.name + '   [E] apri', W / 2, py + 17, 15, '#eaf7d0');
   }
   // controls
   const lines = cmd
@@ -307,17 +307,19 @@ function drawShop() {
   ctx.fillStyle = 'rgba(14,10,8,0.6)'; ctx.fillRect(0, 0, W, H);
   const x0 = 110, y0 = 40, w = W - 220, h = H - 80;
   panel(x0, y0, w, h);
-  text(state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
+  text('Capanno degli attrezzi - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
   gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
-  ['Officina', 'Caserma', 'Riparazioni'].forEach((t, i) => button(x0 + 24 + i * 170, y0 + 56, 160, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
+  ['Modifiche', 'Caserma', 'Riparazioni'].forEach((t, i) => button(x0 + 24 + i * 170, y0 + 56, 160, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
   const cy = y0 + 106;
   if (state.shopTab === 0) {
     SLOTS.forEach((slot, r) => {
       const yy = cy + r * 60, P = PARTS[slot];
       partIcon(slot, x0 + 44, yy + 28, 28);
-      text(P.label, x0 + 66, yy + 28, 16, HC.text, 'left');
+      text(P.label, x0 + 66, yy + 22, 16, HC.text, 'left');
+      const back = partRefund(slot);
+      if (back) text('smonti: +' + back, x0 + 66, yy + 40, 12, '#b6d77a', 'left');
       P.opts.forEach((o, i) => {
-        const bx0 = x0 + 196 + i * 212, eq = state.parts[slot] === i, afford = state.scrap >= o.cost;
+        const bx0 = x0 + 196 + i * 212, eq = state.parts[slot] === i, afford = state.scrap + back >= o.cost;
         button(bx0, yy + 1, 204, 56, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
         text(o.name, bx0 + 8, yy + 16, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
         wrap(o.desc, 188, 12).slice(0, 2).forEach((l, k) => text(l, bx0 + 8, yy + 32 + k * 14, 12, HC.dim, 'left'));
@@ -368,6 +370,16 @@ function drawShop() {
   }
   if (state.shopMsg) text(state.shopMsg, x0 + w / 2, y0 + h - 26, 16, HC.gold);
   text('Esc o E: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
+  if (state.confirm) { // the downgrade question: only its two buttons answer
+    UI.buttons = [];
+    ctx.fillStyle = 'rgba(10,8,6,0.6)'; ctx.fillRect(0, 0, W, H);
+    const cw = 560, ch = 190, cx = (W - cw) / 2, cy2 = (H - ch) / 2;
+    panel(cx, cy2, cw, ch);
+    text(state.confirm.title, W / 2, cy2 + 34, 24, '#ffd9a0');
+    wrap(state.confirm.text, cw - 60, 15).slice(0, 3).forEach((l, k) => text(l, W / 2, cy2 + 70 + k * 20, 15, HC.text));
+    button(cx + 60, cy2 + ch - 56, 200, 40, 'Sì, smonta', () => { const f = state.confirm.yes; state.confirm = null; f(); });
+    button(cx + cw - 260, cy2 + ch - 56, 200, 40, 'Annulla', () => { state.confirm = null; state.shopMsg = ''; });
+  }
   ctx.fillStyle = '#ffe6a0'; ctx.beginPath(); ctx.moveTo(MS.x, MS.y); ctx.lineTo(MS.x + 13, MS.y + 5); ctx.lineTo(MS.x + 6, MS.y + 7); ctx.lineTo(MS.x + 4, MS.y + 14); ctx.closePath(); ctx.fill();
 }
 

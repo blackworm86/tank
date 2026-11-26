@@ -20,11 +20,13 @@ After play: Prima aggiungi la possibilità di far salire un certo numero di sold
 
 After play: Non sono soddisfatto del terreno voxel, vorrei un terreno più "granulare", con maggior dettaglio/definizione, e senza vedere i bordi dei voxel, un terreno più realistico. Fammi vedere come potrebbe essere - il terreno deve mostrare prati secchi, fango, acqua, pietre, strade in asfalto, boschi e foreste.
 
+After play: il carro (e penso in generale i veicoli) si blocca spesso nel terreno. l'officina è difficile da navigare, entrare è uscire è difficile; cambiala con un capanno degli attrezzi, a cui basta avvicinarsi per aprire il menu di modifica. ATTENZIONE - comprando un upgrade e poi tornando alla versione precedente, non è più possibile ripristinare l'upgrade comprato e si perdono i crediti. Fai in modo che il gicoatore possa tornare all'upgrade precedente (downgrade) recuperando il 70% dei crediti spesi ("sei sicuro?"
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
 
-**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; G seguimi, H fermi; **B sali a bordo, U scendi; X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
+**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; avvicinati al capanno degli attrezzi di un avamposto per le modifiche *(you said)*; G seguimi, H fermi; **B sali a bordo, U scendi; X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
 
 **Question:** guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15–20 minuti? *(guessed)*
 
@@ -66,12 +68,14 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Anteprima delle coperture sotto il mouse, anche dietro il carro e i mezzi alleati; copertura leggera e pesante
 - [x] Nuove unità: cannone anticarro e carro di supporto (anche in caserma)
 - [x] Scelta del mezzo a inizio run: carro da battaglia (cannone, 0 posti), carro leggero (cannoncino o mitragliatrice, tasto X, 2 posti), trasporto truppe (mitragliatrice pesante, 6 posti)
-- [x] Fanteria a bordo: B fa salire le squadre selezionate se c'è posto, U le fa scendere; il pezzo officina Posti aumenta la capienza
+- [x] Fanteria a bordo: B fa salire le squadre selezionate se c'è posto, U le fa scendere; il pezzo Posti del capanno aumenta la capienza
 - [x] Pannello sviluppo (F2) per comporre e testare squadre e nemici
 - [x] Modalità Comando: selezione squadre e ordini movimento / attacco / copertura, solo per le squadre dentro il raggio radio
 - [x] Squadre minuscole e personalizzabili: fucilieri, cecchini, mitraglieri, medici, mortaio, autoblindo; soldati assoldati per rimpiazzare i singoli caduti
 - [x] Predoni con pattuglie, campi e fortezza finale: 4 tipi di nemici, ognuno attacca diversamente (fuciliere, mitragliere, razziere, veicolo/carro)
-- [x] Avamposti con officina: pezzi per cannone, cingoli, corazza, radio, motore che cambiano i numeri del carro
+- [x] Avamposti con capanno degli attrezzi fuori dalle mura: basta avvicinarsi col carro e il menu di modifica si apre da solo (E lo riapre); pezzi per cannone, cingoli, corazza, radio, motore che cambiano i numeri del carro
+- [x] Smontare un pezzo (downgrade o cambio) rende il 70% di quanto speso, dopo un "Sei sicuro?"
+- [x] I mezzi salgono i gradini del terreno naturale fino a 2 voxel (i muri restano muri) e il carro, se resta incastrato, scivola da solo nella posizione libera più vicina
 - [x] Piastrine tra i run per miglioramenti permanenti (thin stand-in)
 
 ## Your systems

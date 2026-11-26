@@ -41,6 +41,8 @@ window.CONFIG = {
   tank_reverse: { value: 3.5, min: 1, max: 10, step: 0.5 },     // reverse units/s
   tank_accel: { value: 6, min: 1, max: 20, step: 0.5 },         // units/s^2
   tank_turn: { value: 60, min: 20, max: 140, step: 5 },         // hull degrees/s
+  tank_ground_climb: { value: 2.3, min: 1, max: 4, step: 0.1 }, // max step on natural ground (a slope, not a wall) for the tank and vehicle paths (voxels)
+  tank_unstick_time: { value: 0.8, min: 0.2, max: 3, step: 0.1 }, // seconds pushing without moving before the hull slides free
   tank_climb: { value: 1.25, min: 0.5, max: 3, step: 0.05 },    // max step one point of the hull can climb at once (voxels)
   tank_slope_span: { value: 6, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
   tank_glance: { value: 70, min: 0, max: 180, step: 5 },        // deg/s the hull steers itself off a corner it is caught on
@@ -188,7 +190,8 @@ window.CONFIG = {
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
   max_squads: { value: 6, min: 1, max: 9, step: 1 },
   squad_max_size: { value: 4, min: 1, max: 8, step: 1 },
-  shop_radius: { value: 11, min: 4, max: 30, step: 1 },         // how near an outpost the tank must be
+  shop_radius: { value: 6, min: 3, max: 20, step: 1 },          // how near the tool shed the tank must be for the menu to open
+  part_refund: { value: 0.7, min: 0, max: 1, step: 0.05 },      // share of a part's cost paid back when it is taken off
 
   // ---- Between runs (piastrine) ----
   tags_per_camp: { value: 2, min: 0, max: 20, step: 1 },

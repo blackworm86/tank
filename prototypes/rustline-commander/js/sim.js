@@ -97,7 +97,7 @@ const SLOTS = ['cannon', 'tracks', 'engine', 'armor', 'radio', 'turret', 'stab',
  * tank's own values (the battle tank is the 1.0 of everything).
  */
 const HULLS = {
-  mbt: { name: 'Carro da battaglia', short: 'MBT', desc: ['Cannone pesante,', 'corazza spessa.', 'Posti: in officina.'], weapons: ['cannon'], rad: 2.2 },
+  mbt: { name: 'Carro da battaglia', short: 'MBT', desc: ['Cannone pesante,', 'corazza spessa.', 'Posti: al capanno.'], weapons: ['cannon'], rad: 2.2 },
   light: { name: 'Carro leggero', short: 'Leggero', desc: ['Veloce, corazza sottile.', 'Cannoncino o mitragl.', 'Tasto X. 2 posti.'], weapons: ['autocannon', 'mg'], rad: 1.9 },
   apc: { name: 'Trasporto truppe', short: 'APC', desc: ['Mitragl. pesante,', '6 posti fanteria,', 'corazza leggera.'], weapons: ['hmg'], rad: 2.0 },
 };
@@ -315,7 +315,7 @@ function setDest(m, x, z) {
   // paths go around the vehicles standing still (the command tank above all)
   const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && dist2(v, m) > (v.rad + 1.2) ** 2 && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)));
   PF.avoid = (px, pz) => { for (const v of vs) { const r = v.rad + 0.7; if ((px - v.x) ** 2 + (pz - v.z) ** 2 < r * r) return true; } return false; };
-  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 6000, m.veh ? 1 : 3); PF.avoid = null;
+  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 6000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null;
   m.pi = 0; m.dest = { x, z }; m.pathT = state.t; m.stuckT = 0;
 }
 /**
@@ -435,7 +435,7 @@ function seatsFree() { return tankStats().seats - passengers().length; }
 /** Sends the squad's infantry to the command vehicle to climb in. */
 function orderBoard(sq) {
   const S = tankStats();
-  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali in officina (Vano truppe).', '#e0a070'); return false; }
+  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali al capanno degli attrezzi (Posti).', '#e0a070'); return false; }
   if (!alive(sq).some(m => canRide(m) && !m.inside)) { say(sq.name, sq.members.some(m => m && m.inside) ? 'Siamo già a bordo.' : 'Non possiamo salire.', '#e0a070'); return false; }
   sq.order = { t: 'board' }; sq.tick = 0;
   say(sq.name, 'Arriviamo, teneteci un posto!');
@@ -527,7 +527,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
   }
-  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala in officina.', '#9fe3a0'); } }
+  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala al capanno degli attrezzi.', '#9fe3a0'); } }
   return any;
 }
 /** The order the next click gives, armed with a hotkey (V, F, C). */
@@ -673,7 +673,8 @@ function tankFits(tk, x, z, h, climb) {
     if (!inMap(Math.floor(p.x), Math.floor(p.z)) || deepWater(p.x, p.z)) return null;
     const g = hAt(p.x, p.z), g0 = Math.min(hAt(now[k].x, now[k].z), tk.y + 3);
     lo = Math.min(lo, g); hi = Math.max(hi, g); lo0 = Math.min(lo0, g0); hi0 = Math.max(hi0, g0);
-    if (g - g0 > climb) {
+    const lim = natTop(Math.floor(p.x) + world.N * Math.floor(p.z)) ? climb + tune.tank_ground_climb - tune.tank_climb : climb; // a slope of ground, not a wall
+    if (g - g0 > lim) {
       // crush a low soft obstacle (sandbags, junk, wood)
       const ix = Math.floor(p.x), iz = Math.floor(p.z), top = getV(ix, g - 1, iz);
       if (g - g0 <= 2.2 && SOFTV.has(top)) {
@@ -698,7 +699,7 @@ function updateTank(dt) {
   const target = fwd > 0 ? S.speed * wet : fwd < 0 ? -S.reverse * wet : 0;
   const acc = S.accel * (Math.sign(target) !== Math.sign(tk.speed) && tk.speed !== 0 ? 2 : 1);
   tk.speed += Math.max(-acc * dt, Math.min(acc * dt, target - tk.speed));
-  const prevHead = tk.heading;
+  const prevHead = tk.heading, px0 = tk.x, pz0 = tk.z;
   if (turn) {
     const nh = tk.heading + turn * S.turn * Math.PI / 180 * dt * (fwd < 0 ? -1 : 1);
     if (tankFits(tk, tk.x, tk.z, nh, S.climb)) tk.heading = nh;
@@ -722,6 +723,18 @@ function updateTank(dt) {
       tk.speed *= 0.6;
     }
     if (pts) { tk.x = bx; tk.z = bz; }
+  }
+  // wedged (the driver pushes, nothing moves or turns): slide the hull to the nearest pose that fits
+  const tried = fwd || turn, still = Math.hypot(tk.x - px0, tk.z - pz0) < 0.002 && tk.heading === prevHead;
+  tk.stuckT = tried && still ? (tk.stuckT || 0) + dt : 0;
+  if (tk.stuckT > tune.tank_unstick_time) {
+    tk.stuckT = 0;
+    search: for (const r of [0.4, 0.8, 1.2, 1.7]) for (let k = 0; k < 16; k++) {
+      const a = k / 16 * Math.PI * 2, nx = tk.x + Math.sin(a) * r, nz = tk.z + Math.cos(a) * r;
+      for (const dh of [0, 0.25, -0.25]) {
+        if (tankFits(tk, nx, nz, tk.heading + dh, S.climb + 1) && !vehicleBlocked(tk, nx, nz)) { tk.x = nx; tk.z = nz; tk.heading += dh; tk.speed = 0; break search; }
+      }
+    }
   }
   // ground, pitch and roll from the footprint
   const pts = tankFootprint(tk.x, tk.z, tk.heading);
@@ -1203,14 +1216,21 @@ function updateRun(dt) {
       floatText(g.home.x, g.site.g + 4, g.home.z, '+' + bonus + ' rottami', '#ffd36a');
     }
   }
-  // near an outpost with no fight around: the workshop opens
+  // beside an outpost's tool shed with no fight around: the modifications menu opens by itself, once per visit
   state.canShop = null;
   if (tk.alive) {
     const s = world.sites;
     for (const o of [s.start, ...s.outposts]) {
-      if (Math.hypot(o.x + 0.5 - tk.x, o.z + 0.5 - tk.z) > tune.shop_radius) continue;
+      const sh = o.shed || { x: o.x + 0.5, z: o.z + 0.5 };
+      if (Math.hypot(sh.x - tk.x, sh.z - tk.z) > tune.shop_radius) continue;
       const hot = state.groups.some(g => g.alert && g.members.some(m => m.alive && dist2(m, tk) < 30 * 30));
       if (!hot) state.canShop = o;
+    }
+    const L = state.shedLatch;
+    if (L) { const sh = L.shed || L; if (Math.hypot(sh.x - tk.x, sh.z - tk.z) > tune.shop_radius + 3) state.shedLatch = null; }
+    if (state.canShop && state.shedLatch !== state.canShop && !state.tpause && !state.goScene) {
+      state.shedLatch = state.canShop; tk.speed = 0;
+      state.shopSite = state.canShop; state.shopTab = 0; state.shopMsg = ''; state.confirm = null; state.goScene = 'shop';
     }
   }
   if (state.tut >= 1 && !state.campHint) {
@@ -1231,14 +1251,27 @@ function endRun() {
 }
 
 // ---- The workshop and the barracks ------------------------------------------------------------------
+/** Scrap back for taking off the part mounted in a slot (part_refund of what it cost). */
+function partRefund(slot) { return Math.floor(PARTS[slot].opts[state.parts[slot]].cost * tune.part_refund); }
+/**
+ * Mounts option i in a slot. The part taken off pays back part_refund of its cost; when it cost
+ * anything the player confirms first ("Sei sicuro?").
+ */
 function buyPart(slot, i) {
-  const o = PARTS[slot].opts[i];
+  const o = PARTS[slot].opts[i], cur = PARTS[slot].opts[state.parts[slot]], back = partRefund(slot);
   if (state.parts[slot] === i) { state.shopMsg = 'Già montato.'; return; }
-  if (state.scrap < o.cost) { state.shopMsg = 'Servono ' + o.cost + ' rottami.'; return; }
-  const hpBefore = tankStats().hp;
-  state.scrap -= o.cost; state.parts[slot] = i; state.lookKey++; state.stats = null;
-  const hpAfter = tankStats().hp; if (hpAfter > hpBefore) state.tank.hp += hpAfter - hpBefore;
-  state.shopMsg = o.name + ' montato.'; sfx('coin');
+  if (state.scrap + back < o.cost) { state.shopMsg = 'Servono ' + o.cost + ' rottami.'; return; }
+  const mount = () => {
+    const hpBefore = tankStats().hp;
+    state.scrap += back - o.cost; state.parts[slot] = i; state.lookKey++; state.stats = null;
+    const hpAfter = tankStats().hp; if (hpAfter > hpBefore) state.tank.hp += hpAfter - hpBefore;
+    state.shopMsg = cur.cost ? cur.name + ' smontato (+' + back + '), ' + o.name + ' montato.' : o.name + ' montato.'; sfx('coin');
+  };
+  if (cur.cost > 0) {
+    state.confirm = { title: 'Sei sicuro?', text: 'Smonti ' + cur.name + ' e recuperi ' + back + ' rottami (' + Math.round(tune.part_refund * 100) + '% dei ' + cur.cost + ' spesi). ' + (o.cost ? 'Monti ' + o.name + ' per ' + o.cost + '.' : 'Torna ' + o.name + '.'), yes: mount };
+    return;
+  }
+  mount();
 }
 function missingIn(sq) { return sq.slots.map((k, i) => (!sq.members[i] || !sq.members[i].alive) ? k : null).filter(Boolean); }
 function reinforceCost(sq) { return missingIn(sq).reduce((a, k) => a + tune[UT[k].cost], 0); }

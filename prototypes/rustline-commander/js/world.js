@@ -12,6 +12,10 @@ const VCOL = [0, 0x3b2b22, 0xd8a560, 0x9e6c47, 0x91624a, 0xb4573b, 0x7c6652, 0x9
 const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 0.78, 0.78, 1.3];
 /** Soft kinds: chipped by bullets and crushed by tracks. */
 const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD, V.TREE]);
+/** Voxel kinds that are natural ground (the drawn terrain), as opposed to walls, huts, junk and trees. */
+const GROUNDV = new Set([V.BED, V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
+/** True when column i ends in natural ground: its steps are slopes a vehicle can take, not walls. */
+function natTop(i) { const h = world.hmap[i]; return h > 0 && GROUNDV.has(world.vox[VH * i + h - 1]); }
 const VH = 40; // world height in voxels
 
 /** The one world of the current run. */
@@ -484,7 +488,7 @@ function buildOutpost(s, home) {
   const g = s.g, R = 9;
   for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
     if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-    if (Math.abs(dx) <= 2 || Math.abs(dz) <= 2) continue; // four gates
+    if (Math.abs(dx) <= 3 || Math.abs(dz) <= 3) continue; // four wide gates
     let road = false; // and a gap wherever a road runs through the wall
     for (let a = -2; a <= 2 && !road; a++) for (let b = -2; b <= 2; b++) if (inMap(s.x + dx + a, s.z + dz + b) && world.road[s.x + dx + a + world.N * (s.z + dz + b)]) { road = true; break; }
     if (road) continue;
@@ -496,13 +500,42 @@ function buildOutpost(s, home) {
   boxShell(s.x - 7, s.z - 7, 3, 3, g, 3, V.RUST, V.JUNK, door);
   boxShell(s.x + 4, s.z - 7, 3, 4, g, 3, V.RUST, V.RUST, door);
   boxShell(s.x - 7, s.z + 4, 4, 3, g, 3, V.RUST, V.JUNK, door);
-  // the workshop with a green roof and a big door
-  boxShell(s.x + 3, s.z + 3, 5, 5, g, 4, V.GREEN, V.RUST, (dx, dz, y) => dz === 0 && dx >= 1 && dx <= 3 && y < 3);
   for (let y = 0; y < 7; y++) put(s.x - 3, g + y, s.z + 4, V.WOOD); // flag pole
   put(s.x - 2, g + 6, s.z + 4, V.GREEN); put(s.x - 1, g + 6, s.z + 4, V.GREEN); put(s.x - 2, g + 5, s.z + 4, V.GREEN); put(s.x - 1, g + 5, s.z + 4, V.YEL);
   // fuel tank
   for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + 6 + a, g + y, s.z - 3 + b, y === 2 ? V.YEL : V.RUST);
+  buildShed(s, R);
   s.home = home;
+}
+/**
+ * The tool shed: an open roof on four posts outside the outpost wall, beside a gate (one the road
+ * uses when it can), on the flattest dry ground. Driving up to it opens the modifications menu.
+ */
+function buildShed(s, R) {
+  const N = world.N, WL = world.WL;
+  let best = null;
+  for (const [ux, uz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const side of [1, -1]) {
+    const px = -uz * side, pz = ux * side;
+    const cx = s.x + ux * (R + 4) + px * 6, cz = s.z + uz * (R + 4) + pz * 6;
+    let score = 0, lo = 99, hi = 0;
+    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
+      const x = cx + a, z = cz + b; if (!inMap(x, z)) { score += 100; continue; }
+      if (world.road[x + N * z]) score += 100;
+      const h = colTop(x, z); lo = Math.min(lo, h); hi = Math.max(hi, h);
+    }
+    if (lo < WL + 1) score += 100;
+    score += (hi - lo) * 2;
+    const gx = s.x + ux * (R + 2), gz = s.z + uz * (R + 2);
+    if (inMap(gx, gz) && world.road[gx + N * gz]) score -= 3; // by the road's gate
+    if (!best || score < best.score) best = { score, cx, cz };
+  }
+  if (best.score >= 100) best = { cx: s.x + 5, cz: s.z + 5 }; // nowhere outside: in the yard
+  const { cx, cz } = best;
+  let top = 0;
+  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) top = Math.max(top, colTop(cx + a, cz + b));
+  for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (let y = colTop(cx + a, cz + b); y < top + 3; y++) put(cx + a, y, cz + b, V.RUST);
+  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) put(cx + a, top + 3, cz + b, (a + b) & 1 ? V.YEL : V.RUST);
+  s.shed = { x: cx + 0.5, z: cz + 0.5 };
 }
 function buildCamp(c) {
   const g = c.g, tier = c.tier;
@@ -708,7 +741,7 @@ const PF = { g: null, from: null, stamp: null, closed: null, cur: 0, N: 0, heap:
  * maxDrop (soldiers jump down off a wall they cannot climb). Wall tops cost extra so nobody walks
  * along them. Returns the cells to walk, or the way to the nearest reachable cell.
  */
-function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxStep) {
+function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxStep, natStep = maxStep) {
   const N = world.N;
   if (PF.N !== N) { PF.N = N; PF.g = new Float32Array(N * N); PF.from = new Int32Array(N * N); PF.stamp = new Uint32Array(N * N); PF.closed = new Uint32Array(N * N); PF.cur = 0; }
   PF.cur++;
@@ -735,10 +768,12 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxSte
       if (PF.avoid && PF.avoid(nx + 0.5, nz + 0.5)) continue;
       const n = nx + N * nz; if (PF.closed[n] === PF.cur) continue;
       const up = hm[n] - hm[c];
-      if (up > maxStep || -up > maxDrop) continue;
+      // natural ground (both columns): a vehicle takes a taller step there, a wall stays a wall
+      const lim = natStep > maxStep && natTop(n) && natTop(c) ? natStep : maxStep;
+      if (up > lim || -up > Math.max(maxDrop, lim)) continue;
       if (dx && dz) { // no cutting corners
         const a = cx + dx + N * cz, b = cx + N * (cz + dz);
-        if (!walkable(cx + dx, cz) || !walkable(cx, cz + dz) || Math.abs(hm[a] - hm[c]) > maxStep || Math.abs(hm[b] - hm[c]) > maxStep) continue;
+        if (!walkable(cx + dx, cz) || !walkable(cx, cz + dz) || Math.abs(hm[a] - hm[c]) > lim || Math.abs(hm[b] - hm[c]) > lim) continue;
       }
       let cost = dx && dz ? 1.414 : 1;
       if (hm[n] < world.WL) cost += 1.5;

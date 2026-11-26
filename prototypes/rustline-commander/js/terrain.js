@@ -8,8 +8,6 @@
 
 /** Ground cache: natural ground height per column and the four ground weights (grass, mud, rock, asphalt) per cell. */
 const TER = { ground: null, gs: null, cellW: null, N: 0, decorDirty: false, decorAt: 0, meshes: new Map() };
-/** Voxel kinds that are ground, when stacked from the bottom of a column. */
-const GROUNDV = new Set([V.BED, V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
 /** True when the smooth ground is drawn (config terrain_look), false for the old voxel blocks. */
 function smoothLook() { return tune.terrain_look >= 0.5; }
 
