@@ -25,6 +25,7 @@
 <script src="js/terrain.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/hud.js"></script>
+<script src="js/campaign.js"></script>
 <script>
 'use strict';
 // The one-shot's starter: only what the checks read. Keep the fixed step, the clock hook,
@@ -136,7 +137,7 @@ function reset() {
   seed = (Number(params.get('seed')) || CONFIG.seed) + runNo * 7919; runNo++;
   // state.gained: what this run gained or learned, the high the ending shows.
   state = { t: 0, score: 0, gained: '' };
-  newRun();
+  newCampaign(); startNode(campNode(0), null); state.goScene = null;
 }
 function perkKeys() { for (let i = 0; i < 4; i++) if (pressed('Digit' + (i + 1))) state.perkMsg = buyPerk(i); }
 function follow() { const g = state.goScene; if (g) { state.goScene = null; scene = g; } }
@@ -166,7 +167,17 @@ const scenes = {
       state.score = state.kills;
       follow();
     },
-    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawMenu(); },
+    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawMapHUD(); drawMenu(); },
+  },
+  // the campaign map between two sectors
+  campaign: {
+    update() { campaignInput(); MS.lp = MS.rp = MS.lr = MS.rr = false; follow(); },
+    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawCampaign(); },
+  },
+  // someone met on the way: a few lines and a choice
+  event: {
+    update() { eventInput(); MS.lp = MS.rp = MS.lr = MS.rr = false; follow(); },
+    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawEvent(); },
   },
   shop: {
     update() {

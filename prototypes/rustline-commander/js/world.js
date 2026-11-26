@@ -111,6 +111,8 @@ function mapPreset() {
 }
 function genWorld() {
   const P = mapPreset(); world.preset = P;
+  const S = world.spec || {}; // the campaign sector this map is for (camps, outposts, wrecks, patrols, tier)
+  if (S.camps != null) P.camps = S.camps;
   const N = P.size, WL = Math.round(tune.water_level);
   world.N = N; world.WL = WL;
   world.vox = new Uint8Array(N * N * VH);
@@ -199,9 +201,9 @@ function genWorld() {
   const placed = [];
   const place = (cx, cz, kind, extra) => { const r = real(Math.round(cx), Math.round(cz)); const s = Object.assign({ cx, cz, x: r.x, z: r.z, kind }, extra); placed.push(s); return s; };
   sites.start = place(22, 22, 'start');
-  sites.fortress = place(N - 27, N - 27, 'fortress');
+  sites.fortress = place(N - 27, N - 27, world.spec && !S.final ? 'exit' : 'fortress'); // a sector's exit, or the Horde's gate
   // outposts along the way, one each side of the river
-  for (const t of [0.3, 0.68]) {
+  for (const t of (S.outposts === 0 ? [] : S.outposts === 1 ? [0.5] : [0.3, 0.68])) {
     for (let tries = 0; tries < 200; tries++) {
       const off = (rng() - 0.5) * (60 + tries), along = (rng() - 0.5) * Math.min(40, tries * 0.3);
       const cx = N * t + off * 0.7 + along, cz = N * t - off * 0.7 + along;
@@ -220,10 +222,11 @@ function genWorld() {
     sites.camps.push(place(cx, cz, 'camp'));
   }
   sites.camps.sort((a, b) => Math.hypot(a.cx - 22, a.cz - 22) - Math.hypot(b.cx - 22, b.cz - 22));
-  sites.camps.forEach((c, i) => { c.tier = 1 + Math.floor(i * 3 / Math.max(1, sites.camps.length)); c.name = 'Campo ' + 'ABCDEFGH'[i]; });
+  sites.camps.forEach((c, i) => { c.tier = 1 + Math.floor(i * 3 / Math.max(1, sites.camps.length)); if (S.tier) c.tier = Math.min(3, S.tier + Math.floor(i * 2 / Math.max(2, sites.camps.length))); c.name = 'Campo ' + 'ABCDEFGH'[i]; });
   sites.outposts.forEach((o, i) => { o.name = ['Avamposto Pozzo Secco', 'Avamposto Ferrovecchio'][i] || 'Avamposto'; });
   sites.start.name = 'Avamposto Base';
-  sites.fortress.name = 'Fortezza del Capo';
+  sites.fortress.name = sites.fortress.kind === 'exit' ? 'Uscita' : S.final ? 'Cancello dell\'Orda' : 'Fortezza del Capo';
+  if (S.startBase) sites.start.name = 'Campo dell\'esercito';
 
   // flatten each site
   const flatten = (s, r) => {
@@ -295,11 +298,12 @@ function genWorld() {
   }
 
   // Structures.
-  buildOutpost(sites.start, true);
+  if (S.startBase) buildOutpost(sites.start, false); // the army's walled camp in the last stand
+  else if (!world.spec) buildOutpost(sites.start, true); // a sector starts on open ground: the tank comes alone
   for (const o of sites.outposts) buildOutpost(o, false);
   for (const c of sites.camps) buildCamp(c);
   world.sitesStart = sites.start;
-  buildFortress(sites.fortress);
+  if (sites.fortress.kind === 'fortress') buildFortress(sites.fortress); else buildExit(sites.fortress);
   // friendly outposts keep their roads open: nothing of theirs stands on a road or beside it
   for (const o of [sites.start, ...sites.outposts]) {
     for (let dz = -13; dz <= 13; dz++) for (let dx = -13; dx <= 13; dx++) {
@@ -314,7 +318,7 @@ function genWorld() {
 
   // the old raider wall across the road, a short drive from the start
   const rm = sites.roadMain;
-  if (rm.length > 30) {
+  if (rm.length > 30 && !S.final) { // (not in the army's camp)
     const iw = Math.min(rm.length - 8, Math.max(padR(sites.start) + 12, Math.floor(rm.length * 0.3))), ir = Math.floor(rm.length * 0.5), ip = Math.floor(rm.length * 0.72); // the wall stands past the start's pad
     const a = rm[iw], b = rm[iw + 4];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
@@ -357,7 +361,7 @@ function genWorld() {
     rockOutcrop(s.x + 2, s.z + 2, 2.5 + rng() * 2.5, 2 + Math.floor(rng() * 3));
     recomputeAll();
   }
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < (S.wrecks ?? 9); k++) {
     const s = freeSpot(16, 2); if (!s) continue;
     buildWreck(s); sites.wrecks.push({ x: s.x + 1, z: s.z + 1, value: tune.scrap_wreck, taken: false });
   }
@@ -367,7 +371,7 @@ function genWorld() {
   applyMapRules(sites);
   updateGround(0, 0, N - 1, N - 1);
   // roaming patrols, away from the start
-  for (let k = 0; k < Math.round(tune.patrol_count); k++) {
+  for (let k = 0; k < Math.round(tune.patrol_count * (S.patrolK ?? 1)); k++) {
     for (let tries = 0; tries < 40; tries++) {
       const x = 10 + rng() * (N - 20), z = 10 + rng() * (N - 20);
       if (Math.hypot(x - sites.start.x, z - sites.start.z) < 50) continue;
@@ -506,7 +510,16 @@ function carveRoad(hi, N, WL, path) {
 }
 
 /** Half-size of a site's flat pad (map rule M9): an outpost's holds its wall and its tool shed. */
-function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : 17; }
+function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : s.kind === 'exit' ? 11 : 17; }
+/** A sector's exit: a ring of yellow paint on the ground round the pad, nothing in the way. */
+function buildExit(s) {
+  for (let dz = -9; dz <= 9; dz++) for (let dx = -9; dx <= 9; dx++) {
+    const d = Math.hypot(dx, dz); if (d < 7.5 || d > 9) continue;
+    if (((Math.atan2(dz, dx) + 7) * 4 | 0) % 2) continue; // dashed
+    const x = s.x + dx, z = s.z + dz; if (!inMap(x, z)) continue;
+    const t = colTop(x, z); if (t > 1) put(x, t - 1, z, V.YEL);
+  }
+}
 /**
  * Map rule M4b: along the roads no step is higher than 1, so roads that cross or run side by side at
  * different heights meet in ramps, never cliffs. A site's flat pad is never cut: its height reaches

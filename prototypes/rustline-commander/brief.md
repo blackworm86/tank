@@ -36,11 +36,19 @@ After play: dammi anche dei comandi di sviluppo con i quali posso spawnare nemic
 
 After play: altra cosa, nella finestar di gioco non voglio si veda il cursore di sistema, mostra solo il cursore del gioco!
 
+After play: ripensiamo al loop di gioco. vorrei che seguisse la falsariga di FTL, con una mappa iniziale in cui il giocatore inizia da solo e con un solo carro armato; deve poi scappare dalla mappa, raggiungendo l'uscita o completando una missione; uscito dalla mappa potrà selezionare la prossima mappa da varie opzioni - la mappa globale della campagna è a "albero" come quella di FTL: il giocatore non sa esattamente quale sarà la prossima mappa, ma la SITREP può dirgli se c'è molta presnza nemica, molti scrap, fazioni particolari eccetera
+
+in ogni mappa saranno presenti NPC potenzialmente non nemici, che potrebbero affidare quest secondarie al giocatore, o piccole scelte multiple che possono dare benefici o danni.
+
+l'obiettivo del giocatore è arrivare alla ottava mappa, nella quale si ricongiungerà con quello che rimane del suo esercito (il giocatore è un comandante di carri armati, non il re o cose del genere) per organizzare l'ultima difesa contro l'ultimo assalto dell'Orda nemica
+
+After play (risposte): truppe da NPC, eventi e avamposti; pressione: solo timer in battaglia; finale: resisti alle ondate; le piastrine tra i run restano.
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
 
-**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura, R imboscata armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; avvicinati al capanno degli attrezzi di un avamposto per le modifiche *(you said)*; G seguimi, **Z fermi, R imboscata** (la squadra si apposta al riparo e tiene il fuoco finché il nemico non è vicino), B sali/scendi, Alt+1-6 forma squadra, tasto a sinistra di 1: tutte le squadre — tutto sotto la mano sinistra *(you said)*; **click destro: menu degli ordini per quel punto (entra nell'edificio, seguimi sul proprio carro, vai, riparo, attacco, imboscata, fermi…), click o lettera per scegliere, Esc chiude** *(you said)*; **X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. **In modalità Comando il carro sta fermo e WASD sposta la vista sulla mappa** *(you said)*; Shift + click destro apre il menu della tappa (vai, al riparo, avanza all'attacco) *(you said)*; nelle schede squadra: click sul soldato lo sceglie (Shift aggiunge), trascinarlo su un'altra scheda o su "+ nuova squadra" lo sposta, la matita rinomina (Invio conferma, Esc annulla), l'etichetta a destra cambia l'atteggiamento (anche Q nel menu) *(you said)*; F1 mostra i comandi; F2 sviluppo: K nemico, J alleato del tipo scelto, L sposta il carro al mouse, +500 rottami, +5 piastrine, nebbia on/off, uccidi i nemici vicini *(you said)*; si vede solo il cursore del gioco *(you said)*.
+**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura, R imboscata armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; avvicinati al capanno degli attrezzi di un avamposto per le modifiche *(you said)*; G seguimi, **Z fermi, R imboscata** (la squadra si apposta al riparo e tiene il fuoco finché il nemico non è vicino), B sali/scendi, Alt+1-6 forma squadra, tasto a sinistra di 1: tutte le squadre — tutto sotto la mano sinistra *(you said)*; **click destro: menu degli ordini per quel punto (entra nell'edificio, seguimi sul proprio carro, vai, riparo, attacco, imboscata, fermi…), click o lettera per scegliere, Esc chiude** *(you said)*; **X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. **In modalità Comando il carro sta fermo e WASD sposta la vista sulla mappa** *(you said)*; Shift + click destro apre il menu della tappa (vai, al riparo, avanza all'attacco) *(you said)*; nelle schede squadra: click sul soldato lo sceglie (Shift aggiunge), trascinarlo su un'altra scheda o su "+ nuova squadra" lo sposta, la matita rinomina (Invio conferma, Esc annulla), l'etichetta a destra cambia l'atteggiamento (anche Q nel menu) *(you said)*; F1 mostra i comandi; F2 sviluppo: K nemico, J alleato del tipo scelto, L sposta il carro al mouse, +500 rottami, +5 piastrine, nebbia on/off, uccidi i nemici vicini *(you said)*; si vede solo il cursore del gioco *(you said)*; **Invio all'uscita (o a missione compiuta) lascia il settore** *(you said)*; nella mappa della campagna click o 1-4 sceglie il prossimo settore *(you said)*; avvicinati col carro alla gente neutrale per parlarci, 1-3 sceglie *(you said)*; F2 + N passa subito al settore dopo (sviluppo).
 
 **Question:** guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15–20 minuti? *(guessed)*
 
@@ -116,6 +124,14 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Interfaccia ripulita: pannello carro compatto, corazza solo per qualche secondo dopo un colpo, etichetta modalità piccola, niente striscia ordini, radio a 3 righe, comandi dietro F1
 - [x] Comandi di sviluppo (F2): J alleato, K nemico, L carro al mouse, +500 rottami, +5 piastrine, nebbia on/off, uccidi i nemici vicini
 - [x] Solo il cursore del gioco, mai quello di sistema
+- [x] Loop alla FTL: 8 settori su una mappa della campagna ad albero; si parte da soli col carro, si esce dal settore dall'uscita (anello giallo, Invio) o finita la missione; poi si sceglie il settore dopo tra quelli collegati
+- [x] SITREP sui settori raggiungibili: presenza nemica (bassa/media/alta), rottami (pochi/discreti/molti), segnali (coloni, mercanti, disertori, avamposto amico, segnale di soccorso); il tipo di missione resta una sorpresa
+- [x] Missioni di settore: raggiungi l'uscita, distruggi il campo, libera i prigionieri (diventano una squadra), recupera il deposito (rottami e un pezzo o riparazioni)
+- [x] Il carro, i pezzi, i rottami e i soldati entro il raggio radio (o a bordo) passano al settore dopo; chi è fuori radio resta indietro; i feriti guariscono in marcia
+- [x] Gente neutrale lungo la strada (figure e "?"): 10 incontri con scelte (disertori, cecchino a pagamento, coloni affamati, capo villaggio, mercanti, contrabbandiere, ferito, deposito minato, radioamatore, cacciatori di taglie) che danno soldati, pezzi, rottami, riparazioni o danni, imboscate e incarichi secondari (distruggi un campo, abbatti N predoni)
+- [x] Timer dell'Orda: dopo horde_time secondi in un settore arrivano ondate di cacciatori sempre più grandi che puntano il carro
+- [x] Ottavo settore, l'ultima difesa: campo dell'esercito con mura e capanno, cinque squadre e mezzi dell'esercito ai tuoi ordini (fino a 10 squadre), final_waves ondate dal cancello dell'Orda, l'ultima col Carro del Capo; respinte tutte, vittoria
+- [x] Piastrine anche per ogni settore attraversato
 - [x] Piastrine tra i run per miglioramenti permanenti (thin stand-in)
 
 ## Map rules
@@ -163,6 +179,11 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - ruoli dei soldati (cecchino in appostamento, copertura) · in the slice
 - imboscate e soppressione · in the slice
 - gradi ed esperienza dei soldati · in the slice
+- campagna ad albero di 8 settori con SITREP · in the slice
+- missioni di settore e uscita · in the slice
+- gente neutrale, scelte e incarichi secondari · in the slice
+- timer dell'Orda (cacciatori) · in the slice
+- ultima difesa con l'esercito · in the slice
 - valuta permanente tra un run e l'altro · thin stand-in *(guessed)*
 
 ## Keep
@@ -176,7 +197,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - Molti biomi e boss: grow it
 - Modificatori di difficoltà dopo una vittoria: change it after play
 - Unità eroe con abilità: change it after play
-- Una campagna di missioni con trama: grow it
+- Una trama scritta per la campagna (personaggi, dialoghi ricorrenti): grow it
 - Suono di battaglia che cambia con distanza e luogo: change it after play
 - Ordini di formazione per i mezzi (colonna, riga, cuneo destro/sinistro): change it after play *(you said: in futuro)*
 

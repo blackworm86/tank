@@ -39,6 +39,17 @@ window.CONFIG = {
   posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
   stealth_trigger: { value: 0.45, min: 0.1, max: 1, step: 0.05 }, // a stealthy squad opens fire inside this share of its range
   stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a stealthy soldier's speed
+  horde_time: { value: 300, min: 30, max: 900, step: 10 },       // seconds on a sector before the Horde's hunters come
+  wave_every: { value: 45, min: 10, max: 180, step: 5 },          // seconds between hunter waves
+  wave_size: { value: 3, min: 1, max: 12, step: 1 },              // raiders in the first wave
+  wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
+  exit_radius: { value: 10, min: 4, max: 20, step: 1 },           // how close to the exit the tank must be to leave
+  npc_radius: { value: 7, min: 3, max: 15, step: 1 },             // how close the tank must come to talk to people
+  mission_scrap: { value: 80, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
+  final_waves: { value: 6, min: 1, max: 15, step: 1 },            // waves in the last stand (the last brings the Chief)
+  final_prep: { value: 60, min: 10, max: 300, step: 5 },          // seconds to set up before the first wave of the last stand
+  final_gap: { value: 70, min: 20, max: 200, step: 5 },           // seconds between last-stand waves (sooner once a wave is beaten)
+  tags_per_sector: { value: 1, min: 0, max: 10, step: 1 },        // piastrine per sector crossed
   context_menu: { value: 1, min: 0, max: 1, step: 1 },          // 1: right-click opens the menu of orders; 0: right-click orders at once (move/attack/enter)
   garrison_cap: { value: 6, min: 1, max: 12, step: 1 },          // most soldiers one building takes
   garrison_ruin: { value: 0.45, min: 0.1, max: 0.9, step: 0.05 }, // share of its walls left below which a building throws its soldiers out

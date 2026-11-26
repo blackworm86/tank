@@ -582,6 +582,10 @@ function renderWorld() {
     syncModel(e);
     if (e.model) e.model.visible = !hiddenFoe(e); // the fog of war: a raider nobody sees is not drawn
   }
+  for (const p of state.npcs || []) { // neutral people by the road: plain figures turned to the tank
+    if (!p.models || p.models[0].parent !== R3.units) { p.models = []; for (let i = 0; i < p.n; i++) { const m = makeSoldier(p.kind); R3.units.add(m); p.models.push(m); } }
+    p.models.forEach((m, i) => { const x = p.x + (i - (p.n - 1) / 2) * 1.5, z = p.z + (i % 2) * 0.9; m.position.set(x, surfaceY(x, z), z); m.rotation.set(0, Math.atan2(state.tank.x - x, state.tank.z - z), 0); m.visible = !p.done; });
+  }
   updateFogMesh();
   poolsBegin();
   // debris

@@ -261,7 +261,7 @@ function spotNear(x, z, i) {
 /** Generates the map and places the tank, the first squads and every raider. */
 /** The hull the title screen has picked for the next run. */
 const HULL_PICK = { id: 'mbt' };
-function newRun() {
+function newRun(carry) {
   genWorld();
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
@@ -269,16 +269,20 @@ function newRun() {
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapons[0], stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap + perk('scrap') * 60, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
     hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 0, shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
+    boss: null, menu: null, picked: null, rename: null, dragSoldier: null, event: null, campsKnown: false, goScene: null,
   });
+  // the next sector: the tank, its parts and its scrap come along
+  if (carry) Object.assign(state, { parts: Object.assign({}, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps });
   const s = world.sites, rm = s.roadMain;
   const tk = spawn('tank', s.start.x + 0.5, s.start.z + 0.5); tk.rad = HULLS[state.hull].rad;
   if (rm.length > 6) tk.heading = tk.turretYaw = Math.atan2(rm[6][0] - rm[0][0], rm[6][1] - rm[0][1]);
   tk.speed = 0; tk.spread = tune.spread_move; tk.reload = 0; tk.aligned = false; tk.pitch = 0; tk.roll = 0;
   state.tank = tk; state.startPos = { x: tk.x, z: tk.z };
+  if (carry) tk.hp = Math.max(1, Math.round(tk.maxhp * carry.hp));
   const back = { x: tk.x - Math.sin(tk.heading) * 6, z: tk.z - Math.cos(tk.heading) * 6 };
-  const first = ['rifle', 'rifle', 'rifle']; for (let i = 0; i < perk('vet'); i++) first.push('rifle');
-  const a = addSquad(first, back.x, back.z), b = addSquad(['sniper'], back.x - 3, back.z - 3);
-  for (const q of [a, b]) if (q) q.order = { t: 'follow' };
+  // the first sector starts with the tank alone (the Veteran perk brings riflemen); later ones bring who came along
+  if (carry) restoreSquads(carry.squads, back.x, back.z);
+  else if (perk('vet')) { const a = addSquad(Array(perk('vet')).fill('rifle'), back.x, back.z); if (a) { a.order = { t: 'follow' }; a.name = 'Veterani'; a.named = true; } }
   // raiders
   for (const c of s.camps) {
     const g = newGroup('camp', c.x + 0.5, c.z + 0.5, c);
@@ -296,20 +300,25 @@ function newRun() {
     for (let i = 0; i < p.n; i++) { const q = spotNear(p.x, p.z, i); addRaider(g, (!p.first && i === 2 && p.tier >= 2) ? 'r_rpg' : 'r_rifle', q.x, q.z, p.tier); }
     if (!p.first && p.tier >= 3 && rng() < 0.6) { const q = spotNear(p.x, p.z, 5); addRaider(g, 'technical', q.x, q.z, p.tier); }
   }
-  const f = s.fortress, fg = newGroup('fort', f.x + 0.5, f.z + 0.5, f);
+  const f = s.fortress;
+  if (f.kind === 'fortress' && !state.final) { // the old Chief's fortress (a map with no campaign)
+  const fg = newGroup('fort', f.x + 0.5, f.z + 0.5, f);
   state.boss = addRaider(fg, 'boss', f.x + 0.5, f.z + 0.5, 3);
   state.boss.turretYaw = state.boss.heading = Math.atan2(f.gateDir.x, f.gateDir.z);
   for (const t of f.towers) addRaider(fg, 'r_mg', t.x, t.z, 3, true);
   for (let i = 0; i < 8; i++) { const p = spotNear(f.x + (i % 4 - 1.5) * 5, f.z + (i < 4 ? -5 : 6), i); addRaider(fg, i % 3 === 2 ? 'r_rpg' : 'r_rifle', p.x, p.z, 3); }
   for (let i = 0; i < 2; i++) { const p = spotNear(f.x + (i ? 8 : -8), f.z + 2, i); addRaider(fg, 'technical', p.x, p.z, 3); }
+  }
   for (const w of s.wrecks) state.pickups.push({ x: w.x, z: w.z, value: w.value, taken: false, wreck: true });
   cam.x = tk.x; cam.z = tk.z; cam.y = tk.y; cam.dist = tune.cam_dist;
   // the camera starts behind the tank, on one of the four isometric bearings
   const behind = tk.heading + Math.PI, q4 = Math.PI / 2;
   cam.yawT = cam.yaw = Math.round((behind - Math.PI / 4) / q4) * q4 + Math.PI / 4;
-  say('Radio', 'Comandante, il carro è tuo. W/S avanti e indietro, A/D per girare.', '#9fe3a0');
-  if (state.hull === 'light') say('Radio', 'Carro leggero: X passa dal cannoncino alla mitragliatrice.', '#9fe3a0');
-  if (tankStats().seats) say('Radio', 'Posti a bordo: ' + tankStats().seats + '. Seleziona una squadra e B per farla salire, U per farla scendere.', '#9fe3a0');
+  if (!carry) {
+    say('Radio', 'Comandante, il battaglione è disperso. Sei solo: trova uomini lungo la strada e raggiungi l\'esercito.', '#9fe3a0');
+    if (state.hull === 'light') say('Radio', 'Carro leggero: X passa dal cannoncino alla mitragliatrice.', '#9fe3a0');
+  }
+  if (state.node) setupMap();
 }
 function newGroup(kind, x, z, site) { const g = { kind, home: { x, z }, site, alert: false, known: null, seenT: -99, members: [], cleared: false }; state.groups.push(g); return g; }
 function addRaider(g, kind, x, z, tier, fixed) {
@@ -362,7 +371,7 @@ function newSquad() {
 }
 /** Adds a squad of the given unit kinds near (x,z). */
 function addSquad(slots, x, z, force) {
-  if (state.squads.length >= tune.max_squads) return null;
+  if (state.squads.length >= maxSquads()) return null;
   const sq = { id: state.squads.length, slots: slots.slice(), members: [], order: { t: 'hold' }, selected: false, tick: 0, posture: 'neutral' };
   slots.forEach((k, i) => { const p = spotNear(x, z, i); const m = spawn(k, p.x, p.z); m.squad = sq; m.heading = state.tank ? state.tank.heading : 0; m.turretYaw = m.heading; sq.members[i] = m; });
   sq.name = squadName(slots);
@@ -798,7 +807,7 @@ function moveUnits(us, to) {
   if (to && to.members.some(m => m && m.veh)) { say('Radio', 'Un mezzo resta sempre una squadra a sé.', '#e0a070'); return null; }
   let made = false;
   if (!to) {
-    if (state.squads.length >= tune.max_squads) { say('Radio', 'Massimo ' + tune.max_squads + ' squadre.', '#e0a070'); return null; }
+    if (state.squads.length >= maxSquads()) { say('Radio', 'Massimo ' + maxSquads() + ' squadre.', '#e0a070'); return null; }
     to = newSquad(); made = true;
   }
   if (to.slots.length + us.length > tune.squad_size) { say('Radio', 'Al massimo ' + tune.squad_size + ' soldati per squadra.', '#e0a070'); if (made) state.squads.splice(state.squads.indexOf(to), 1); return null; }
@@ -1480,6 +1489,10 @@ function seenByTeam(o, team) {
 }
 function raiderThink(e, w) {
   const g = e.group;
+  if (g.kind === 'hunt') { // sent after the tank, or at the army's camp in the last stand
+    const tk = state.tank, t = g.base && !(tk.alive && dist2(e, tk) < 40 * 40) ? g.base : tk;
+    g.alert = true; g.seenT = state.t; g.known = { x: t.x, z: t.z };
+  }
   if (e.target) alertGroup(g, e.target);
   if (!g.alert) {
     if (g.kind === 'patrol' && !e.fixed) {
@@ -1498,7 +1511,7 @@ function raiderThink(e, w) {
   if (e.target && !e.veh) { e.path = null; return; }
   if (e.target && e.veh && dist2(e, e.target) < 16 * 16) { e.path = null; return; }
   if (g.known && (!e.path || e.pi >= e.path.length || state.t - e.pathT > 3)) {
-    const lim = g.kind === 'camp' ? tune.leash : g.kind === 'fort' ? 11 : 36;
+    const lim = g.kind === 'camp' ? tune.leash : g.kind === 'fort' ? 11 : g.kind === 'hunt' ? 999 : 36;
     let dx = g.known.x - g.home.x, dz = g.known.z - g.home.z; const L = Math.hypot(dx, dz);
     if (L > lim) { dx *= lim / L; dz *= lim / L; }
     const tx = g.home.x + dx + (e.id % 5 - 2) * 1.4, tz = g.home.z + dz + (e.id % 3 - 1) * 1.4;
@@ -1631,7 +1644,7 @@ function kill(e, src, kind) {
     state.kills++;
     if (src && src.team === 0) giveXp(src, tune.xp_kill * (e.veh ? 3 : 1));
     if (!e.veh) { state.scrap += tune.scrap_infantry; floatText(e.x, e.y + 2.2, e.z, '+' + tune.scrap_infantry, '#ffd36a'); }
-    if (e.kind === 'boss' && !e.dev) { state.result = 'win'; state.endT = state.t + 3; say('Radio', 'Il Carro del Capo è in fiamme! La fortezza è nostra!', '#9fe3a0'); }
+    if (e.kind === 'boss' && !e.dev) say('Radio', 'Il Carro del Capo è in fiamme!', '#9fe3a0');
   } else if (e.kind === 'tank') {
     state.result = 'lose'; state.endT = state.t + 3;
     say('Radio', 'Il carro comando è distrutto...', '#ff7a6a');
@@ -1757,8 +1770,8 @@ function updateRun(dt) {
   state.canShop = null;
   if (tk.alive) {
     const s = world.sites;
-    for (const o of [s.start, ...s.outposts]) {
-      const sh = o.shed || { x: o.x + 0.5, z: o.z + 0.5 };
+    for (const o of [s.start, ...s.outposts].filter(o => o.shed)) {
+      const sh = o.shed;
       if (Math.hypot(sh.x - tk.x, sh.z - tk.z) > tune.shop_radius) continue;
       const hot = state.groups.some(g => g.alert && g.members.some(m => m.alive && dist2(m, tk) < 30 * 30));
       if (!hot) state.canShop = o;
@@ -1774,15 +1787,16 @@ function updateRun(dt) {
     const c = world.sites.camps.find(c => !c.cleared && Math.hypot(c.x - tk.x, c.z - tk.z) < 48);
     if (c) { state.campHint = true; say('Radio', c.name + ' avvistato: bunker e torretta di legno. Il cannone li apre, le squadre ripuliscono.', '#9fe3a0'); }
   }
-  if (!state.fortHint && Math.hypot(world.sites.fortress.x - tk.x, world.sites.fortress.z - tk.z) < 60) { state.fortHint = true; say('Radio', 'La Fortezza del Capo. Mura spesse: sfonda il cancello di lamiera o apri una breccia.', '#ff9a7a'); }
+  if (typeof campaignUpdate === 'function') campaignUpdate(dt);
   if (state.result && state.t >= state.endT) endRun();
 }
 /** Pays the piastrine for the run and moves to the end screen. */
 function endRun() {
   const win = state.result === 'win';
-  const tags = state.camps * tune.tags_per_camp + Math.floor(state.kills / 10) * tune.tags_per_10_kills + (win ? tune.tags_win : 0);
+  const sector = state.camp ? state.camp.sector : 1;
+  const tags = state.camps * tune.tags_per_camp + Math.floor(state.kills / 10) * tune.tags_per_10_kills + (sector - 1) * tune.tags_per_sector + (win ? tune.tags_win : 0);
   state.tagsWon = tags; meta.piastrine += tags; saveMeta();
-  state.gained = win ? 'La fortezza è caduta!' : 'Il carro comando è perso';
+  state.gained = win ? 'L\'Orda è respinta!' : 'Il carro comando è perso · settore ' + sector + '/8';
   state.goScene = win ? 'results' : 'over';
   state.result = null; state.perkMsg = '';
 }
@@ -1827,7 +1841,7 @@ function reinforce(sq) {
 function rosterCost(r) { return r.reduce((a, k) => a + tune[UT[k].cost], 0); }
 function recruitRoster() {
   const r = state.roster; if (!r.length) { state.shopMsg = 'Aggiungi soldati alla nuova squadra.'; return; }
-  if (state.squads.length >= tune.max_squads) { state.shopMsg = 'Massimo ' + tune.max_squads + ' squadre.'; return; }
+  if (state.squads.length >= maxSquads()) { state.shopMsg = 'Massimo ' + maxSquads() + ' squadre.'; return; }
   const c = rosterCost(r); if (state.scrap < c) { state.shopMsg = 'Servono ' + c + ' rottami.'; return; }
   state.scrap -= c;
   const s = state.shopSite, sq = addSquad(r, s.x + 0.5, s.z + 0.5); sq.order = { t: 'follow' };
@@ -1836,7 +1850,7 @@ function recruitRoster() {
 /** Buys a support vehicle (car or ltank) as a squad of its own. */
 function buyVehicle(kind) {
   const cost = tune[UT[kind].cost];
-  if (state.squads.length >= tune.max_squads) { state.shopMsg = 'Massimo ' + tune.max_squads + ' squadre.'; return; }
+  if (state.squads.length >= maxSquads()) { state.shopMsg = 'Massimo ' + maxSquads() + ' squadre.'; return; }
   if (state.scrap < cost) { state.shopMsg = 'Servono ' + cost + ' rottami.'; return; }
   state.scrap -= cost;
   const s = state.shopSite, sq = addSquad([kind], s.x + 0.5, s.z + 0.5); sq.order = { t: 'follow' };
@@ -1898,7 +1912,7 @@ function devSquad() { return state.squads[state.devSq] || null; }
 function devAddSquad(kind) {
   const tk = state.tank, b = { x: tk.x - Math.sin(tk.heading) * 7, z: tk.z - Math.cos(tk.heading) * 7 };
   const sq = addSquad([kind], b.x, b.z, true);
-  if (!sq) { say('Sviluppo', 'Massimo ' + tune.max_squads + ' squadre.', '#c8a0ff'); return; }
+  if (!sq) { say('Sviluppo', 'Massimo ' + maxSquads() + ' squadre.', '#c8a0ff'); return; }
   sq.order = { t: 'follow' }; state.devSq = state.squads.indexOf(sq);
 }
 /** One more unit of this kind in the squad (a new squad when none is picked). */
@@ -1942,7 +1956,7 @@ function devSpawnEnemy(kind, x, z) {
 /** The panel's own input: K drops the chosen enemy at the mouse; clicks on the panel stay on it. */
 /** A friendly unit of the picked kind as a new squad at (x,z) (dev). */
 function devSpawnAlly(kind, x, z) {
-  if (state.squads.length >= tune.max_squads) { say('Sviluppo', 'Massimo ' + tune.max_squads + ' squadre.', '#c8a0ff'); return; }
+  if (state.squads.length >= maxSquads()) { say('Sviluppo', 'Massimo ' + maxSquads() + ' squadre.', '#c8a0ff'); return; }
   const sq = addSquad([kind], x, z, true); if (!sq) return;
   sq.order = { t: 'hold' };
   say('Sviluppo', UT[kind].name + ' piazzato (squadra ' + (state.squads.indexOf(sq) + 1) + ').', '#c8a0ff');
@@ -1954,6 +1968,7 @@ function devTeleport(x, z) { const tk = state.tank; if (tankFits(tk, x, z, tk.he
 function devInput() {
   if (pressed('KeyJ') && state.mouse3) devSpawnAlly(state.devKind || 'rifle', state.mouse3.x, state.mouse3.z);
   if (pressed('KeyL') && state.mouse3) devTeleport(state.mouse3.x, state.mouse3.z);
+  if (pressed('KeyN') && state.mission && !state.final) leaveSector(); // dev: on to the campaign map now
   if (pressed('KeyK') && state.mouse3) devSpawnEnemy(state.devEnemy || 'r_rifle', state.mouse3.x, state.mouse3.z);
   const r = UI.devRect;
   if (r && MS.x >= r.x && MS.x <= r.x + r.w && MS.y >= r.y && MS.y <= r.y + r.h) {

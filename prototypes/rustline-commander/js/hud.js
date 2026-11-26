@@ -128,7 +128,10 @@ function drawMinimap(x0, y0, S) {
   const flagMark = (sx, sz, col, s2) => { ctx.fillStyle = '#1d1b1a'; ctx.fillRect(sx - s2 - 1, sz - s2 - 1, s2 * 2 + 2, s2 * 2 + 2); ctx.fillStyle = col; ctx.fillRect(sx - s2, sz - s2, s2 * 2, s2 * 2); };
   for (const o of [sites.start, ...sites.outposts]) { flagMark(o.x, o.z, '#7fc85a', 4); ctx.fillStyle = '#1d1b1a'; ctx.fillRect(o.x - 1, o.z - 2.5, 2, 5); ctx.fillRect(o.x - 2.5, o.z - 1, 5, 2); }
   for (const c of sites.camps) flagMark(c.x, c.z, c.cleared ? '#8a8378' : '#d0402e', 4);
-  const f = sites.fortress; flagMark(f.x, f.z, '#d0402e', 7); ctx.fillStyle = '#1d1b1a'; for (let i = -6; i <= 4; i += 4) ctx.fillRect(f.x + i, f.z - 7, 2, 3);
+  const f = sites.fortress;
+  if (f.kind === 'exit') { ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 2.4 / k; ctx.strokeRect(f.x - 7, f.z - 7, 14, 14); ctx.fillStyle = '#ffd36a'; ctx.fillRect(f.x - 3, f.z - 3, 6, 6); }
+  else { flagMark(f.x, f.z, '#d0402e', 7); ctx.fillStyle = '#1d1b1a'; for (let i = -6; i <= 4; i += 4) ctx.fillRect(f.x + i, f.z - 7, 2, 3); }
+  if (typeof minimapMarks === 'function') minimapMarks(k);
   ctx.strokeStyle = 'rgba(79,227,224,0.85)'; ctx.lineWidth = 1.2 / k; ctx.setLineDash([3 / k, 2 / k]);
   ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   // the player's view: the screen's corners carried down to the ground
@@ -265,7 +268,7 @@ function drawHUD() {
   // minimap and objective
   const MSZ = 180; drawMinimap(W - MSZ - 20, 20, MSZ);
   const ob = objective();
-  text(ob.site.name + ' · ' + Math.round(ob.d) + ' m · campi ' + ob.left, W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
+  text(state.mission ? missionLine() : ob.site.name + ' · ' + Math.round(ob.d) + ' m', W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
 
   // squad cards
   let y = 96; UI.cards = [];
@@ -302,7 +305,7 @@ function drawHUD() {
   // dragging a soldier: an empty slot for a new squad, and the soldier under the mouse
   UI.newCard = null;
   if (dragging) {
-    if (state.squads.length < tune.max_squads) {
+    if (state.squads.length < maxSquads()) {
       UI.newCard = { x: 14, y, w: 230, h: 34 }; const on = inRect(UI.newCard, MS.x, MS.y);
       rrect(14, y, 230, 34, 6, on ? 'rgba(79,227,224,0.25)' : 'rgba(79,227,224,0.08)', HC.cyan); text('+ nuova squadra', 129, y + 17, 13, HC.cyan);
     }
@@ -405,14 +408,14 @@ function drawShop() {
     else { text('Scegli i soldati qui sopra: un cecchino solitario, un team', rx + 12, ry + 20, 13, HC.dim, 'left'); text('di mitraglieri, fucilieri con un medico...', rx + 12, ry + 40, 13, HC.dim, 'left'); }
     const rc = rosterCost(state.roster);
     button(rx, ry + 70, 150, 38, 'Svuota', () => { state.roster = []; });
-    button(rx + 160, ry + 70, 296, 38, 'Arruola (' + rc + ' rottami)', recruitRoster, { off: !state.roster.length || state.scrap < rc || state.squads.length >= tune.max_squads });
+    button(rx + 160, ry + 70, 296, 38, 'Arruola (' + rc + ' rottami)', recruitRoster, { off: !state.roster.length || state.scrap < rc || state.squads.length >= maxSquads() });
     [['car', 'Autoblindo: cannoncino, veloce'], ['ltank', 'Carro di supporto: cannone, corazza']].forEach(([k, d], i) => {
       const c = tune[UT[k].cost], bx0 = rx + i * 232;
-      button(bx0, ry + 124, 224, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= tune.max_squads });
+      button(bx0, ry + 124, 224, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
       unitIcon(k, bx0 + 22, ry + 147, 24, '#a8d870');
       text(d.split(':')[0], bx0 + 44, ry + 139, 14, HC.text, 'left'); text(c + ' rottami', bx0 + 44, ry + 157, 13, HC.gold, 'left');
     });
-    text('Squadre: ' + state.squads.length + ' / ' + tune.max_squads, rx, ry + 194, 14, HC.dim, 'left');
+    text('Squadre: ' + state.squads.length + ' / ' + maxSquads(), rx, ry + 194, 14, HC.dim, 'left');
   } else {
     const tk = state.tank, miss = Math.ceil(tk.maxhp - tk.hp);
     text('Integrità del carro', x0 + 24, cy + 14, 17, HC.text, 'left');
@@ -464,15 +467,16 @@ function drawTitle() {
   drawHullPicker(W / 2 + 20, 420);
   rrect(W / 2 - 200, H - 100, 400, 50, 8, 'rgba(60,40,22,0.92)', '#d9a35a');
   text('Invio per iniziare', W / 2, H - 75, 26, '#fff2d8');
-  text('Distruggi la Fortezza del Capo. Se il carro cade, il run finisce: restano solo le piastrine.', W / 2, H - 28, 15, HC.text);
+  text('Fuggi per 8 settori fino all\'esercito e resisti all\'ultimo assalto dell\'Orda. Se il carro cade, restano solo le piastrine.', W / 2, H - 28, 15, HC.text);
 }
 function drawEnd(win) {
   ctx.fillStyle = 'rgba(14,10,8,0.7)'; ctx.fillRect(0, 0, W, H);
   panel(W / 2 - 360, 80, 720, 540);
   text(state.gained || (win ? 'Vittoria' : 'Game over'), W / 2, 130, 44, win ? '#b6f08a' : '#ff9a7a');
   const mins = Math.floor(state.t / 60), secs = Math.floor(state.t % 60);
-  const rows = [['Campi ripuliti', state.camps + ' / ' + world.sites.camps.length], ['Predoni abbattuti', state.kills], ['Rottami in tasca', state.scrap], ['Durata', mins + ' min ' + secs + ' s'], ['Piastrine guadagnate', '+' + state.tagsWon]];
-  rows.forEach((r, i) => { text(r[0], W / 2 - 300, 190 + i * 30, 18, HC.text, 'left'); text(String(r[1]), W / 2 + 300, 190 + i * 30, 18, i === 4 ? HC.gold : HC.text, 'right'); });
+  const T = (state.carryT || 0) + state.t, mm = Math.floor(T / 60), ss = Math.floor(T % 60);
+  const rows = [['Settori attraversati', (state.camp ? state.camp.sector : 1) + ' / 8'], ['Campi ripuliti', state.camps], ['Predoni abbattuti', state.kills], ['Rottami in tasca', state.scrap], ['Durata', mm + ' min ' + ss + ' s'], ['Piastrine guadagnate', '+' + state.tagsWon]];
+  rows.forEach((r, i) => { text(r[0], W / 2 - 300, 186 + i * 28, 18, HC.text, 'left'); text(String(r[1]), W / 2 + 300, 186 + i * 28, 18, i === 5 ? HC.gold : HC.text, 'right'); });
   drawPerks(W / 2 - 300, 370);
   text(win ? 'Invio: un nuovo run su una nuova mappa' : 'R o Invio: un nuovo run su una nuova mappa', W / 2, 590, 20, '#fff2d8');
 }
@@ -598,7 +602,7 @@ function drawDevPanel() {
   const x0 = W - 314, y0 = 270, w = 300, h = H - y0 - 14;
   UI.devRect = { x: x0, y: y0, w, h };
   rrect(x0, y0, w, h, 6, 'rgba(26,18,34,0.94)', '#b48cff');
-  text('SVILUPPO', x0 + 12, y0 + 14, 14, '#d8c0ff', 'left'); text('F2 chiude · K nemico · J alleato · L carro', x0 + w - 10, y0 + 14, 11, '#a890c8', 'right');
+  text('SVILUPPO', x0 + 12, y0 + 14, 14, '#d8c0ff', 'left'); text('F2 · K nemico · J alleato · L carro · N settore', x0 + w - 10, y0 + 14, 11, '#a890c8', 'right');
   let y = y0 + 30;
   if (!state.squads.length) { text('Nessuna squadra: scegli un tipo e "Nuova".', x0 + 12, y + 8, 12, '#a890c8', 'left'); y += 22; }
   state.squads.forEach((sq, i) => {
