@@ -101,8 +101,17 @@ function shallow(x, z) { return hAt(x, z) < world.WL; }
 
 // ---- Generation -----------------------------------------------------------------------------
 /** Builds a whole new map for a run from rng(). Returns the sites (start, outposts, camps, fortress...). */
+/**
+ * The map's shape. map_simple 1 is the test map: smaller, gentle rolling ground, one river with its
+ * bridges, no mountains, mesa, canyon or lakes, three camps, few ruins, rocks and woods.
+ */
+function mapPreset() {
+  if (tune.map_simple) return { size: 128, relief: 4, mountains: 0, mesa: false, lakes: false, camps: 3, ruins: 6, rocks: 5, forest: 0.3 };
+  return { size: Math.round(tune.map_size / 16) * 16, relief: 11, mountains: tune.mountain_amount, mesa: true, lakes: true, camps: Math.round(tune.camp_count), ruins: Math.round(tune.ruin_count), rocks: Math.round(tune.rock_count), forest: tune.forest_amount };
+}
 function genWorld() {
-  const N = Math.round(tune.map_size / 16) * 16, WL = Math.round(tune.water_level);
+  const P = mapPreset(); world.preset = P;
+  const N = P.size, WL = Math.round(tune.water_level);
   world.N = N; world.WL = WL;
   world.vox = new Uint8Array(N * N * VH);
   world.hmap = new Uint8Array(N * N);
@@ -136,21 +145,21 @@ function genWorld() {
   const lakes = [
     { x: N * (0.12 + rng() * 0.2), z: N * (0.6 + rng() * 0.2), r: 6 + rng() * 5 },
     { x: N * (0.6 + rng() * 0.2), z: N * (0.12 + rng() * 0.2), r: 6 + rng() * 5 },
-  ];
+  ].filter(() => P.lakes);
 
   const Hf = new Float32Array(N * N);
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const cx = flipX ? N - 1 - x : x, cz = flipZ ? N - 1 - z : z;
-    let h = 6 + fbm(cx / 36, cz / 36, ns, 4) * 11;
+    let h = 6 + fbm(cx / 36, cz / 36, ns, 4) * P.relief;
     const rg = 1 - Math.abs(vnoise(cx / 20, cz / 20, ns + 7) * 2 - 1);
     const mask = smooth(0.52, 0.75, fbm(cx / 50, cz / 50, ns + 9, 3));
-    h += mask * rg * rg * 20 * tune.mountain_amount;
+    h += mask * rg * rg * 20 * P.mountains;
     // the mesa band, cut by a canyon
     const dm = distTo(mesa, cx, cz);
     const raise = 9 * smooth(13, 9, dm);
     const dc = distTo(canyon, cx, cz);
     const cut = smooth(5.5, 3, dc);
-    h += raise * (1 - cut);
+    if (P.mesa) h += raise * (1 - cut);
     // the river valley
     const dr = distTo(river, cx, cz);
     if (dr < 10) h = Math.min(h, WL + 0.6 + (dr - 4) * 0.9);
@@ -183,7 +192,7 @@ function genWorld() {
     if (cx < 14 || cz < 14 || cx > N - 14 || cz > N - 14) return false;
     if (riverD(cx, cz) < 12) return false;
     for (const L of lakes) if (Math.hypot(cx - L.x, cz - L.z) < L.r + 10) return false;
-    if (distTo(mesa, cx, cz) < 15) return false;
+    if (P.mesa && distTo(mesa, cx, cz) < 15) return false;
     for (const a of avoid) if (Math.hypot(cx - a.cx, cz - a.cz) < minD) return false;
     return true;
   };
@@ -200,7 +209,7 @@ function genWorld() {
     }
   }
   // camps, the first close to the start
-  const want = Math.round(tune.camp_count);
+  const want = P.camps;
   for (let tries = 0; tries < 600 && sites.camps.length < want; tries++) {
     let cx, cz;
     if (sites.camps.length === 0 && tries < 150) { const a = Math.PI / 4 + (rng() - 0.5) * 0.9, d = 54 + rng() * 8; cx = 22 + Math.cos(a) * d; cz = 22 + Math.sin(a) * d; }
@@ -306,7 +315,7 @@ function genWorld() {
   // the old raider wall across the road, a short drive from the start
   const rm = sites.roadMain;
   if (rm.length > 30) {
-    const iw = Math.min(20, Math.floor(rm.length * 0.35)), ir = Math.floor(rm.length * 0.5), ip = Math.floor(rm.length * 0.72);
+    const iw = Math.min(rm.length - 8, Math.max(padR(sites.start) + 12, Math.floor(rm.length * 0.3))), ir = Math.floor(rm.length * 0.5), ip = Math.floor(rm.length * 0.72); // the wall stands past the start's pad
     const a = rm[iw], b = rm[iw + 4];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
     const px = -dz / L, pz = dx / L;
@@ -342,8 +351,8 @@ function genWorld() {
     }
     return null;
   };
-  for (let k = 0; k < Math.round(tune.ruin_count); k++) { const s = freeSpot(18, 2); if (s) { buildRuin(s); recomputeAll(); } }
-  for (let k = 0; k < Math.round(tune.rock_count); k++) {
+  for (let k = 0; k < P.ruins; k++) { const s = freeSpot(18, 2); if (s) { buildRuin(s); recomputeAll(); } }
+  for (let k = 0; k < P.rocks; k++) {
     const s = freeSpot(14, 3); if (!s) continue;
     rockOutcrop(s.x + 2, s.z + 2, 2.5 + rng() * 2.5, 2 + Math.floor(rng() * 3));
     recomputeAll();
@@ -393,7 +402,8 @@ function plantTrees(placed, ns) {
     for (const s of placed) { const r = s.kind === 'fortress' ? 24 : 16; if ((s.x - x) * (s.x - x) + (s.z - z) * (s.z - z) < r * r) { bad = true; break; } }
     if (bad) continue;
     const f = fbm(x / 26, z / 26, ns + 21, 3);
-    const forest = smooth(0.62 - tune.forest_amount * 0.22, 0.66 - tune.forest_amount * 0.22, f);
+    const fa = world.preset ? world.preset.forest : tune.forest_amount;
+    const forest = smooth(0.62 - fa * 0.22, 0.66 - fa * 0.22, f);
     const p = forest * tune.forest_density + tune.tree_scatter;
     if (hash2(x, z, ns + 23) >= p) continue;
     put(x, h, z, V.TREE); put(x, h + 1, z, V.TREE);
@@ -496,7 +506,7 @@ function carveRoad(hi, N, WL, path) {
 }
 
 /** Half-size of a site's flat pad (map rule M9): an outpost's holds its wall and its tool shed. */
-function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : 15; }
+function padR(s) { return s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 9 : 17; }
 /**
  * Map rule M4b: along the roads no step is higher than 1, so roads that cross or run side by side at
  * different heights meet in ramps, never cliffs. A site's flat pad is never cut: its height reaches
@@ -623,7 +633,7 @@ function buildingAt(x, z) {
   const k = world.bld[ix + world.N * iz]; return k ? world.buildings[k - 1] : null;
 }
 function buildOutpost(s, home) {
-  const g = s.g, R = 11;
+  const g = s.g, R = 13;
   if (!home) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { // the start has no wall (M9)
     if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
     if (Math.abs(dx) <= 4 || Math.abs(dz) <= 4) continue; // four gates 9 wide
@@ -633,16 +643,25 @@ function buildOutpost(s, home) {
     const t = (dx + dz) % 4 === 0 ? V.GREEN : V.JUNK;
     put(s.x + dx, g, s.z + dz, t); put(s.x + dx, g + 1, s.z + dz, (dx * 7 + dz) % 3 ? V.JUNK : V.RUST);
   }
-  // huts 4x4 in three corners, doors toward the yard; 3 cells to the wall and an 8-wide yard (M9)
-  const toYard = sz => (dx, dz, y) => y < 2 && dz === (sz < 0 ? 3 : 0) && dx === 1;
-  boxShell(s.x - 7, s.z - 7, 4, 4, g, 3, V.RUST, V.JUNK, toYard(-1));
-  boxShell(s.x + 4, s.z - 7, 4, 4, g, 3, V.RUST, V.RUST, toYard(-1));
-  boxShell(s.x - 7, s.z + 4, 4, 4, g, 3, V.RUST, V.JUNK, toYard(1));
-  for (let y = 3; y < 9; y++) put(s.x - 7, g + y, s.z + 7, V.WOOD); // flag pole on the hut roof
-  put(s.x - 6, g + 8, s.z + 7, V.GREEN); put(s.x - 5, g + 8, s.z + 7, V.GREEN); put(s.x - 6, g + 7, s.z + 7, V.GREEN); put(s.x - 5, g + 7, s.z + 7, V.YEL);
-  // fuel tank in the fourth corner
-  for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + 5 + a, g + y, s.z + 5 + b, y === 2 ? V.YEL : V.RUST);
-  buildShed(s, home ? 9 : R);
+  // huts 4x4 in the corners no road crosses, 6 to 9 cells out: an 11-wide yard, 3 cells to the wall,
+  // doors toward the yard (M9); the fuel tank takes a free corner left over
+  const corners = [[-9, -9], [6, -9], [-9, 6], [6, 6]].filter(([a, b]) => {
+    for (let dz = -1; dz <= 4; dz++) for (let dx = -1; dx <= 4; dx++) if (inMap(s.x + a + dx, s.z + b + dz) && world.road[s.x + a + dx + world.N * (s.z + b + dz)]) return false;
+    return true;
+  });
+  const walls = [V.JUNK, V.RUST, V.JUNK];
+  corners.slice(0, 3).forEach(([a, b], k) => {
+    const north = b < 0; // a door on the side facing the yard
+    boxShell(s.x + a, s.z + b, 4, 4, g, 3, V.RUST, walls[k], (dx, dz, y) => y < 2 && dz === (north ? 3 : 0) && dx === (a < 0 ? 2 : 1));
+    if (k === 0) { // the flag on the first hut's roof
+      const fx = s.x + a + (a < 0 ? 0 : 3), fz = s.z + b + (north ? 0 : 3);
+      for (let y = 3; y < 9; y++) put(fx, g + y, fz, V.WOOD);
+      put(fx + 1, g + 8, fz, V.GREEN); put(fx + 2, g + 8, fz, V.GREEN); put(fx + 1, g + 7, fz, V.GREEN); put(fx + 2, g + 7, fz, V.YEL);
+    }
+  });
+  const ft = corners[3];
+  if (ft) for (let y = 0; y < 3; y++) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(s.x + ft[0] + 1 + a, g + y, s.z + ft[1] + 1 + b, y === 2 ? V.YEL : V.RUST);
+  buildShed(s, home ? 11 : R);
   s.home = home;
 }
 /**
@@ -654,7 +673,7 @@ function buildShed(s, R) {
   let best = null;
   for (const [ux, uz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const side of [1, -1]) {
     const px = -uz * side, pz = ux * side;
-    const cx = s.x + ux * (R + 3) + px * 6, cz = s.z + uz * (R + 3) + pz * 6;
+    const cx = s.x + ux * (R + 2) + px * 6, cz = s.z + uz * (R + 2) + pz * 6;
     let score = 0, lo = 99, hi = 0;
     for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
       const x = cx + a, z = cz + b; if (!inMap(x, z)) { score += 100; continue; }

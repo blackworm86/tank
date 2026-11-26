@@ -26,11 +26,15 @@ After play: no, è ingiocabile, il carro si blocca continuamente nelle strutture
 
 After play: il carro si muove meglio. * ridisegna la mappa di test, non riesco a completarla, non c'è modo di attraversare il fiume * gli edifici impedisocno il movimento, soprattutto quello iniziale * dando comandi ai carri amici, cliccando sul proprio carro significa "seguimi". in futuro potremo dare comandi di formazione (colonna, riga, wedge destro/sinistro ecc) * i soldati devono poter entrare negli edifici
 
+After play: Aggiungi un menù contestuale con o comandi che posso dare alle truppe; cliccando destro compare che comandi si possono assegnare
+
+After play: prima di fare push: * razionalizza i comandi, devono essere facili da gestire con la mano sinistra * il giocatore può ridefinire le squadre, e averne fino a 6 - un carro/autoblindo è sempre considerato squadra singola * ridisegna la mappa, voglio una mappa semplice per iniziare i test, quella attuale è troppo complicata * aggiungi alla minimappa * aggiungi la "nebbia di guerra", il gicoatore vede sia sulla mappa che sulla minimappa unità nemiche solo se è in grado di vederle dal proprio carro, o se ci sono unità amiche che "vedono" e sono in raggio d'azione della radio * la torretta dei carri si muove in modo strano rispetto allo scafo, dovrebbe allinearsi con lo scafo * la "linea" di tiro del proprio carro dovrebbe mostrare la linea di tiro effettiva; se passa attraverso ostacoli, la linea dall'ostacolo al cursore dovrebbe diventare rossa
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
 
-**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; avvicinati al capanno degli attrezzi di un avamposto per le modifiche *(you said)*; G seguimi, H fermi, **I imboscata** (la squadra si apposta al riparo e tiene il fuoco finché il nemico non è vicino) *(you said)*; **click destro su un edificio: la fanteria entra; sul proprio carro: seguimi** *(you said)*; **B sali a bordo, U scendi; X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
+**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), V vai, F attacca (su un nemico, o avanzata d'assalto sul terreno), C copertura, R imboscata armano l'ordine del prossimo click; **click destro e trascina: una freccia indica la direzione da tenere all'arrivo** (i mezzi indietreggiano tenendo il fronte verso quella direzione) *(you said)*; passando il mouse vicino a muri, case o al carro compaiono i posti di copertura (verde pesante, giallo leggera) *(you said)*; Shift + click destro aggiunge una tappa al percorso; avvicinati al capanno degli attrezzi di un avamposto per le modifiche *(you said)*; G seguimi, **Z fermi, R imboscata** (la squadra si apposta al riparo e tiene il fuoco finché il nemico non è vicino), B sali/scendi, Alt+1-6 forma squadra, tasto a sinistra di 1: tutte le squadre — tutto sotto la mano sinistra *(you said)*; **click destro: menu degli ordini per quel punto (entra nell'edificio, seguimi sul proprio carro, vai, riparo, attacco, imboscata, fermi…), click o lettera per scegliere, Esc chiude** *(you said)*; **X cannoncino/mitragliatrice sul carro leggero; frecce o click sceglie il mezzo nel titolo** *(you said)*; **F2: pannello sviluppo** (aggiungi/togli soldati, squadre, mezzi; K piazza un nemico al mouse) *(you said)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
 
 **Question:** guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15–20 minuti? *(guessed)*
 
@@ -86,6 +90,14 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Soppressione: le mitragliatrici inchiodano la fanteria (più lenta, mira dimezzata per qualche secondo)
 - [x] Gradi: i soldati che sopravvivono guadagnano esperienza (colpi, uccisioni, campi ripuliti) e salgono Recluta → Esperto → Veterano → Élite: più veloci, mira migliore, più salute, ricarica più rapida; galloni sopra la testa e nella scheda squadra
 - [x] Edifici abitabili: click destro su un edificio (casupole degli avamposti, case in rovina, bunker, baracche della fortezza) e la fanteria entra dalla porta; dentro è al coperto da ogni lato e spara dalle finestre; un'insegna sul tetto mostra quanti sono dentro; se i muri crollano escono feriti; un nuovo ordine li fa uscire
+- [x] Comandi per la mano sinistra: V vai, F attacca, C copertura, R imboscata (armano il prossimo click); G seguimi, Z fermi, B sali/scendi; 1-6 squadre (Shift aggiunge), Alt+1-6 forma una squadra, il tasto a sinistra di 1 seleziona tutte; Q/E camera, Tab modalità, Spazio pausa tattica, Esc menu e pausa
+- [x] Squadre ridefinibili: click su un soldato o riquadro, poi Alt+1-6: i soldati scelti passano alla squadra di quel numero (o ne formano una nuova); al massimo 6 squadre e squad_size soldati per squadra; un carro o un'autoblindo resta sempre una squadra a sé; le squadre rimaste vuote spariscono e i numeri si ricompattano
+- [x] Mappa semplice di prova (map_simple 1, predefinita): 128 di lato, terreno dolce, un fiume coi suoi ponti, niente montagne, mesa, canyon o laghi, 3 campi, poche rovine, rocce e boschi (map_simple 0 torna alla mappa grande)
+- [x] Nebbia di guerra: i predoni si vedono (sulla mappa, nella minimappa, con barre e menu) solo se il carro o un'unità amica dentro il raggio radio li vede; uno sparo li rivela per un attimo
+- [x] Minimappa: il numero di ogni squadra dove si trova (evidenziato se selezionata) e solo i nemici visti
+- [x] Torretta sullo scafo: gira insieme allo scafo e poi brandeggia verso il mouse; in modalità Comando torna in asse con lo scafo; le torrette dei mezzi amici e nemici fanno lo stesso
+- [x] Linea di tiro vera: segue la traiettoria del colpo dalla bocca del cannone (arco per il cannone, dritta per la mitragliatrice) e diventa rossa dal primo ostacolo fino al cursore
+- [x] Menu degli ordini: con squadre selezionate il click destro apre un menu con gli ordini che valgono per quel punto (nemico: attacca; edificio: entra; proprio carro: seguimi, sali a bordo; terreno: vai, al riparo, avanza all'attacco, imboscata, aggiungi tappa, seguimi; sempre: fermi, esci dall'edificio, scendi); si sceglie col click o con la lettera, Esc chiude; trascinando col destro prima di lasciare la freccia di direzione resta valida; Shift + click destro e gli ordini armati (V F C I) agiscono subito; anche il tasto Menu della tastiera lo apre (config context_menu 0 torna agli ordini diretti)
 - [x] Click destro sul proprio carro: le squadre (anche i mezzi amici) ti seguono; la fanteria sale a bordo se il mezzo ha posti
 - [x] Mappa che si attraversa: strade senza gradini oltre 1 voxel, ponti su cui si guida come a terra, nessuna scogliera in mezzo alle strade, piazzole dei siti raccordate al terreno; partenza senza mura; avamposti e campi con 3 celle libere tra edifici e mura
 - [x] Piastrine tra i run per miglioramenti permanenti (thin stand-in)
@@ -100,6 +112,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - M6 Alberi fuori dalle strade.
 - M7 I percorsi dei mezzi stanno a 1 cella da muri, acqua profonda e bordi di scogliera; le costruzioni morbide (rottami, sacchi, alberi) si schiacciano.
 - M9 Siti e ponti: il ponte è terreno per il carro; ogni sito ha una piazzola piana (avamposti 15, campi 9, fortezza 17) raccordata al terreno con un bordo che sale o scende di 1 a cella; la partenza non ha mura; negli avamposti le casupole sono 4x4 con 3 celle libere dalle mura e un cortile largo 8, cancelli larghi 9 e capanno sulla piazzola; nei campi torre e stendardo stanno a 3 celle dal bunker.
+- M9b Avamposti: casupole 4x4 negli angoli dove non passano strade, a 6-9 celle dal centro (cortile largo 11), mura a 13 con cancelli larghi 9, piazzola 17; il primo muro predone sta oltre la piazzola di partenza.
 - M10 Edifici: ogni edificio ha una porta e il pavimento libero (alberi e rottami tolti); i soldati entrano dalla porta fino alla capienza (garrison_cap).
 - M8 Controllo: mapReport() verifica che ogni campo, avamposto e il cancello della fortezza siano raggiungibili dalla partenza (5 mappe di prova: nessuno irraggiungibile, nessuno spuntone, niente costruito sulle strade). Un carro guidato da un programma raggiunge tutti gli 8 obiettivi su 5 mappe su 5, compresa la mappa di test.
 
@@ -124,6 +137,10 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - assoldare soldati e creare team personalizzati · in the slice
 - regole della mappa procedurale · in the slice
 - edifici in cui entrare con la fanteria · in the slice
+- menu contestuale degli ordini col click destro · in the slice
+- squadre ridefinibili (Alt+1-6, max 6, mezzi a sé) · in the slice
+- nebbia di guerra · in the slice
+- mappa semplice di prova · in the slice
 - formazioni dei mezzi (colonna, linea, cuneo destro/sinistro) · later *(you said: "in futuro")*
 - ruoli dei soldati (cecchino in appostamento, copertura) · in the slice
 - imboscate e soppressione · in the slice
@@ -140,7 +157,6 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - Un hub tra i run con personaggi e storia: grow it
 - Molti biomi e boss: grow it
 - Modificatori di difficoltà dopo una vittoria: change it after play
-- Nebbia di guerra ed esplorazione: change it after play
 - Unità eroe con abilità: change it after play
 - Una campagna di missioni con trama: grow it
 - Suono di battaglia che cambia con distanza e luogo: change it after play

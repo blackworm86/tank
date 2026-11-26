@@ -42,10 +42,10 @@ const CONTROLS = [
   'Mouse: punta il cannone (la torretta segue lenta)',
   'Click sinistro: fuoco    Spazio: pausa tattica (ordini a tempo fermo)',
   'Tab: modalità Carro / Comando',
-  'Comando: click dx muove, attacca, entra (edificio), seguimi (carro)',
-  'V vai   F attacca   C copertura   Shift+click dx: aggiungi tappa al percorso',
+  'Comando: click dx apre il menu degli ordini (Shift+click dx: tappa)',
+  'V vai   F attacca   C copertura   R imboscata   Shift+click dx: tappa',
   'Trascina col click dx: freccia della direzione da tenere sul posto',
-  '1-6 squadre   G seguimi   H fermi   B sali a bordo   U scendi   I imboscata',
+  '1-6 squadre   Alt+1-6 forma squadra   G seguimi   Z fermi   B sali/scendi   R imboscata',
   'X: cannoncino / mitragliatrice (carro leggero)',
   'Capanno attrezzi: avvicinati per modificare   Q/E: ruota camera',
   'Rotella: zoom   P: pausa   M: muto   F2: pannello sviluppo',
@@ -87,7 +87,7 @@ const pressed = code => hit.has(code); // true for one step after the key goes d
 addEventListener('keydown', e => {
   startAudio();
   if (!e.repeat) { down.add(e.code); hit.add(e.code); }
-  if (e.code === 'Space' || e.code === 'Tab' || e.code === 'F2' || e.code.startsWith('Arrow')) e.preventDefault();
+  if (e.code === 'Space' || e.code === 'Tab' || e.code === 'F2' || e.code.startsWith('Arrow') || e.altKey) e.preventDefault(); // Alt+1-6 is the game's
 });
 addEventListener('keyup', e => down.delete(e.code));
 addEventListener('pointerdown', () => startAudio());
@@ -152,12 +152,12 @@ const scenes = {
   },
   play: {
     update(dt) {
-      if (pressed('KeyP') || pressed('Escape')) { scene = 'pause'; return; }
+      if (pressed('KeyP') || (pressed('Escape') && !state.menu)) { scene = 'pause'; return; }
       stepPlay(dt);
       state.score = state.kills;
       follow();
     },
-    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); },
+    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawMenu(); },
   },
   shop: {
     update() {

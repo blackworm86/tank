@@ -8,6 +8,7 @@ window.CONFIG = {
   volume: { value: 0.5, min: 0, max: 1, step: 0.05 },
 
   // ---- World (voxels; 1 voxel = 1 unit = about 1 m) ----
+  map_simple: { value: 1, min: 0, max: 1, step: 1 },            // 1: the simple test map (128, gentle ground, one river, 3 camps); 0: the full map below
   map_size: { value: 160, min: 96, max: 224, step: 16 },        // voxels per side
   water_level: { value: 4, min: 2, max: 8, step: 1 },           // water surface height, voxels
   mountain_amount: { value: 1, min: 0, max: 2, step: 0.1 },     // how tall the ridges grow
@@ -29,6 +30,12 @@ window.CONFIG = {
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
   map_cliff: { value: 2.5, min: 1, max: 6, step: 0.5 },          // a ground step at least this high is a cliff: never smoothed into a slope
+  fog: { value: 1, min: 0, max: 1, step: 1 },                   // 1: fog of war, raiders shown only while seen by the tank or a friend in radio reach
+  tank_sight: { value: 50, min: 10, max: 120, step: 1 },          // how far the command tank's crew spots enemies
+  fog_shot_reveal: { value: 1.5, min: 0, max: 6, step: 0.5 },    // seconds a raider's shot gives its place away (near the radio ring)
+  turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front
+  squad_size: { value: 8, min: 1, max: 12, step: 1 },            // most soldiers in one squad (Alt+1-6)
+  context_menu: { value: 1, min: 0, max: 1, step: 1 },          // 1: right-click opens the menu of orders; 0: right-click orders at once (move/attack/enter)
   garrison_cap: { value: 6, min: 1, max: 12, step: 1 },          // most soldiers one building takes
   garrison_ruin: { value: 0.45, min: 0.1, max: 0.9, step: 0.05 }, // share of its walls left below which a building throws its soldiers out
   garrison_hurt: { value: 12, min: 0, max: 50, step: 1 },        // damage to each soldier thrown out by a collapse   // steepest smoothed rise between cells the tank takes (map report)

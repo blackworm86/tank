@@ -122,7 +122,7 @@ function drawMinimap(x0, y0, S) {
   ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   for (const e of state.ents) {
     if (!e.alive || e.kind === 'tank') continue;
-    if (e.team === 1 && !(e.group && e.group.alert && dist2(e, tk) < 60 * 60)) continue;
+    if (e.team === 1 && hiddenFoe(e)) continue; // the fog of war
     ctx.fillStyle = e.team ? '#ff5a40' : '#c8f07a';
     const s = e.veh ? 2.6 : 1.6; ctx.fillRect(e.x - s / 2, e.z - s / 2, s, s);
   }
@@ -131,6 +131,15 @@ function drawMinimap(x0, y0, S) {
   ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(4, -4); ctx.lineTo(0, -2); ctx.lineTo(-4, -4); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.restore();
   ctx.restore();
+  // each squad's number where it stands (upright, outside the map's rotation)
+  const toMini = (x, z) => { const X = x - N / 2, Z = z - N / 2; return { x: x0 + S / 2 + rx * k * X + rz * k * Z, y: y0 + S / 2 - fx * k * X - fz * k * Z }; };
+  state.squads.forEach((sq, i) => {
+    const ms = alive(sq).filter(m => !m.inside); if (!ms.length) return;
+    let ax = 0, az = 0; for (const m of ms) { ax += m.x; az += m.z; } const p = toMini(ax / ms.length, az / ms.length);
+    if (p.x < x0 || p.y < y0 || p.x > x0 + S || p.y > y0 + S) return;
+    rrect(p.x - 7, p.y - 16, 14, 13, 3, sq.selected ? 'rgba(79,227,224,0.9)' : 'rgba(20,28,20,0.85)', sq.selected ? '#dff' : '#c8f07a');
+    text(String(i + 1), p.x, p.y - 9, 10, sq.selected ? '#06221f' : '#c8f07a');
+  });
 }
 function objective() {
   const tk = state.tank, s = world.sites;
@@ -190,10 +199,10 @@ function drawHUD() {
     }
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
-  if (cmd || state.gest) drawOrderAids();
+  if ((cmd || state.gest) && !state.menu) drawOrderAids();
   // bars over units
   for (const e of state.ents) {
-    if (!e.alive || e.kind === 'tank' || e.inside) continue;
+    if (!e.alive || e.kind === 'tank' || e.inside || hiddenFoe(e)) continue;
     if (!(e.selected || e.hp < e.maxhp - 0.5 || (e.kind === 'boss' && e.group.alert))) continue;
     const p = toScreen(e.x, e.y + (e.veh ? 3.6 : 2.6), e.z); if (!p.on) continue;
     const w = e.kind === 'boss' ? 80 : e.veh ? 36 : 22;
@@ -239,7 +248,7 @@ function drawHUD() {
   }
   // order strip: the armed order is lit
   if (cmd) {
-    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['I', 'Imboscata', 'ambush'], ['Shift', 'Tappa', null], ['G', 'Seguimi', null], ['H', 'Fermi', null]];
+    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['R', 'Imboscata', 'ambush'], ['G', 'Seguimi', null], ['Z', 'Fermi', null], ['B', 'Sali/scendi', null]];
     ctx.font = `bold 13px ${FONT}`;
     const ws = ords.map(o => ctx.measureText(o[0]).width + ctx.measureText(o[1]).width + 30);
     let ox = W / 2 - (ws.reduce((a, b) => a + b, 0) + 6 * (ords.length - 1)) / 2;
@@ -300,7 +309,7 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['1-6 squadra   B sali   U scendi', 'Click dx: muovi / attacca  (trascina: direzione)', 'Click dx su edificio: entra   sul carro: seguimi', 'V F C + click   Shift + click dx: tappa']
+    ? ['1-6 squadra   Alt+1-6 forma squadra   \\ tutte', 'Click dx: menu ordini (trascina: direzione)', 'V F C R + click   G segui   Z fermi   B bordo', 'Shift + click dx: tappa   Esc: chiudi menu']
     : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio: pausa tattica   Tab: comando', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else {
@@ -511,6 +520,25 @@ function drawOrderAids() {
     if (p0.on) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p0.x, p0.y, 5, 0, 6.3); ctx.fill(); }
     text('direzione da tenere', MS.x + 18, MS.y + 18, 12, col, 'left');
   }
+}
+
+/** The order menu: the squads' name, then one row per order with its letter; the clicked point is marked on the ground. */
+function drawMenu() {
+  const m = state.menu; if (!m) return;
+  const p0 = toScreen(m.p.x, m.p.y + 0.3, m.p.z);
+  if (p0.on) { ctx.strokeStyle = HC.cyan; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p0.x, p0.y, 9, 0, 6.3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(m.x, m.y + 12); ctx.stroke(); }
+  if (m.face != null) groundArrow(m.p.x, m.p.z, m.face, 5, HC.cyan, 3);
+  rrect(m.x, m.y, MENU.w, m.h, 7, 'rgba(18,14,11,0.94)', HC.edge);
+  text(m.title, m.x + 12, m.y + 14, 13, HC.gold, 'left');
+  text('Esc: chiudi', m.x + MENU.w - 10, m.y + 14, 11, HC.dim, 'right');
+  const hv = menuHover();
+  m.items.forEach((it, k) => {
+    const y = m.y + MENU.head + k * MENU.row;
+    if (k === hv && !it.off) rrect(m.x + 4, y + 1, MENU.w - 8, MENU.row - 2, 4, 'rgba(79,227,224,0.18)', null);
+    rrect(m.x + 10, y + 4, 20, 18, 3, it.off ? 'rgba(60,50,40,0.8)' : 'rgba(60,44,30,0.95)', it.off ? '#5a4a3a' : HC.edge);
+    text(it.key, m.x + 20, y + 13, 12, it.off ? '#7a6a5a' : HC.gold);
+    text(it.label, m.x + 40, y + 13, 13, it.off ? '#7a6a5a' : (it.col || HC.text), 'left');
+  });
 }
 
 // ---- The tank's armour, seen from above: which face is thick, which face was just hit ----------------

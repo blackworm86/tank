@@ -80,7 +80,8 @@ function initView() {
   R3.radio = makeLoop(128, new THREE.LineDashedMaterial({ color: 0x4fe3e0, dashSize: 1.4, gapSize: 0.9, transparent: true, opacity: 0.9, fog: false }));
   R3.aim = makeLoop(56, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, fog: false }));
   R3.aim2 = makeLoop(56, new THREE.LineBasicMaterial({ color: 0x1d1b1a, transparent: true, opacity: 0.5, fog: false }));
-  R3.gunLine = makeLine(2, new THREE.LineBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.55, fog: false }));
+  R3.gunLine = makeLine(33, new THREE.LineBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.7, fog: false }));
+  R3.gunRed = makeLine(33, new THREE.LineBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.9, fog: false, depthTest: false }));
   R3.mouseMark = makeLoop(4, new THREE.LineBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.85, fog: false }));
   R3.ready = true;
   fitGL();
@@ -523,9 +524,9 @@ function renderWorld() {
   for (const e of state.ents) {
     if (e.gone) { if (e.model) { R3.units.remove(e.model); e.model = null; } continue; }
     if (e.inside) { if (e.model) e.model.visible = false; continue; }
-    if (e.model && !e.model.visible) e.model.visible = true;
     if (e.kind === 'tank' && e.lookKey !== state.lookKey) { if (e.model) R3.units.remove(e.model); e.model = null; e.lookKey = state.lookKey; }
     syncModel(e);
+    if (e.model) e.model.visible = !hiddenFoe(e); // the fog of war: a raider nobody sees is not drawn
   }
   poolsBegin();
   // debris
@@ -568,6 +569,7 @@ function renderWorld() {
   const show = !!tk && tk.alive && scene !== 'title';
   R3.radio.visible = show;
   R3.aim.visible = R3.aim2.visible = R3.gunLine.visible = show && state.mode === 'tank' && !!state.aimP;
+  R3.gunRed.visible = R3.gunLine.visible && !!state.fireLine && state.fireLine.block >= 0;
   R3.mouseMark.visible = R3.aim.visible && !!state.mouse3;
   if (show) {
     ringPoints(R3.radio, tk.x, tk.z, tankStats().radio, 0.35, true);
@@ -576,8 +578,14 @@ function renderWorld() {
       const a = state.aimP, r = Math.max(0.4, tk.spread * a.dist);
       ringPoints(R3.aim, a.x, a.z, r, 0.2, false); ringPoints(R3.aim2, a.x, a.z, r + 0.14, 0.18, false);
       R3.aim.material.color.setHex(tk.reload > 0 ? 0x9a9a9a : tk.aligned ? 0xffffff : 0xffa040);
-      const gp = R3.gunLine.geometry.attributes.position;
-      gp.setXYZ(0, tk.x + Math.sin(tk.turretYaw) * 3.5, tk.vy + 1.9, tk.z + Math.cos(tk.turretYaw) * 3.5); gp.setXYZ(1, a.x, a.y + 0.3, a.z); gp.needsUpdate = true;
+      // the line of fire: the round's real path, red from the first thing in the way to the mouse
+      const fl = state.fireLine, gp = R3.gunLine.geometry.attributes.position, rp = R3.gunRed.geometry.attributes.position;
+      if (fl) {
+        const end = fl.block >= 0 ? fl.block : 32;
+        for (let k = 0; k <= end; k++) gp.setXYZ(k, fl.pts[k].x, fl.pts[k].y + 0.05, fl.pts[k].z);
+        R3.gunLine.geometry.setDrawRange(0, end + 1); gp.needsUpdate = true;
+        if (fl.block >= 0) { for (let k = fl.block; k <= 32; k++) rp.setXYZ(k - fl.block, fl.pts[k].x, fl.pts[k].y + 0.05, fl.pts[k].z); R3.gunRed.geometry.setDrawRange(0, 33 - fl.block); rp.needsUpdate = true; }
+      }
       if (state.mouse3) {
         const m = state.mouse3, mp = R3.mouseMark.geometry.attributes.position;
         mp.setXYZ(0, m.x + 0.9, m.y + 0.2, m.z); mp.setXYZ(1, m.x, m.y + 0.2, m.z + 0.9); mp.setXYZ(2, m.x - 0.9, m.y + 0.2, m.z); mp.setXYZ(3, m.x, m.y + 0.2, m.z - 0.9); mp.needsUpdate = true;
