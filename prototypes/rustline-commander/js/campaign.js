@@ -143,7 +143,7 @@ function setupMap() {
   missionSetup(M, n); chainSetup(n); // missions.js: hold, escort, sabotage, hunt; the trail's step
   if (n.final) setupFinal();
   else {
-    say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
+    say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '. (Campagna ' + campSeed + ': ?seed=' + campSeed + ' la rigioca.)', '#ffd9a0');
     say('SITREP', world.geos.map(g => GEOS[g].brief).join(' ') + (world.shape !== 'open' ? ' Mappa: ' + SHAPES[world.shape].name + '.' : '') + ' Nessuna officina qui: riparazioni e modifiche solo all\'uscita dal settore.', '#b6d77a');
   }
 }

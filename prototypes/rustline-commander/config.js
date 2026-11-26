@@ -4,7 +4,7 @@
 // Every tuning value lives here, each with value, min, max and step. The game reads them live
 // through tune.<name> (index.html); the tweak panel, an add-on, writes them back here.
 window.CONFIG = {
-  seed: 1, // every gameplay random call reads rng(), seeded from this (or ?seed= in the address)
+  seed: 0, // every gameplay random call reads rng(), seeded from this (or ?seed= in the address); 0 = a new seed each campaign (checks use 1)
   volume: { value: 0.5, min: 0, max: 1, step: 0.05 },
 
   // ---- World (voxels; 1 voxel = 1 unit = about 1 m) ----

@@ -139,9 +139,12 @@ function tone(freq, dur, type = 'square', vol = 0.3) {
 }
 
 // ---- Scenes -------------------------------------------------------------------------------
-let scene, state, runNo = 0;
+let scene, state, runNo = 0, campSeed = 0;
 function reset() {
-  seed = (Number(params.get('seed')) || CONFIG.seed) + runNo * 7919; runNo++;
+  // a fixed seed (the address, config, or a headless check) replays the same campaigns; otherwise each one is new
+  const fixed = Number(params.get('seed')) || CONFIG.seed || (window.GAME_CLOCK || CHEAP ? 1 : 0);
+  campSeed = fixed ? fixed + runNo * 7919 : 1 + (Date.now() + runNo * 7919) % 999983; runNo++;
+  seed = campSeed;
   // state.gained: what this run gained or learned, the high the ending shows.
   state = { t: 0, score: 0, gained: '' };
   newCampaign(); startNode(campNode(0), null); state.goScene = null;
