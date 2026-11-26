@@ -4,9 +4,9 @@
 // More kinds of sector: hold a spot until the way opens (waves come), escort refugees to the exit, blow up
 // a fuel depot, hunt down a raider warlord and his escort. And trails that run over several sectors (the
 // missing colonel, the depot map in three pieces, the Butcher): each step is a side objective in a sector,
-// the next step waits in the sectors that follow, the last pays well. Hooks in campaign.js: newCampaign
-// (pickMission, seedChains), setupMap (missionSetup, chainSetup), campaignUpdate (missionUpdate,
-// chainUpdate), departSector (missionLeave, chainLeave), the map tags, the mission line, the minimap.
+// the next step waits in the sectors that follow, the last pays well. It listens to the campaign's
+// events (core.js: campaignStart, sectorSetup, sectorStep, sectorLeave, at the end of this file); campaign.js
+// still calls pickMission, the map tags, the mission line and the minimap directly.
 
 Object.assign(MISSIONS, {
   hold: { name: 'Resisti', tag: 'TIENI QUI', sign: 'posizione da tenere', brief: 'I genieri aprono il varco verso l\'uscita: tieni il punto segnato finché finiscono, mentre l\'Orda attacca.' },
@@ -205,3 +205,9 @@ function missionMinimap(ring) {
   const S = state.side; if (S && !S.done && S.target) ring(S.target.x, S.target.z, 8, '#ffd36a');
   const M = state.mission; if (M && M.kind === 'hold' && !M.done) ring(M.target.x, M.target.z, tune.hold_radius, '#ffd36a');
 }
+
+// ---- Events (core.js) -----------------------------------------------------------------------------------
+on('campaignStart', () => seedChains());
+on('sectorSetup', (M, n) => { missionSetup(M, n); chainSetup(n); }); // hold, escort, sabotage, hunt; the trail's step
+on('sectorStep', (M, dt) => { missionUpdate(M, dt); chainUpdate(dt); });
+on('sectorLeave', mission => { missionLeave(mission); chainLeave(); });

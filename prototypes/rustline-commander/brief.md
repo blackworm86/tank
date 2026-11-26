@@ -68,6 +68,8 @@ After play: ATTENZIONE - facendo click su un item nei prompt delle quest, il gio
 After play: * i punti di attacco variano a seconda dello scafo; fammi delle proposte * il 'doppio cannone' è un esempio che ho fatto; in generale ti direi che l'officina a fine mappa propone da 0 a 3 moduli nuovi da comprare, generati casualmente. * le placche danneggiate riducono la loro efficacia fino a 0 finché non vengono riparate; e esteticamente degradano
 After play (risposte): punti di attacco B: 6 / 4 / 5 (APC 6, carro leggero 4, carro da battaglia 5); tutto casuale: anche motore, cingoli, corazza, radio, sensori diventano moduli offerti a caso.
 After play: le mappe mi sembrano sempre le stesse; hai cominciato a implementare un sistema di generazione procedurale della campagna e delle mappe?
+After play: facciamo una lista dei sistemi attuali, e vediamo come separarli razionalmente. voglio sviluppare sistemi modulari, e che il gioco possa essere espanso a mio piacimento
+After play (risposte): Rifattorizza qui (niente build, restano i tag script).
 
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
@@ -210,6 +212,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Officina da campo a fine mappa: da 0 a 3 moduli nuovi a caso a ogni visita (i rari crescono lungo la campagna), click su un punto di attacco per scegliere dove montare, il mezzo gira nell'anteprima al centro, magazzino per i moduli smontati, vendita a metà prezzo; il meccanico e i depositi regalano un modulo a caso (ws_none, ws_offers_max, mod_rare_w, mod_exc_w, module_refund)
 - [x] Placche che si consumano: ogni colpo sul lato coperto ne toglie un po', la protezione scende fino a 0 e la placca arrugginisce, si annerisce, si piega e perde pezzi; il pilota avvisa quando una è distrutta, pallini sull'HUD, si riparano solo in officina (tab Riparazioni) (plate_wear, plate_wear_bullet, plate_repair_k)
 - [x] Ogni campagna nuova ha un seme suo (prima ogni apertura del gioco ripartiva dal seme 1 e rifaceva la stessa campagna); il SITREP del settore scrive il numero e ?seed=N nell'indirizzo la rigioca; i controlli automatici restano sul seme 1 (seed: 0 = nuovo ogni campagna)
+- [x] Struttura modulare, passo 1 (docs/architecture/rustline-modular-plan.md): js/core.js con il registro dei contenuti e gli eventi; sim.js (2.000 righe) diviso in 15 file per sistema in js/systems/ (unità, mezzo, squadre, nebbia, menu ordini, passo di gioco, carro, combattimento, economia, caserma, suono, sviluppo...); campagna, fazioni, missioni e nemici speciali si parlano con eventi (campaignStart, sectorSetup, sectorStep, sectorLeave, kill); stessa partita con lo stesso seme, impronta identica
 
 ## Map rules
 - M1 Rilievo: il terreno è sfumato (media 5x5) e il carro guida su quella superficie; blocca solo una pendenza più ripida di tank_slope_span sotto l'impronta del carro. Un gradino di map_cliff o più è una scogliera e non viene sfumato.

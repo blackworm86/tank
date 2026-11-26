@@ -54,7 +54,7 @@ function newCampaign() {
     for (const b of B) if (!A.some(a => a.next.includes(b.id))) A.slice().sort((p, q) => Math.abs(p.y - b.y) - Math.abs(q.y - b.y))[0].next.push(b.id);
   }
   state.camp = { cols, cur: 0, visited: [0], lost: 0, sector: 1, rep: {} };
-  seedChains(); // missions.js: trails over several sectors
+  emit('campaignStart'); // core.js events: the trails over several sectors (missions.js)
 }
 function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (n.id === id) return n; return null; }
 /** What a sector's map holds, from its SITREP. */
@@ -139,8 +139,7 @@ function setupMap() {
       break;
     }
   }
-  setupFactions(); // factions.js: the settlement, its people and the faction's ways
-  missionSetup(M, n); chainSetup(n); // missions.js: hold, escort, sabotage, hunt; the trail's step
+  emit('sectorSetup', M, n); // the settlement and its faction (factions.js), the mission and the trail's step (missions.js)
   if (n.final) setupFinal();
   else {
     say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '. (Campagna ' + campSeed + ': ?seed=' + campSeed + ' la rigioca.)', '#ffd9a0');
@@ -185,7 +184,7 @@ function campaignUpdate(dt) {
     }
     if (M.done && !state.final) say('Radio', 'Missione compiuta! Invio per lasciare il settore subito, o prosegui verso l\'uscita.', '#9fe3a0');
   }
-  missionUpdate(M, dt); chainUpdate(dt); // missions.js
+  emit('sectorStep', M, dt); // missions.js: the mission, the trail
   // side jobs
   for (const q of state.quests) {
     if (q.done) continue;
@@ -233,7 +232,7 @@ function leaveSector() {
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
 function departSector() {
   state.leaving = false;
-  missionLeave(state.mission); chainLeave(); // missions.js
+  emit('sectorLeave', state.mission); // missions.js: what the mission and the trail leave behind
   const c = carryOut();
   if (!c.lost && c.squads.length >= 3) grantAch('allhome');
   state.carry = c; state.carryT = c.time; state.camp.lost = c.lost;

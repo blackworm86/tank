@@ -7,7 +7,7 @@
 // comes from, medics and radio men back) and advance in bounds under fire, half moving while half
 // covers. Raider groups make a plan: some pin the target down from cover, some work round its flank,
 // rockets go for a hull's side, technicals circle; they take to buildings, call for reinforcements
-// when they bleed and fall back when beaten. Loaded after sim.js.
+// when they bleed and fall back when beaten. Loaded after systems/.
 'use strict';
 
 // ---- Scoring cover --------------------------------------------------------------------------------------------

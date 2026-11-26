@@ -6,7 +6,7 @@
 // raiders' scrap tank, the self-propelled gun) and the fuel depot to blow up. Each kind has its numbers,
 // its weapon, its model and its way of fighting (enemyThink); campExtras, patrolKinds and waveKinds
 // decide who turns up where. Hooks: UT, weapon(), unitHp(), baseSpeed(), pickTarget(), fire(), kill(),
-// raiderThink() in sim.js; modelFor() in view.js.
+// raiderThink() in systems/unitstep.js; modelFor() in view.js; the kill event (core.js).
 
 /**
  * The new kinds. hp and speed are functions of the config (and of the tier for the infantry).
@@ -33,7 +33,7 @@ const ENEMY_IDS = Object.keys(ENEMY).filter(k => k !== 'depot');
 DEV_ENEMIES.push(...ENEMY_IDS, 'depot'); // the dev panel can place them (K)
 FIGS.push(...ENEMY_IDS.map(k => [k, ENEMY[k].name]), ['depot', ENEMY.depot.name]); // and the figures sheet shows them
 
-/** The extra weapons (weapon() in sim.js asks here for kinds it does not know). */
+/** The extra weapons (weapon() in systems/units.js asks here for kinds it does not know). */
 const EXTRA_W = {
   bomb: () => ({ kind: 'bomb', special: bombFire, range: 2.4, dmg: tune.bomb_damage, rate: 0.4, blast: 2.3, move: true }),
   r_sniper: () => ({ kind: 'bullet', range: tune.sniper_range * 0.9, dmg: tune.sniper_damage * 0.8, rate: tune.sniper_rate * 1.25, acc: Math.min(0.9, tune.raider_acc * 1.8), snd: 'sniper', sight: 1.7 }),
@@ -259,3 +259,6 @@ const ENEMY_MODELS = {
     g.userData = { hull: b }; selRing(g, 4.2); return g;
   },
 };
+
+// ---- Events (core.js) -----------------------------------------------------------------------------------
+on('kill', e => { if (ENEMY[e.kind]) enemyOnKill(e); }); // a bomber's charge, a fuel depot going up

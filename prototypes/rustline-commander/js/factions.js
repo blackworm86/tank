@@ -252,3 +252,6 @@ function revealAround(x, z, r) {
   for (let gz = 0; gz < G; gz++) for (let gx = 0; gx < G; gx++) if (Math.hypot(gx * 2 + 1 - x, gz * 2 + 1 - z) < r) E[gx + G * gz] = 1;
   world.mapDirty = true;
 }
+
+// ---- Events (core.js) -----------------------------------------------------------------------------------
+on('sectorSetup', () => setupFactions()); // the settlement, its people and the faction's ways
