@@ -192,7 +192,7 @@ function randomSystem(activeFirst) {
   const pool = SYSTEM_IDS.filter(id => !state.owned.includes(id)), act = pool.filter(id => SYSTEMS[id].active);
   const from = activeFirst && act.length ? act : pool; return from.length ? from[Math.floor(rng() * from.length)] : null;
 }
-function giveSystem(id) { state.owned.push(id); if (state.systems.length < sysSlots()) mountSystem(id); return SYSTEMS[id].name + (modOn(id) ? ' (montato)' : ' (in magazzino: montalo al garage)'); }
+function giveSystem(id) { state.owned.push(id); if (state.systems.length < sysSlots()) mountSystem(id); return SYSTEMS[id].name + (modOn(id) ? ' (montato)' : ' (in magazzino: montalo all\'officina, all\'uscita)'); }
 
 // ---- The dialogues ------------------------------------------------------------------------------------------------
 /** The settlement's window, built when the tank comes up: lines and choices depend on the reputation. */
@@ -207,7 +207,7 @@ function factionEvent(p) {
     C.push({ label: 'Riparazioni, +50% integrità (' + pr + ')', need: () => state.scrap >= pr && tk.hp < tk.maxhp, act: () => { state.scrap -= pr; tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.5); addRep(f, 3); return 'Saldature fresche sullo scafo.'; } });
     if (once('sys')) C.push({ label: 'Un sistema avanzato dal camion (' + ps + ')', need: () => state.scrap >= ps && !!randomSystem(), act: () => { state.scrap -= ps; mark('sys'); const r = giveSystem(randomSystem()); addRep(f, 5); return 'Affare fatto: ' + r + '.'; } });
     if (once('job')) C.push({ label: 'Incarico: porta una loro cassa all\'uscita (+' + tune.job_scrap + ' rottami)', act: () => { mark('job'); state.quests.push({ kind: 'deliver', fac: f, scrap: tune.job_scrap, giver: F.short, text: 'Porta la cassa dei mercanti all\'uscita' }); return 'La cassa è nel vano. Portala all\'uscita del settore.'; } });
-    C.push({ label: 'Rapina la carovana (+120 rottami, diventano ostili)', act: () => { state.scrap += 120; addRep(f, -60); factionAttack(f, p.x, p.z, 4); return 'Prendi quello che puoi. Le guardie aprono il fuoco!'; } });
+    C.push({ label: 'Rapina la carovana (+60 rottami, diventano ostili)', act: () => { state.scrap += 60; addRep(f, -60); factionAttack(f, p.x, p.z, 4); return 'Prendi quello che puoi. Le guardie aprono il fuoco!'; } });
   } else if (f === 'coloni') {
     text = friend ? '"Gli amici dei pozzi sono sempre i benvenuti. Cosa possiamo fare per voi?"' : 'Case basse, un pozzo, gente magra e diffidente. "Qui abbiamo poco, e i predoni vengono a prenderselo."';
     const pr = fprice(f, 30);
@@ -215,7 +215,7 @@ function factionEvent(p) {
     if (once('def')) C.push({ label: 'Incarico: difendi il borgo dalla prossima razzia', act: () => { mark('def'); state.quests.push({ kind: 'defend', site: { x: p.x, z: p.z }, at: state.t + tune.raid_delay, scrap: tune.job_scrap, giver: F.short, text: 'Difendi il borgo dei coloni' }); return 'I predoni arriveranno tra poco. Prepara le difese attorno al borgo.'; } });
     if (friend && once('vol')) C.push({ label: 'Chiedi dei volontari', act: () => { mark('vol'); joinSquad(['rifle', 'rifle', 'scout'], 'Volontari dei pozzi', tk.x - 4, tk.z - 4); return 'Tre giovani prendono i fucili e salgono dietro al carro.'; } });
     C.push({ label: 'I fabbri del borgo: +30% integrità (' + pr + ')', need: () => state.scrap >= pr && tk.hp < tk.maxhp, act: () => { state.scrap -= pr; tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); return 'Lamiere battute a mano, ma reggono.'; } });
-    C.push({ label: 'Requisisci le provviste (+60 rottami, li tradisci)', act: () => { state.scrap += 60; addRep(f, -45); return 'Prendi tutto. Ti guardano andare via in silenzio.'; } });
+    C.push({ label: 'Requisisci le provviste (+30 rottami, li tradisci)', act: () => { state.scrap += 30; addRep(f, -45); return 'Prendi tutto. Ti guardano andare via in silenzio.'; } });
   } else if (f === 'disertori') {
     const toll = friend ? 0 : fprice(f, tune.toll);
     text = friend ? '"Passa pure, comandante. Chi combatte l\'Orda è dei nostri."' : 'Sacchetti di sabbia, una sbarra a strisce e mitragliatrici puntate. "Posto di blocco della 4ª. Si paga, o si torna indietro."';
@@ -224,7 +224,7 @@ function factionEvent(p) {
     if (once('vet')) C.push({ label: 'Assolda una squadra di veterani (' + pv + ')', need: () => state.scrap >= pv, act: () => { state.scrap -= pv; mark('vet'); promote(joinSquad(['rifle', 'mg', 'at'], 'Veterani della 4ª', tk.x - 4, tk.z - 4), 2); addRep(f, 5); return 'Tre veterani salgono a bordo. Sanno il fatto loro.'; } });
     if (friend && once('ap')) C.push({ label: 'Colpi perforanti dal loro deposito (8 AP, 25)', need: () => state.scrap >= 25 && ammoTotal() < ammoMax(), act: () => { state.scrap -= 25; mark('ap'); return addAmmo('ap', 8) + ' colpi AP caricati.'; } });
     const half = Math.round(WEAPONS.c75.cost / 2);
-    if (friend && once('gun') && !state.weaponsOwned.includes('c75')) C.push({ label: 'Cannone 75mm a metà prezzo (' + half + ')', need: () => state.scrap >= half, act: () => { state.scrap -= half; mark('gun'); state.weaponsOwned.push('c75'); return 'Il cannone è tuo: montalo al garage (Arma e colpi).'; } });
+    if (friend && once('gun') && !state.weaponsOwned.includes('c75')) C.push({ label: 'Cannone 75mm a metà prezzo (' + half + ')', need: () => state.scrap >= half, act: () => { state.scrap -= half; mark('gun'); state.weaponsOwned.push('c75'); return 'Il cannone è tuo: montalo all\'officina, all\'uscita dal settore (Arma e colpi).'; } });
     C.push({ label: 'Passa con la forza', act: () => { liftBarrier(); addRep(f, -40); factionAttack(f, p.x, p.z, 5); return 'Sfondi la sbarra. Dal bunker partono le raffiche!'; } });
   } else if (f === 'culto') {
     text = friend ? '"Il Ferro ti riconosce, fratello. Le macchine antiche parlano di te."' : 'Totem di lamiera, fuochi e uomini con maschere di rottami che cantano attorno a un mucchio di relitti. "Il Ferro dorme qui. Non svegliarlo."';
@@ -232,12 +232,12 @@ function factionEvent(p) {
     C.push({ label: 'Offerta di rottami al Ferro (40)', need: () => state.scrap >= 40, act: () => { state.scrap -= 40; addRep(f, 15); return 'Il sacerdote annuisce. Il Culto ti guarda con meno sospetto.'; } });
     if (rep(f) >= 0 && once('sys')) C.push({ label: 'Baratta un sistema antico (' + ps + ')', need: () => state.scrap >= ps && !!randomSystem(true), act: () => { state.scrap -= ps; mark('sys'); const r = giveSystem(randomSystem(true)); addRep(f, 5); return 'Ti consegnano una reliquia funzionante: ' + r + '.'; } });
     if (friend) C.push({ label: 'Benedizione del Ferro: ripara tutto (' + pb + ')', need: () => state.scrap >= pb && tk.hp < tk.maxhp, act: () => { state.scrap -= pb; tk.hp = tk.maxhp; return 'Mani esperte e canti strani: lo scafo è come nuovo.'; } });
-    C.push({ label: 'Profana il santuario (+80 rottami, diventano ostili)', act: () => { state.scrap += 80; addRep(f, -60); factionAttack(f, p.x, p.z, 5); return 'Spogli i relitti sacri. Le maschere imbracciano i lanciarazzi!'; } });
+    C.push({ label: 'Profana il santuario (+40 rottami, diventano ostili)', act: () => { state.scrap += 40; addRep(f, -60); factionAttack(f, p.x, p.z, 5); return 'Spogli i relitti sacri. Le maschere imbracciano i lanciarazzi!'; } });
     C.push({ label: 'Vattene in silenzio', act: () => 'I canti riprendono alle tue spalle.' });
   } else if (f === 'ratti') {
     text = friend ? '"Ehi, socio! Abbiamo trovato roba buona, ne vuoi una parte?"' : 'Moto truccate, tende e cumuli di ferraglia. Un tipo magro con gli occhiali da saldatore ti squadra. "Questi relitti sono nostri. Chi arriva prima, prende."';
     const px = fprice(f, 50);
-    if (once('share')) C.push({ label: 'Spartisci il bottino (+40 rottami)', act: () => { mark('share'); state.scrap += 40; addRep(f, 15); return 'Ti passano una parte del bottino: 40 rottami. "Alla prossima, socio."'; } });
+    if (once('share')) C.push({ label: 'Spartisci il bottino (+20 rottami)', act: () => { mark('share'); state.scrap += 20; addRep(f, 15); return 'Ti passano una parte del bottino: 20 rottami. "Alla prossima, socio."'; } });
     if (once('scout')) C.push({ label: 'Assolda i loro esploratori (' + px + '): rivelano la zona', need: () => state.scrap >= px, act: () => { state.scrap -= px; mark('scout'); revealAround(p.x, p.z, tune.scout_reveal); state.campsKnown = true; addRep(f, 5); return 'Ti segnano campi e strade: la zona attorno è scoperta, i campi cerchiati.'; } });
     C.push({ label: 'Cacciali via (i relitti tornano liberi)', act: () => { addRep(f, -35); factionAttack(f, p.x, p.z, 3); state.rats = false; return 'I Ratti montano in sella e aprono il fuoco!'; } });
     C.push({ label: 'Lasciali in pace', act: () => '"Saggio, comandante."' });

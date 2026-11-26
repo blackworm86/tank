@@ -32,6 +32,7 @@ function newCampaign() {
       n.outpost = rng() < 0.3;
       n.biome = rng() < 0.6 ? colBiome : BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)];
       n.layout = LAYOUT_IDS[Math.floor(rng() * LAYOUT_IDS.length)];
+      n.geo = GEO_IDS[Math.floor(rng() * GEO_IDS.length)];
       const m = rng(); n.mission = m < 0.3 ? 'camp' : m < 0.5 ? 'rescue' : m < 0.7 ? 'cache' : 'exit';
       col.push(n);
     }
@@ -54,8 +55,8 @@ function newCampaign() {
 function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (n.id === id) return n; return null; }
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
-  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout };
-  return { faction: n.faction, biome: n.biome, layout: n.layout, camps: n.enemy, outposts: n.outpost ? 2 : 1, wrecks: [0, 2, 3, 5][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout, geo: 'hills' };
+  return { faction: n.faction, biome: n.biome, layout: n.layout, geo: n.geo, camps: n.enemy + 1, outposts: 0, wrecks: [0, 1, 2, 3][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -138,8 +139,7 @@ function setupMap() {
   if (n.final) setupFinal();
   else {
     say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
-    const gs = s.outposts.filter(o => o.shed);
-    if (gs.length) say('SITREP', (gs.length > 1 ? 'Due garage amici: ' : 'Garage amico: ') + gs.map(o => o.name).join(' e ') + ' (croce verde sulla minimappa). Lì modifiche, colpi e pezzi trovati.', '#b6d77a');
+    say('SITREP', GEOS[world.geo].brief + ' Nessuna officina qui: riparazioni e modifiche solo all\'uscita dal settore.', '#b6d77a');
   }
 }
 /** The eighth sector: the army's last camp, its squads and tanks, and the Horde's gate. */
@@ -173,7 +173,7 @@ function campaignUpdate(dt) {
       } else { state.scrap += tune.mission_scrap; say('Radio', 'Campo distrutto: +' + tune.mission_scrap + ' rottami.', '#ffd36a'); }
     }
     if (M.kind === 'cache' && Math.hypot(M.cache.x - tk.x, M.cache.z - tk.z) < 4.5) {
-      M.done = true; const v = tune.mission_scrap + 40; state.scrap += v; sfx('coin');
+      M.done = true; const v = tune.mission_scrap + tune.cache_bonus; state.scrap += v; sfx('coin');
       floatText(M.cache.x, hAt(M.cache.x, M.cache.z) + 2, M.cache.z, '+' + v + ' rottami', '#ffd36a');
       if (rng() < 0.5) { const sl = freeUpgrade(); say('Radio', 'Deposito aperto: ' + v + ' rottami' + (sl ? ' e un pezzo nuovo (' + sl + ')' : '') + '.', '#ffd36a'); }
       else { tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); say('Radio', 'Deposito aperto: ' + v + ' rottami e materiale per le riparazioni.', '#ffd36a'); }
@@ -215,8 +215,17 @@ function campaignUpdate(dt) {
   state.leaveOK = !state.final && (state.atExit || (M.done && M.kind !== 'exit'));
   if (state.leaveOK && pressed('Enter') && !state.goScene) leaveSector();
 }
-/** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
+/** At the exit: the field workshop opens first (upgrades, rounds, repairs, men); closing it leaves the map. */
 function leaveSector() {
+  const n = state.node;
+  n.ws = n.ws || { name: 'Officina da campo', field: true };
+  Object.assign(n.ws, { x: state.tank.x - 4, z: state.tank.z - 4 }); // recruits and reinforcements gather by the tank
+  state.shopSite = n.ws; state.leaving = true; state.shopTab = 4; state.shopMsg = ''; state.confirm = null; state.tank.speed = 0;
+  state.goScene = 'shop'; sfx('radio');
+}
+/** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
+function departSector() {
+  state.leaving = false;
   const c = carryOut();
   if (!c.lost && c.squads.length >= 3) grantAch('allhome');
   state.carry = c; state.carryT = c.time; state.camp.lost = c.lost;
@@ -264,7 +273,7 @@ function finalUpdate(dt) {
 // ---- Help for the events -----------------------------------------------------------------------------
 /** New men join as a squad of their own near (x,z); with no room left they bring scrap instead. */
 function joinSquad(kinds, name, x, z) {
-  if (state.squads.length >= maxSquads()) { const v = 25 * kinds.length; state.scrap += v; say('Radio', 'Non abbiamo posto per altre squadre: ci lasciano ' + v + ' rottami.', '#ffd36a'); return null; }
+  if (state.squads.length >= maxSquads()) { const v = 10 * kinds.length; state.scrap += v; say('Radio', 'Non abbiamo posto per altre squadre: ci lasciano ' + v + ' rottami.', '#ffd36a'); return null; }
   const sq = addSquad(kinds, x, z); if (!sq) return null;
   sq.order = { t: 'follow' }; sq.name = name; sq.named = true;
   return sq;
@@ -291,7 +300,7 @@ const EVENTS = [
   { id: 'disertori', fac: null, fig: 'r_rifle', title: 'Disertori dell\'Orda', text: 'Tre uomini con le insegne dell\'Orda strappate alzano le mani. "Ne abbiamo abbastanza del Capo. Prendeteci con voi, sappiamo sparare."',
     choices: [
       { label: 'Accoglili nel gruppo', act: () => { if (state.node.col > 0 && rng() < 0.2) { ambush(5); return 'Era una trappola! Altri predoni escono dai cespugli.'; } joinSquad(['rifle', 'rifle', 'mg'], 'Disertori', state.tank.x - 4, state.tank.z - 4); return 'Si mettono in fila dietro al carro. Una squadra in più.'; } },
-      { label: 'Prendi le loro armi e mandali via (+40 rottami)', act: () => { state.scrap += 40; return 'Lasciano fucili e munizioni e spariscono tra le rovine.'; } },
+      { label: 'Prendi le loro armi e mandali via (+20 rottami)', act: () => { state.scrap += 20; return 'Lasciano fucili e munizioni e spariscono tra le rovine.'; } },
       { label: 'Tira dritto', act: () => 'Li lasci al loro destino.' },
     ] },
   { id: 'cecchino', fac: null, fig: 'sniper', figs: 1, title: 'Il cecchino solitario', text: 'Un tiratore scelto ti osserva da un tetto. "Ho una buona canna e la mira ferma. Per 60 rottami lavoro per te fino alla fine."',
@@ -306,7 +315,7 @@ const EVENTS = [
     ] },
   { id: 'capovillaggio', fac: 'coloni', fig: 'rifle', title: 'Il capo villaggio', text: '"I predoni del campo qui vicino ci portano via tutto. Distruggetelo e vi pagheremo, e i nostri giovani vi seguiranno."',
     choices: [
-      { label: 'Accetta l\'incarico', need: () => !!nearestCamp(), act: () => { const c = nearestCamp(); state.quests.push({ kind: 'camp', site: c, scrap: 90, recruits: ['rifle', 'rifle'], giver: 'Capo villaggio', text: 'Distruggi ' + c.name }); return 'Incarico: distruggi ' + c.name + '. Ricompensa: 90 rottami e due volontari.'; } },
+      { label: 'Accetta l\'incarico', need: () => !!nearestCamp(), act: () => { const c = nearestCamp(); state.quests.push({ kind: 'camp', site: c, scrap: 45, recruits: ['rifle', 'rifle'], giver: 'Capo villaggio', text: 'Distruggi ' + c.name }); return 'Incarico: distruggi ' + c.name + '. Ricompensa: 45 rottami e due volontari.'; } },
       { label: 'Non abbiamo tempo', act: () => 'Il vecchio abbassa lo sguardo.' },
     ] },
   { id: 'mercante', fac: 'mercanti', fig: 'rifle', title: 'La carovana dei mercanti', text: 'Camion carichi di ferraglia e un mercante dal sorriso d\'oro. "Pezzi buoni, comandante. Prezzi onesti... quasi."',
@@ -317,7 +326,7 @@ const EVENTS = [
     ] },
   { id: 'contrabbando', fac: 'mercanti', fig: 'rifle', title: 'Il contrabbandiere', text: '"Ho una cassa di munizioni speciali e nessuno a cui venderla. 40 rottami e la cassa è tua. Garantito... più o meno."',
     choices: [
-      { label: 'Compra la cassa (40 rottami)', need: () => state.scrap >= 40, act: () => { state.scrap -= 40; if (rng() < 0.6) { state.scrap += 110; return 'Dentro c\'è roba buona: la rivendi subito per 110 rottami.'; } hurtTank(0.12); return 'La cassa esplode quando la apri. Il carro incassa il colpo.'; } },
+      { label: 'Compra la cassa (40 rottami)', need: () => state.scrap >= 40, act: () => { state.scrap -= 40; if (rng() < 0.6) { state.scrap += 65; return 'Dentro c\'è roba buona: la rivendi subito per 65 rottami.'; } hurtTank(0.12); return 'La cassa esplode quando la apri. Il carro incassa il colpo.'; } },
       { label: 'Lascia perdere', act: () => 'Il contrabbandiere sputa per terra.' },
     ] },
   { id: 'ferito', fac: null, fig: 'rifle', figs: 1, title: 'Un soldato ferito', text: 'Un soldato del tuo vecchio battaglione, ferito a una gamba. "Comandante... pensavo foste tutti morti. Portatemi con voi."',
@@ -327,7 +336,7 @@ const EVENTS = [
     ] },
   { id: 'deposito', fac: null, fig: 'rifle', figs: 1, title: 'Il deposito sepolto', text: 'Un vecchio indica una botola mezza sepolta. "Roba dell\'esercito, prima della fine. Io non ci scendo: potrebbe essere minata."',
     choices: [
-      { label: 'Apri la botola', act: () => { if (rng() < 0.6) { state.scrap += 80; return 'Casse intatte: 80 rottami.'; } hurtTank(0.18); return 'Una mina! Il carro è danneggiato.'; } },
+      { label: 'Apri la botola', act: () => { if (rng() < 0.6) { state.scrap += 35; return 'Casse intatte: 35 rottami.'; } hurtTank(0.18); return 'Una mina! Il carro è danneggiato.'; } },
       { label: 'Lascia stare', act: () => 'Meglio non rischiare.' },
     ] },
   { id: 'segnale', fac: null, fig: 'rifle', figs: 1, title: 'Il radioamatore', text: 'Un uomo con un\'antenna fatta di rottami. "Ascolto le frequenze dell\'Orda da mesi. Per 30 rottami vi dico dove sono i loro campi."',
@@ -337,7 +346,7 @@ const EVENTS = [
     ] },
   { id: 'caccia', fac: null, fig: 'rifle', title: 'I cacciatori di taglie', text: '"Il Capo paga per ogni testa dei suoi nemici; noi paghiamo per le teste dei suoi. Abbattete 8 predoni e vi diamo 70 rottami."',
     choices: [
-      { label: 'Accetta', act: () => { state.quests.push({ kind: 'kills', n: 8, k0: state.kills, scrap: 70, giver: 'Cacciatori di taglie', text: 'Abbatti 8 predoni' }); return 'Incarico: abbatti 8 predoni. Ricompensa: 70 rottami.'; } },
+      { label: 'Accetta', act: () => { state.quests.push({ kind: 'kills', n: 8, k0: state.kills, scrap: 35, giver: 'Cacciatori di taglie', text: 'Abbatti 8 predoni' }); return 'Incarico: abbatti 8 predoni. Ricompensa: 35 rottami.'; } },
       { label: 'Non siamo mercenari', act: () => '"Come volete."' },
     ] },
 ];
@@ -456,14 +465,13 @@ function drawCampaign() {
   panel(bx, by, 440, 124);
   if (sel) {
     text('SITREP · settore ' + (sel.col + 1) + (sel.final ? ' · ULTIMA DIFESA' : ''), bx + 16, by + 20, 15, '#ffd9a0', 'left');
-    if (sel.biome) text(BIOMES[sel.biome].name + ' · ' + LAYOUTS[sel.layout].name, bx + 424, by + 20, 14, '#9fd8ff', 'right');
+    if (sel.biome) text(BIOMES[sel.biome].name + ' · ' + LAYOUTS[sel.layout].name + (sel.geo ? ' · ' + GEOS[sel.geo].name : ''), bx + 424, by + 20, 13, '#9fd8ff', 'right');
     if (sel.final) wrap('Il campo dell\'esercito. L\'Orda attaccherà con tutto quello che ha: ondate su ondate, poi il Carro del Capo.', 410, 14).forEach((l, i) => text(l, bx + 16, by + 46 + i * 20, 14, HC.text, 'left'));
     else {
       text('Presenza nemica: ' + LEVEL[sel.enemy], bx + 16, by + 46, 14, ['', HC.ok, HC.warn, HC.bad][sel.enemy], 'left');
       text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 46, 14, HC.gold, 'left');
       const signs = [];
       if (sel.faction) signs.push(FACTIONS[sel.faction].sign + ' (' + repLabel(sel.faction) + ')');
-      signs.push(sel.outpost ? '2 garage' : 'garage');
       if (sel.mission === 'rescue') signs.push('segnale di soccorso');
       text('Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), bx + 16, by + 70, 14, HC.text, 'left');
     }
@@ -479,5 +487,5 @@ function drawCampaign() {
   const sqs = ca ? ca.squads : [];
   wrap(sqs.length ? 'Squadre: ' + sqs.map(q => q.name + ' (' + q.mem.length + ')').join(', ') : 'Nessuna squadra con te.', 505, 13).slice(0, 2).forEach((l, i) => text(l, cx + 16, cy + 46 + i * 18, 13, HC.text, 'left'));
   if (C.lost) text(C.lost + ' uomini sono rimasti indietro nell\'ultimo settore.', cx + 16, cy + 84, 13, HC.warn, 'left');
-  text('I feriti guariscono in marcia. Il carro si ripara agli avamposti e dai mercanti.', cx + 16, cy + 106, 12, HC.dim, 'left');
+  text("I feriti guariscono in marcia. Il carro si ripara solo all'officina, all'uscita da un settore, o dai mercanti.", cx + 16, cy + 106, 12, HC.dim, 'left');
 }

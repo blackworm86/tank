@@ -100,8 +100,14 @@ const PARTS = {
     { name: 'Maniglie esterne', cost: 90, desc: '+2 posti: fanti aggrappati allo scafo.', mod: { seats: 2 } },
     { name: 'Vano ampliato', cost: 220, desc: '+4 posti.', bad: '-0.3 velocità.', mod: { seats: 4, speedAdd: -0.3 } },
   ] },
+  coax: { label: 'Coassiale', opts: [ // its heat: how long a burst lasts before it locks (loadout.js tankSystems)
+    { name: 'MG di serie', cost: 0, desc: 'Scalda in fretta: raffiche brevi.', mod: {} },
+    { name: 'Canna pesante', cost: 110, desc: 'Regge il calore x1.7.', mod: { mgHeat: 1.7 } },
+    { name: 'Raffreddata ad acqua', cost: 220, desc: 'Calore x2.6, si raffredda x1.8.', bad: 'Manicotto esposto: -20 integrità.', mod: { mgHeat: 2.6, mgCool: 1.8, hp: -20 } },
+    { name: 'Binata a nastro', cost: 360, desc: 'Fuoco quasi continuo: calore x4, cadenza +30%.', bad: '-0.3 velocità, +10% dispersione.', mod: { mgHeat: 4, mgCool: 2, mgRate: 0.77, speedAdd: -0.3, spread: 1.1 } },
+  ] },
 };
-const SLOTS = ['frame', 'engine', 'tracks', 'armor', 'turret', 'stab', 'radio', 'sensor', 'seats'];
+const SLOTS = ['frame', 'engine', 'tracks', 'armor', 'turret', 'stab', 'coax', 'radio', 'sensor', 'seats'];
 /** The base systems this hull can change (the frame is the modular APC's alone). */
 function hullSlots() { return SLOTS.filter(s => !PARTS[s].apcOnly || state.hull === 'apc'); }
 /**
@@ -132,7 +138,7 @@ function tankStats() {
     speed: tune.tank_speed, reverse: tune.tank_reverse, turn: tune.tank_turn, climb: tune.tank_climb,
     hp: tune.tank_hp, armor: tune.tank_armor, turret: tune.turret_speed,
     reload: tune.cannon_reload, dmg: tune.cannon_damage, blast: tune.cannon_blast, spread: 1, moveSpread: 1, aim: 1, accel: tune.tank_accel,
-    radio: tune.radio_range, barrel: 2.6, seats: 0, hullArmor: 1, sensor: 0, radar: 0, radarT: 0, slots: 0,
+    radio: tune.radio_range, barrel: 2.6, seats: 0, hullArmor: 1, sensor: 0, radar: 0, radarT: 0, slots: 0, mgHeat: 1, mgCool: 1, mgRate: 1,
   };
   const p = state.parts || {};
   for (const slot of SLOTS) {
@@ -145,6 +151,7 @@ function tankStats() {
     if (m.turret) s.turret *= m.turret; if (m.moveSpread) s.moveSpread *= m.moveSpread; if (m.aim) s.aim *= m.aim;
     if (m.sensor) s.sensor = m.sensor; if (m.radar) { s.radar = m.radar; s.radarT = m.radarT; }
     if (m.accel) s.accel *= m.accel; if (m.reverse) s.reverse *= m.reverse; if (m.seats) s.seats += m.seats;
+    if (m.mgHeat) s.mgHeat *= m.mgHeat; if (m.mgCool) s.mgCool *= m.mgCool; if (m.mgRate) s.mgRate *= m.mgRate;
   }
   s.reload = Math.max(0.3, s.reload);
   // the hull: lighter ones are faster, thinner and carry infantry
@@ -279,7 +286,7 @@ function newRun(carry) {
   genWorld();
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
-    parts: { frame: 0, tracks: 0, engine: 0, armor: 0, radio: 0, sensor: 0, turret: 0, stab: 0, seats: 0 }, lookKey: 1, blips: [], radarT: 0,
+    parts: { frame: 0, tracks: 0, engine: 0, armor: 0, radio: 0, sensor: 0, turret: 0, stab: 0, seats: 0, coax: 0 }, lookKey: 1, blips: [], radarT: 0,
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapon, stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
     hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 0, shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
@@ -288,7 +295,7 @@ function newRun(carry) {
     techKills: 0, crushes: 0, newAch: [], turboUntil: 0, repairUntil: 0, salvo: null, relayL: null,
   });
   // the next sector: the tank, its parts and its scrap come along
-  if (carry) Object.assign(state, { parts: Object.assign({ sensor: 0, frame: 0 }, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
+  if (carry) Object.assign(state, { parts: Object.assign({ sensor: 0, frame: 0, coax: 0 }, carry.parts), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
     systems: carry.systems.slice(), owned: carry.owned.slice(), weaponsOwned: carry.weaponsOwned.slice(), shell: carry.shell, techKills: carry.techKills, crushes: carry.crushes, newAch: carry.newAch.slice() });
   state.ammo = carry && carry.ammo ? Object.assign({}, carry.ammo) : freshAmmo();
   const s = world.sites, rm = s.roadMain;
@@ -534,7 +541,7 @@ function seatsFree() { return tankStats().seats - passengers().length; }
 /** Sends the squad's infantry to the command vehicle to climb in. */
 function orderBoard(sq) {
   const S = tankStats();
-  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali al garage (Vano truppe).', '#e0a070'); return false; }
+  if (!S.seats) { say('Radio', 'Il mezzo non ha posti: montali all\'officina (Vano truppe).', '#e0a070'); return false; }
   if (!alive(sq).some(m => canRide(m) && !m.inside)) { say(sq.name, sq.members.some(m => m && m.inside) ? 'Siamo già a bordo.' : 'Non possiamo salire.', '#e0a070'); return false; }
   sq.order = { t: 'board' }; sq.tick = 0;
   say(sq.name, 'Arriviamo, teneteci un posto!');
@@ -797,7 +804,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
   }
-  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala al garage di un avamposto.', '#9fe3a0'); } }
+  if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala all\'officina, tra un settore e l\'altro.', '#9fe3a0'); } }
   return any;
 }
 /** B: the selected squads climb in, or get out if some of them ride. */
@@ -1162,7 +1169,6 @@ function handleInput() {
       }
     }
   } else MS.drag = null;
-  if (state.canShop && !state.tpause && pressed('KeyE')) { state.shopSite = state.canShop; state.shopTab = 0; state.shopMsg = ''; state.goScene = 'shop'; }
 }
 
 // ---- The command tank ------------------------------------------------------------------------------------
@@ -1893,27 +1899,11 @@ function updateRun(dt) {
       const bonus = Math.round(tune.scrap_camp * g.site.tier);
       dropLoot(g.home.x + 2, g.home.z + 1, tune.loot_camp); dropAmmo(g.home.x - 2, g.home.z - 1, 6, tune.ammo_drop_camp);
       state.scrap += bonus; sfx('coin');
-      say('Radio', g.site.name + ' ripulito! +' + bonus + ' rottami. Spendili al garage di un avamposto.', '#9fe3a0');
+      say('Radio', g.site.name + ' ripulito! +' + bonus + ' rottami. Spendili all\'officina, all\'uscita dal settore.', '#9fe3a0');
       floatText(g.home.x, g.site.g + 4, g.home.z, '+' + bonus + ' rottami', '#ffd36a');
     }
   }
-  // beside an outpost's tool shed with no fight around: the modifications menu opens by itself, once per visit
-  state.canShop = null;
-  if (tk.alive) {
-    const s = world.sites;
-    for (const o of [s.start, ...s.outposts].filter(o => o.shed)) {
-      const sh = o.shed;
-      if (Math.hypot(sh.x - tk.x, sh.z - tk.z) > tune.shop_radius) continue;
-      const hot = state.groups.some(g => g.alert && g.members.some(m => m.alive && dist2(m, tk) < 30 * 30));
-      if (!hot) state.canShop = o;
-    }
-    const L = state.shedLatch;
-    if (L) { const sh = L.shed || L; if (Math.hypot(sh.x - tk.x, sh.z - tk.z) > tune.shop_radius + 3) state.shedLatch = null; }
-    if (state.canShop && state.shedLatch !== state.canShop && !state.tpause && !state.goScene) {
-      state.shedLatch = state.canShop; tk.speed = 0;
-      state.shopSite = state.canShop; state.shopTab = 0; state.shopMsg = ''; state.confirm = null; state.goScene = 'shop';
-    }
-  }
+  state.canShop = null; // no garages on the map: the field workshop opens at the exit (campaign.js leaveSector)
   if (state.tut >= 1 && !state.campHint) {
     const c = world.sites.camps.find(c => !c.cleared && Math.hypot(c.x - tk.x, c.z - tk.z) < 48);
     if (c) { state.campHint = true; say('Radio', c.name + ' avvistato: bunker e torretta di legno. Il cannone li apre, le squadre ripuliscono.', '#9fe3a0'); }

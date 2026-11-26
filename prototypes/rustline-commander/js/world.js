@@ -123,6 +123,11 @@ function genWorld() {
   world.buildings = []; world.bld = new Int16Array(N * N); world.props = []; world.keep = new Uint8Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
+  world.geo = mapGeoId(); const GS = geoShape(world.geo, N, ns); world.geoShape = GS; // biomes.js
+  // the geography sets the land around it: flat ground makes the ridges and the plateaus read as walls
+  if (world.geo === 'hills') { P.mountains = Math.max(1, P.mountains) * tune.hills_k; P.relief += 4; }
+  else if (world.geo === 'ridges' || world.geo === 'plateau') { P.mountains *= 0.2; P.mesa = false; P.relief = Math.min(P.relief, 6); }
+  else if (world.geo === 'river') { P.mountains *= 0.5; P.mesa = false; }
   const flipX = rng() < 0.5, flipZ = rng() < 0.5;
   const real = (cx, cz) => ({ x: flipX ? N - 1 - cx : cx, z: flipZ ? N - 1 - cz : cz });
 
@@ -149,6 +154,7 @@ function genWorld() {
     { x: N * (0.6 + rng() * 0.2), z: N * (0.12 + rng() * 0.2), r: 6 + rng() * 5 },
   ].filter(() => P.lakes);
 
+  const wide = world.geo === 'river', fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
   const Hf = new Float32Array(N * N);
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const cx = flipX ? N - 1 - x : x, cz = flipZ ? N - 1 - z : z;
@@ -162,11 +168,13 @@ function genWorld() {
     const dc = distTo(canyon, cx, cz);
     const cut = smooth(5.5, 3, dc);
     if (P.mesa) h += raise * (1 - cut);
-    // the river valley
-    const dr = distTo(river, cx, cz);
-    if (dr < 10) h = Math.min(h, WL + 0.6 + (dr - 4) * 0.9);
-    if (dr < 4.2) h = Math.min(h, WL - 1);
-    if (dr < 2.6) h = Math.min(h, WL - 2.2);
+    h += GS.raise(cx, cz); // ridges and passes, plateaus
+    // the river valley (wide and deep in the river geography: bridges and a ford or two are the only crossings)
+    const dr = distTo(river, cx, cz), wd = wide ? 3.2 : 0;
+    if (dr < 10 + wd * 1.5) h = Math.min(h, WL + 0.6 + (dr - 4 - wd) * 0.9);
+    if (dr < 4.2 + wd) h = Math.min(h, WL - 1);
+    if (dr < 2.6 + wd) h = Math.min(h, WL - 2.2);
+    if (wide && dr < 4.2 + wd && fords.some(f => Math.hypot(cx - f[0], cz - f[1]) < 6)) h = Math.max(h, WL - 0.6); // a ford: shallow enough to drive
     for (const L of lakes) {
       const dl = Math.hypot(cx - L.x, cz - L.z);
       if (dl < L.r + 5) h = Math.min(h, WL + 0.5 + (dl - L.r) * 0.7);
@@ -195,6 +203,8 @@ function genWorld() {
     if (riverD(cx, cz) < 12) return false;
     for (const L of lakes) if (Math.hypot(cx - L.x, cz - L.z) < L.r + 10) return false;
     if (P.mesa && distTo(mesa, cx, cz) < 15) return false;
+    if (GS.block(cx, cz)) return false; // never on a ridge
+    if (wide && riverD(cx, cz) < 17) return false;
     for (const a of avoid) if (Math.hypot(cx - a.cx, cz - a.cz) < minD) return false;
     return true;
   };
@@ -234,7 +244,7 @@ function genWorld() {
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
       const x = s.x + dx, z = s.z + dz; if (!inMap(x, z) || dx * dx + dz * dz > r * r) continue; sum += Hf[x + N * z]; n++;
     }
-    const target = Math.max(WL + 2, Math.min(16, sum / Math.max(1, n)));
+    const target = Math.max(WL + 2, Math.min(24, sum / Math.max(1, n))); // high ground stays high (plateau camps)
     for (let dz = -r - 7; dz <= r + 7; dz++) for (let dx = -r - 7; dx <= r + 7; dx++) {
       const x = s.x + dx, z = s.z + dz; if (!inMap(x, z)) continue;
       const d = Math.hypot(dx, dz), k = smooth(r + 7, r, d), i = x + N * z;

@@ -50,6 +50,50 @@ const LAYOUT_IDS = ['wild', 'rural', 'villages', 'city'];
 function mapBiomeId() { const f = Math.round(tune.biome_force); return f ? BIOME_IDS[f - 1] : (world.spec && world.spec.biome) || 'desert'; }
 function mapLayoutId() { const f = Math.round(tune.layout_force); return f ? LAYOUT_IDS[f - 1] : (world.spec && world.spec.layout) || 'wild'; }
 function BIOME() { return BIOMES[world.biome] || BIOMES.desert; }
+// ---- Geography: what stands between the start and the exit -------------------------------------------------
+const GEOS = {
+  ridges: { name: 'creste e passi', brief: 'Creste di roccia tagliano il settore: si passa solo dai passi.' },
+  river: { name: 'fiume largo', brief: 'Un fiume largo e profondo: ponti e un guado, nient\'altro.' },
+  plateau: { name: 'altipiani', brief: 'Altipiani a strapiombo: chi sta sopra vede e spara per primo.' },
+  hills: { name: 'colline', brief: 'Colline alte e valli strette.' },
+};
+const GEO_IDS = Object.keys(GEOS);
+/** The sector's geography (config geo_force overrides, for testing). */
+function mapGeoId() { const f = Math.round(tune.geo_force); return f ? GEO_IDS[f - 1] : (world.spec && world.spec.geo) || GEO_IDS[Math.floor(rng() * GEO_IDS.length)]; }
+/**
+ * The geography's shape in canonical space (start near 0,0, exit near N,N), for genWorld: raise(cx,cz) is the
+ * height it adds (ridges with a pass or two, plateaus with cliff edges), block(cx,cz) where no site may sit.
+ * The ridges run across the whole map, so the passes (and the roads through them) are the only ways on.
+ */
+function geoShape(G, N, ns) {
+  const S2 = Math.SQRT1_2, u0 = 22 * 2 * S2, u1 = (N - 27) * 2 * S2, ridges = [];
+  if (G === 'ridges') {
+    const ts = N >= 176 ? [0.26, 0.78] : [0.28];
+    ts.forEach((t, r) => {
+      const passes = [(rng() - 0.5) * N * 0.6]; if (rng() < 0.55) passes.push(passes[0] + (rng() < 0.5 ? 1 : -1) * (30 + rng() * 30));
+      ridges.push({ u: u0 + (u1 - u0) * t, passes, s: ns + 40 + r * 7, h: tune.ridge_height * (0.85 + rng() * 0.3) });
+    });
+  }
+  const plateau = G === 'plateau';
+  return {
+    G, ridges,
+    raise(cx, cz) {
+      let h = 0;
+      if (ridges.length) {
+        const u = (cx + cz) * S2, v = (cx - cz) * S2;
+        for (const Rr of ridges) {
+          const uc = Rr.u + (vnoise(v / 28, 0.5, Rr.s) - 0.5) * 22, hw = 3 + vnoise(v / 12, 1.5, Rr.s) * 3, d = Math.abs(u - uc);
+          if (d > hw + 3) continue;
+          let gap = 1; for (const pv of Rr.passes) gap = Math.min(gap, smooth(4, 8, Math.abs(v - pv)));
+          h = Math.max(h, Rr.h * smooth(hw + 2.5, hw, d) * gap);
+        }
+      }
+      if (plateau) h += tune.plateau_height * smooth(0.5, 0.535, fbm(cx / 42, cz / 42, ns + 30, 3));
+      return h;
+    },
+    block(cx, cz) { const u = (cx + cz) * S2; return ridges.some(Rr => Math.abs(u - Rr.u) < 22); },
+  };
+}
 /** Fits the map preset to the biome and the layout (called by mapPreset). */
 function biomePreset(P) {
   world.biome = mapBiomeId(); world.layout = mapLayoutId();
@@ -392,8 +436,7 @@ function buildOutpost(s, home) {
   if (ft) { const fx = s.x + ft[0] + 2, fz = s.z + ft[1] + 2; fillBox(fx - 2, g, fz - 2, 5, 1, 5, V.CONC); cylinder(fx, fz, 1.7, g + 1, 3, V.METAL, V.STRIPE, V.RUST); }
   for (let k = 0; k < 4; k++) addProp('barrel', s.x - 3 + k * 0.9, g, s.z + 3.5 + (k % 2) * 0.8, { ay: g - 1, crush: true, col: k % 2 ? 0x56693a : 0x8e4b27 });
   addProp('crate', s.x + 3.5, g, s.z - 3.5, { ay: g - 1, crush: true }); addProp('crate', s.x + 4.4, g, s.z - 3.3, { ay: g - 1, crush: true });
-  buildGarage(s, home ? 11 : R);
-  s.home = home;
+  s.home = home; // (no garage any more: the tank is fitted out between sectors)
 }
 /**
  * The garage: a workshop hall open at the front, metal walls, a flat roof with a hazard-striped edge and the
@@ -631,7 +674,6 @@ function buildPropsView() {
   R3.markers = [];
   const S = world.sites; if (!S) return;
   const mk = (site, x, z, txt, col, icon) => { const sp = markerSprite(txt, col, icon); sp.position.set(x, 0, z); G.add(sp); R3.markers.push({ sp, site, x, z }); };
-  for (const o of [S.start, ...S.outposts]) if (o.shed) mk(o, o.shed.x, o.shed.z, 'GARAGE', '#ffc93c', 'spanner');
   for (const c of S.camps) mk(c, c.x + 0.5, c.z + 0.5, 'CAMPO PREDONI', '#ff6a50', 'skull');
   if (S.settle) mk(S.settle, S.settle.x, S.settle.z, FACTIONS[S.settle.fac].short.toUpperCase(), FACTIONS[S.settle.fac].col, 'flag');
   if (S.fortress) mk(S.fortress, S.fortress.x + 0.5, S.fortress.z + 0.5, S.fortress.kind === 'exit' ? 'USCITA' : S.fortress.name.toUpperCase(), S.fortress.kind === 'exit' ? '#8cff6a' : '#ff5a40', S.fortress.kind === 'exit' ? 'arrow' : 'skull');

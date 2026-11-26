@@ -8,8 +8,8 @@ window.CONFIG = {
   volume: { value: 0.5, min: 0, max: 1, step: 0.05 },
 
   // ---- World (voxels; 1 voxel = 1 unit = about 1 m) ----
-  map_simple: { value: 1, min: 0, max: 1, step: 1 },            // 1: the simple test map (128, gentle ground, one river, 3 camps); 0: the full map below
-  map_size: { value: 160, min: 96, max: 224, step: 16 },        // voxels per side
+  map_simple: { value: 0, min: 0, max: 1, step: 1 },            // 1: the simple test map (128, gentle ground, one river, 3 camps); 0: the full map below
+  map_size: { value: 192, min: 96, max: 256, step: 16 },        // voxels per side
   water_level: { value: 4, min: 2, max: 8, step: 1 },           // water surface height, voxels
   mountain_amount: { value: 1, min: 0, max: 2, step: 0.1 },     // how tall the ridges grow
   terrain_look: { value: 1, min: 0, max: 1, step: 1 },          // 1 = smooth detailed ground (grass, mud, rock, asphalt), 0 = the old voxel blocks
@@ -44,7 +44,7 @@ window.CONFIG = {
   posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
   stealth_trigger: { value: 0.45, min: 0.1, max: 1, step: 0.05 }, // a stealthy squad opens fire inside this share of its range
   stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a stealthy soldier's speed
-  horde_time: { value: 300, min: 30, max: 900, step: 10 },       // seconds on a sector before the Horde's hunters come
+  horde_time: { value: 420, min: 30, max: 900, step: 10 },       // seconds on a sector before the Horde's hunters come
   wave_every: { value: 45, min: 10, max: 180, step: 5 },          // seconds between hunter waves
   wave_size: { value: 3, min: 1, max: 12, step: 1 },              // raiders in the first wave
   wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
@@ -63,12 +63,12 @@ window.CONFIG = {
   circle_radius: { value: 18, min: 8, max: 35, step: 1 },       // the distance technicals circle their target at
   rep_friend: { value: 30, min: 10, max: 80, step: 5 },          // reputation at which a faction is a friend (and minus it, an enemy)
   rep_discount: { value: 0.35, min: 0, max: 0.8, step: 0.05 },   // price change at full reputation (friends pay less, enemies more)
-  job_scrap: { value: 100, min: 20, max: 300, step: 10 },         // pay for a faction job (delivery, defence)
+  job_scrap: { value: 45, min: 20, max: 300, step: 10 },         // pay for a faction job (delivery, defence)
   raid_delay: { value: 30, min: 5, max: 120, step: 5 },           // seconds before the raid on the settlers' hamlet
   toll: { value: 40, min: 0, max: 200, step: 5 },                 // the deserters' toll at their checkpoint
   scout_reveal: { value: 60, min: 20, max: 160, step: 5 },        // radius the rats' scouts reveal
   npc_radius: { value: 7, min: 3, max: 15, step: 1 },             // how close the tank must come to talk to people
-  mission_scrap: { value: 50, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
+  mission_scrap: { value: 25, min: 0, max: 400, step: 10 },       // scrap for a sector's mission
   final_waves: { value: 6, min: 1, max: 15, step: 1 },            // waves in the last stand (the last brings the Chief)
   final_prep: { value: 60, min: 10, max: 300, step: 5 },          // seconds to set up before the first wave of the last stand
   final_gap: { value: 70, min: 20, max: 200, step: 5 },           // seconds between last-stand waves (sooner once a wave is beaten)
@@ -223,6 +223,11 @@ window.CONFIG = {
   tank_mg_rate: { value: 0.09, min: 0.03, max: 1, step: 0.01 },  // seconds between rounds
   tank_hmg_damage: { value: 11, min: 1, max: 80, step: 1 },     // APC heavy machine gun
   tank_hmg_rate: { value: 0.13, min: 0.03, max: 1, step: 0.01 },
+  mg_heat_time: { value: 3.2, min: 0.5, max: 30, step: 0.1 },   // seconds of steady coax fire from cold to locked (base barrel)
+  mg_cool: { value: 0.28, min: 0.05, max: 2, step: 0.01 },      // heat shed per second once it stops firing
+  mg_cool_wait: { value: 0.35, min: 0, max: 3, step: 0.05 },    // seconds after the last round before it cools
+  mg_unjam: { value: 0.3, min: 0, max: 0.9, step: 0.05 },       // a locked coax fires again when cooled to this
+  mg_heat_spread: { value: 0.7, min: 0, max: 3, step: 0.1 },    // extra scatter at full heat
   tank_mg_range: { value: 46, min: 10, max: 100, step: 1 },
   ammo_ac: { value: 60, min: 1, max: 400, step: 5 },              // rounds the 25mm autocannon's racks hold
   ammo_gl: { value: 36, min: 1, max: 300, step: 1 },              // grenade launcher
@@ -288,11 +293,11 @@ window.CONFIG = {
   leash: { value: 22, min: 5, max: 80, step: 1 },               // how far camp raiders chase from home
 
   // ---- Economy ----
-  start_scrap: { value: 80, min: 0, max: 2000, step: 10 },
-  scrap_infantry: { value: 3, min: 0, max: 100, step: 1 },      // per raider killed
-  scrap_vehicle: { value: 20, min: 0, max: 300, step: 5 },
-  scrap_camp: { value: 40, min: 0, max: 600, step: 10 },        // bonus per camp cleared (x tier)
-  scrap_wreck: { value: 12, min: 0, max: 200, step: 5 },        // per wreck picked up
+  start_scrap: { value: 40, min: 0, max: 2000, step: 10 },
+  scrap_infantry: { value: 1, min: 0, max: 100, step: 1 },      // per raider killed
+  scrap_vehicle: { value: 8, min: 0, max: 300, step: 5 },
+  scrap_camp: { value: 15, min: 0, max: 600, step: 10 },        // bonus per camp cleared (x tier)
+  scrap_wreck: { value: 6, min: 0, max: 200, step: 5 },        // per wreck picked up
   repair_cost: { value: 0.5, min: 0, max: 5, step: 0.1 },       // scrap per integrity point
   cost_rifle: { value: 30, min: 0, max: 300, step: 5 },
   cost_sniper: { value: 60, min: 0, max: 300, step: 5 },
@@ -304,7 +309,11 @@ window.CONFIG = {
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
   max_squads: { value: 6, min: 1, max: 9, step: 1 },
   squad_max_size: { value: 4, min: 1, max: 8, step: 1 },
-  shop_radius: { value: 6, min: 3, max: 20, step: 1 },          // how near the tool shed the tank must be for the menu to open
+  geo_force: { value: 0, min: 0, max: 4, step: 1 },            // 0 = the campaign's geography; 1 ridges, 2 wide river, 3 plateaus, 4 hills (testing)
+  ridge_height: { value: 13, min: 4, max: 20, step: 1 },        // how tall the ridges stand over the land (passes cut through)
+  plateau_height: { value: 10, min: 3, max: 16, step: 1 },      // the plateaus' cliff height
+  hills_k: { value: 1.8, min: 1, max: 3, step: 0.1 },           // the hills geography: how much taller the mountains grow
+  cache_bonus: { value: 15, min: 0, max: 200, step: 5 },        // extra scrap in a mission's cache
   part_refund: { value: 0.7, min: 0, max: 1, step: 0.05 },      // share of a part's cost paid back when it is taken off
 
 

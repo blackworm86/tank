@@ -74,7 +74,7 @@ function useRound() {
   if (!(state.ammo[state.shell] > 0)) {
     const other = SHELL_IDS.find(s => state.ammo[s] > 0);
     if (other) { state.shell = other; say('Equipaggio', 'Finiti quelli: carico ' + SHELLS[other].name.toLowerCase() + '.', '#e0a070'); state.tank.reload = 1; return false; }
-    if (state.t - (state.dryT || -9) > 2.5) { state.dryT = state.t; say('Equipaggio', 'Colpi finiti! Cerca casse di munizioni o comprale al garage.', '#ff9a7a'); }
+    if (state.t - (state.dryT || -9) > 2.5) { state.dryT = state.t; say('Equipaggio', 'Colpi finiti! Cerca casse di munizioni o comprale all\'officina.', '#ff9a7a'); }
     return false;
   }
   state.ammo[state.shell]--;
@@ -214,8 +214,20 @@ function smokeBlocks(a, b) {
 function tankSystems(tk, dt) {
   tk.reload2 = Math.max(0, (tk.reload2 || 0) - dt);
   const driving = state.mode === 'tank' && !state.tpause && !state.menu && !state.menuBlock;
-  const w = secWeapon();
-  if (driving && MS.r && tk.reload2 <= 0 && state.aimP) { tk.reload2 = w.rate; fireTankMG(tk, tankStats(), w); }
+  const w = secWeapon(), S = tankStats();
+  // the coax heats with every round: a full heat locks it until it has cooled to mg_unjam
+  tk.heat = tk.heat || 0; tk.heatIdle = (tk.heatIdle || 0) + dt;
+  if (tk.heatIdle > tune.mg_cool_wait || tk.jammed) tk.heat = Math.max(0, tk.heat - dt * tune.mg_cool * S.mgCool);
+  if (tk.jammed && tk.heat <= tune.mg_unjam) tk.jammed = false;
+  if (driving && MS.r && tk.reload2 <= 0 && state.aimP) {
+    if (tk.jammed) { if (state.t - (state.jamSay || -9) > 4) { state.jamSay = state.t; say('Equipaggio', 'Coassiale surriscaldata! Lasciala raffreddare.', '#ff9a7a'); } }
+    else {
+      const rate = w.rate * S.mgRate; tk.reload2 = rate; tk.heatIdle = 0;
+      const sp = tk.spread; tk.spread *= 1 + tk.heat * tune.mg_heat_spread; fireTankMG(tk, S, w); tk.spread = sp; // a hot barrel scatters
+      tk.heat = Math.min(1, tk.heat + rate / (tune.mg_heat_time * S.mgHeat));
+      if (tk.heat >= 1) { tk.jammed = true; sfx('crunch', tk.x, tk.z); }
+    }
+  }
   if (driving) state.systems.forEach((id, i) => { if (SYSTEMS[id].active && pressed('Digit' + (i + 1))) activateSystem(id); });
   if (driving && pressed('KeyX')) cycleShell();
   if (state.salvo && state.salvo.n > 0 && state.t >= state.salvo.next) { fireRocket(tk); state.salvo.n--; state.salvo.next = state.t + 0.25; }
@@ -285,7 +297,7 @@ function takeCrate(p) {
   const M = SYSTEMS[p.loot]; state.owned.push(p.loot); sfx('coin');
   floatText(p.x, hAt(p.x, p.z) + 2, p.z, M.name, '#8fe0ff');
   if (state.systems.length < sysSlots()) { state.systems.push(p.loot); state.stats = null; say('Equipaggio', 'Trovato e montato: ' + M.name + '. ' + M.desc, '#8fe0ff'); }
-  else say('Equipaggio', 'Trovato: ' + M.name + '. Montalo al garage (Sistemi avanzati).', '#8fe0ff');
+  else say('Equipaggio', 'Trovato: ' + M.name + '. Montalo all\'officina, all\'uscita (Sistemi avanzati).', '#8fe0ff');
   return true;
 }
 /** A few crates of rounds by the road of a new map (they are rare). */

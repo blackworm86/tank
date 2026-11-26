@@ -82,6 +82,7 @@ function partIcon(slot, x, y, s) {
   if (slot === 'seats') { for (const sx of [-7, 0, 7]) { ctx.fillRect(sx - 2, -9, 4, 4); ctx.fillRect(sx - 3, -4, 6, 7); } ctx.fillRect(-11, 4, 22, 4); }
   if (slot === 'sensor') { ctx.beginPath(); ctx.arc(0, 4, 3, 0, Math.PI * 2); ctx.fill(); for (const r of [6, 10]) { ctx.beginPath(); ctx.arc(0, 4, r, -2.5, -0.6); ctx.stroke(); } ctx.fillRect(-1, 4, 2, 7); }
   if (slot === 'frame') { ctx.strokeRect(-10, -7, 20, 14); ctx.fillRect(-10, -1, 20, 2); ctx.fillRect(-1, -7, 2, 14); for (const [a, b] of [[-10, -7], [10, -7], [-10, 7], [10, 7]]) { ctx.beginPath(); ctx.arc(a, b, 2.2, 0, 6.3); ctx.fill(); } }
+  if (slot === 'coax') { ctx.fillRect(-11, -2, 18, 4); ctx.fillRect(-11, -5, 6, 10); for (let i = -3; i <= 5; i += 3) ctx.fillRect(i, -4, 1.5, 8); ctx.fillRect(7, -1, 5, 2); }
   if (slot === 'stab') { ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0.5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
@@ -275,7 +276,10 @@ function drawHUD() {
     }
     text('X', tx + 2, 86, 11, HC.dim, 'left');
   } else text('Colpi non contati', 24, 86, 12, '#ffe08a', 'left');
-  text('Dx coass.', 234, 86, 11, '#8fe0ff', 'right');
+  const ht = tk.heat || 0; // the coax's heat: it locks when full
+  text(tk.jammed ? 'COASS. CALDA' : 'Dx coass.', 234, 82, 10, tk.jammed ? '#ff7a5a' : '#8fe0ff', 'right');
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(184, 89, 50, 4);
+  ctx.fillStyle = tk.jammed ? '#ff5a3a' : ht > 0.7 ? '#ffb040' : '#8fe0ff'; ctx.fillRect(184, 89, 50 * ht, 4);
   // the advanced systems: key, name, recharge
   state.systems.forEach((id, i) => {
     const S2 = SYSTEMS[id], bx = 24 + i * 42, wait = S2.active ? sysWait(id) : 0;
@@ -393,20 +397,20 @@ function drawShop() {
   ctx.fillStyle = 'rgba(14,10,8,0.6)'; ctx.fillRect(0, 0, W, H);
   const x0 = 110, y0 = 40, w = W - 220, h = H - 80;
   panel(x0, y0, w, h);
-  text('Garage - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
+  text(state.shopSite.field ? 'Officina da campo - prima di partire' : 'Officina - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
   gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
   ['Sistemi base', 'Arma e colpi', 'Sistemi avanzati', 'Caserma', 'Riparazioni'].forEach((t, i) => button(x0 + 24 + i * 176, y0 + 56, 168, 34, (i + 1) + '  ' + t, () => { state.shopTab = i; state.shopMsg = ''; }, { active: state.shopTab === i }));
   const cy = y0 + 106;
   if (state.shopTab === 0) {
     hullSlots().forEach((slot, r) => {
-      const yy = cy + r * 54, P = PARTS[slot];
+      const RH = hullSlots().length > 9 ? 49 : 54, yy = cy + r * RH, P = PARTS[slot];
       partIcon(slot, x0 + 44, yy + 28, 28);
       text(P.label, x0 + 66, yy + 22, 16, HC.text, 'left');
       const back = partRefund(slot);
       if (back) text('smonti: +' + back, x0 + 66, yy + 40, 12, '#b6d77a', 'left');
       P.opts.forEach((o, i) => {
         const bx0 = x0 + 196 + i * 212, eq = state.parts[slot] === i, afford = state.scrap + back >= o.cost;
-        button(bx0, yy + 1, 204, 50, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
+        button(bx0, yy + 1, 204, RH - 4, '', () => buyPart(slot, i), { active: eq, off: !eq && !afford });
         text(o.name, bx0 + 8, yy + 16, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
         text(wrap(o.desc, 188, 12)[0], bx0 + 8, yy + 31, 12, HC.dim, 'left');
         if (o.bad) text(wrap(o.bad, 188, 12)[0], bx0 + 8, yy + 44, 12, '#e08a6a', 'left'); // the malus, in red
@@ -465,7 +469,7 @@ function drawShop() {
     text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), x0 + 284, cy + 43, 14, '#10140c');
     button(x0 + 24, cy + 72, 250, 44, 'Ripara 50 (' + repairCost(Math.min(50, Math.max(0, miss))) + ')', () => repair(false), { off: miss <= 0 });
     button(x0 + 294, cy + 72, 250, 44, 'Ripara tutto (' + repairCost(Math.max(0, miss)) + ')', () => repair(true), { off: miss <= 0 });
-    text('Il carro si ripara ai garage (e dai genieri sul campo).', x0 + 24, cy + 140, 14, HC.dim, 'left');
+    text('Il carro si ripara qui, tra un settore e l\'altro (e dai genieri sul campo). Ogni rottame conta.', x0 + 24, cy + 140, 14, HC.dim, 'left');
   } else if (state.shopTab === 1) {
     // the main weapon: bought once, swapped free after
     text('Arma principale (comprata una volta, poi si cambia gratis)', x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
@@ -513,12 +517,13 @@ function drawShop() {
     if (!store.length) text('Vuoto.', x0 + 24, cy + 150, 13, HC.dim, 'left');
     store.slice(0, 10).forEach((id, i) => card(x0 + 24 + (i % 5) * (cw + 10), cy + 140 + Math.floor(i / 5) * 86, id, '', () => mountSystem(id), { off: state.systems.length >= n }));
     const stock = garageStock(state.shopSite), sy = cy + 140 + (store.length > 5 ? 172 : store.length ? 86 : 30);
-    text('In vendita in questo garage', x0 + 24, sy, 15, '#ffd9a0', 'left');
+    text('In vendita da questa officina', x0 + 24, sy, 15, '#ffd9a0', 'left');
     if (!stock.length) text('Niente di nuovo da vendere.', x0 + 24, sy + 26, 13, HC.dim, 'left');
     stock.forEach((id, i) => card(x0 + 24 + i * (cw + 10), sy + 16, id, systemCost(id) + ' rottami', () => buySystem(id), { off: state.scrap < systemCost(id) }));
   }
   if (state.shopMsg) text(state.shopMsg, x0 + w / 2, y0 + h - 26, 16, HC.gold);
-  text('Esc o E: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
+  if (state.leaving) { text('Invio o Esc: parti per la mappa della campagna   Backspace: resta nel settore', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right'); }
+  else text('Esc: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
   if (state.confirm) { // the downgrade question: only its two buttons answer
     UI.buttons = [];
     ctx.fillStyle = 'rgba(10,8,6,0.6)'; ctx.fillRect(0, 0, W, H);
