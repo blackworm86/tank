@@ -11,6 +11,9 @@ window.CONFIG = {
   map_size: { value: 160, min: 96, max: 224, step: 16 },        // voxels per side
   water_level: { value: 4, min: 2, max: 8, step: 1 },           // water surface height, voxels
   mountain_amount: { value: 1, min: 0, max: 2, step: 0.1 },     // how tall the ridges grow
+  terrain_smooth: { value: 2, min: 0, max: 5, step: 1 },        // blur passes over the hills: more = gentler ramps (cliffs stay)
+  road_half_width: { value: 2, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide
+  road_shoulder: { value: 6, min: 2, max: 10, step: 1 },        // how far the 1-per-voxel ramp beside a road reaches
   camp_count: { value: 5, min: 2, max: 8, step: 1 },            // raider camps per run
   patrol_count: { value: 6, min: 0, max: 14, step: 1 },         // roaming raider patrols
   ruin_count: { value: 22, min: 0, max: 50, step: 1 },          // ruined buildings and walls
@@ -22,13 +25,16 @@ window.CONFIG = {
   cam_dist: { value: 84, min: 30, max: 140, step: 1 },          // starting zoom distance
   cam_dist_min: { value: 35, min: 20, max: 80, step: 1 },
   cam_dist_max: { value: 130, min: 80, max: 220, step: 1 },
+  pause_pan: { value: 40, min: 10, max: 120, step: 5 },        // camera pan speed with WASD during the tactical pause (m/s at default zoom)
 
   // ---- Command tank: hull ----
   tank_speed: { value: 7, min: 2, max: 16, step: 0.5 },         // forward units/s
   tank_reverse: { value: 3.5, min: 1, max: 10, step: 0.5 },     // reverse units/s
   tank_accel: { value: 6, min: 1, max: 20, step: 0.5 },         // units/s^2
   tank_turn: { value: 60, min: 20, max: 140, step: 5 },         // hull degrees/s
-  tank_climb: { value: 1.25, min: 0.5, max: 3, step: 0.05 },    // max height step it can climb
+  tank_climb: { value: 1.25, min: 0.5, max: 3, step: 0.05 },    // max step one point of the hull can climb at once (voxels)
+  tank_slope_span: { value: 6, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
+  tank_glance: { value: 70, min: 0, max: 180, step: 5 },        // deg/s the hull steers itself off a corner it is caught on
   tank_hp: { value: 300, min: 50, max: 1500, step: 10 },        // base integrity
   tank_armor: { value: 0.3, min: 0, max: 0.9, step: 0.05 },     // fraction of heavy damage blocked
   small_arms_vs_tank: { value: 0.12, min: 0, max: 1, step: 0.01 }, // share of rifle/MG damage that gets through

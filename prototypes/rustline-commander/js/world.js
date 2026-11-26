@@ -137,6 +137,18 @@ function genWorld() {
     Hf[x + N * z] = h;
   }
 
+  // soft blurs: hills become ramps a tank can climb, while mesas and ridges stay cliffs
+  for (let pass = 0; pass < Math.round(tune.terrain_smooth); pass++) {
+    const B = new Float32Array(N * N);
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+      let s = 0, n = 0;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, zz = z + dz; if (xx < 0 || zz < 0 || xx >= N || zz >= N) continue; s += Hf[xx + N * zz]; n++; }
+      const i = x + N * z, m = s / n;
+      B[i] = Math.abs(m - Hf[i]) < 2.5 ? m : Hf[i];
+    }
+    Hf.set(B);
+  }
+
   // Sites, in canonical space then mapped.
   const sites = { start: null, outposts: [], camps: [], fortress: null, wrecks: [], patrols: [], firstWall: null };
   const riverD = (cx, cz) => distTo(river, cx, cz);
@@ -210,7 +222,7 @@ function genWorld() {
   for (const s of placed) {
     const r = s.kind === 'fortress' ? 17 : s.kind === 'camp' ? 8 : 10;
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
-      const x = s.x + dx, z = s.z + dz; if (inMap(x, z)) { hi[x + N * z] = s.g; world.road[x + N * z] = 0; }
+      const x = s.x + dx, z = s.z + dz; if (inMap(x, z)) { hi[x + N * z] = s.g; if (world.road[x + N * z] === 2) world.road[x + N * z] = 1; }
     }
   }
 
@@ -247,6 +259,16 @@ function genWorld() {
   for (const c of sites.camps) buildCamp(c);
   world.sitesStart = sites.start;
   buildFortress(sites.fortress);
+  // friendly outposts keep their roads open: nothing of theirs stands on a road or beside it
+  for (const o of [sites.start, ...sites.outposts]) {
+    for (let dz = -13; dz <= 13; dz++) for (let dx = -13; dx <= 13; dx++) {
+      const x = o.x + dx, z = o.z + dz; if (!inMap(x, z)) continue;
+      let road = false;
+      for (let b = -1; b <= 1 && !road; b++) for (let a = -1; a <= 1; a++) if (inMap(x + a, z + b) && world.road[x + a + N * (z + b)]) { road = true; break; }
+      if (!road) continue;
+      for (let y = hi[x + N * z]; y < VH; y++) setV(x, y, z, 0);
+    }
+  }
   recomputeAll();
 
   // the old raider wall across the road, a short drive from the start
@@ -256,7 +278,7 @@ function genWorld() {
     const a = rm[iw], b = rm[iw + 4];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
     const px = -dz / L, pz = dx / L;
-    for (let s = -5; s <= 5; s++) {
+    for (let s = -3; s <= 3; s++) { // across the road only: a tank can blast it or drive round over the shoulder
       const x = Math.round(a[0] + px * s), z = Math.round(a[1] + pz * s);
       const top = hAt(x, z);
       for (let y = top; y < top + 2 + (Math.abs(s) % 3 === 1 ? 1 : 0); y++) setV(x, y, z, (s + y) % 3 === 0 ? V.RAID : V.JUNK);
@@ -356,20 +378,22 @@ function carveRoad(hi, N, WL, path) {
   for (let i = n - 2; i >= 0; i--) { sm[i] = Math.min(sm[i], sm[i + 1] + 0.75); sm[i] = Math.max(sm[i], sm[i + 1] - 0.75); }
   for (let i = 0; i < n; i++) {
     const [x, z] = path[i], h = Math.max(WL, Math.round(sm[i]));
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+    const RW = Math.round(tune.road_half_width);
+    for (let dz = -RW; dz <= RW; dz++) for (let dx = -RW; dx <= RW; dx++) {
       const xx = x + dx, zz = z + dz; if (xx < 0 || zz < 0 || xx >= N || zz >= N) continue;
       const j = xx + N * zz, was = hi[j];
       hi[j] = h;
       if (was < WL || world.road[j] === 2) world.road[j] = 2; else if (!world.road[j]) world.road[j] = 1;
     }
-    // shoulders blend so the road does not sit in a trench or on a wall
-    for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
-      const d = Math.max(Math.abs(dx), Math.abs(dz)); if (d < 2) continue;
+    // shoulders: 1-voxel steps a tank climbs, so the road is never a trench or a causeway
+    const SW = RW + Math.round(tune.road_shoulder);
+    for (let dz = -SW; dz <= SW; dz++) for (let dx = -SW; dx <= SW; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dz)); if (d <= RW) continue;
       const xx = x + dx, zz = z + dz; if (xx < 0 || zz < 0 || xx >= N || zz >= N) continue;
       const j = xx + N * zz; if (world.road[j]) continue;
-      const lim = d - 1;
-      if (hi[j] > h + lim * 2) hi[j] = h + lim * 2;
-      if (hi[j] < h - lim * 2 && hi[j] >= WL) hi[j] = h - lim * 2;
+      const lim = d - RW;
+      if (hi[j] > h + lim) hi[j] = h + lim;
+      if (hi[j] < h - lim && hi[j] >= WL) hi[j] = Math.max(WL, h - lim);
     }
   }
 }
@@ -423,10 +447,14 @@ function buildOutpost(s, home) {
   for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
     if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
     if (Math.abs(dx) <= 2 || Math.abs(dz) <= 2) continue; // four gates
+    let road = false; // and a gap wherever a road runs through the wall
+    for (let a = -2; a <= 2 && !road; a++) for (let b = -2; b <= 2; b++) if (inMap(s.x + dx + a, s.z + dz + b) && world.road[s.x + dx + a + world.N * (s.z + dz + b)]) { road = true; break; }
+    if (road) continue;
     const t = (dx + dz) % 4 === 0 ? V.GREEN : V.JUNK;
     put(s.x + dx, g, s.z + dz, t); put(s.x + dx, g + 1, s.z + dz, (dx * 7 + dz) % 3 ? V.JUNK : V.RUST);
   }
   const door = (dx, dz, y) => dz === 0 && dx === 1 && y < 2;
+  // the outpost's own ground keeps no road voxels under its huts
   boxShell(s.x - 7, s.z - 7, 3, 3, g, 3, V.RUST, V.JUNK, door);
   boxShell(s.x + 4, s.z - 7, 3, 4, g, 3, V.RUST, V.RUST, door);
   boxShell(s.x - 7, s.z + 4, 4, 3, g, 3, V.RUST, V.JUNK, door);

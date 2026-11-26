@@ -12,11 +12,13 @@ un gioco roguelite o roguelike nel quale il giocatore è un comandante di APC o 
 7. Difficoltà: A
 8. Fetta: A
 
+After play: i voxel impediscono al carro di muoversi liberamente, serve un terreno con pendii, rampe... anche terreno impassabile chiaramente, ma nella demo praticamente il carro è immobilizzato da subito. deve essere anche possibile mettere in pausa tattica il gioco, in modo da poter dare comandi alle altre unità (vai, attacca, take cover, traccia percorso ecc.), con barra spaziatrice
+
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
 **Genre:** action roguelite + real-time tactics (tank action con comando di squadre)
 
-**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo), F + click destro attacca *(guessed)*; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
+**Controls:** W/S avanti/indietro, A/D ruota lo scafo (il tuo "VSD" letto come WASD) *(inferred (strong))*; mouse brandeggia il cannone, click sinistro spara; **Spazio: pausa tattica** (il tempo si ferma, selezioni e ordini restano attivi, WASD sposta la vista) *(you said)*; Tab passa da modalità Carro a modalità Comando *(guessed)*; in Comando o in pausa: click/trascina seleziona squadre (1–6 selezione rapida), click destro muove (vicino a una copertura = al riparo) o attacca il nemico sotto il mouse; V vai, F attacca, C copertura armano l'ordine del prossimo click; Shift + click destro aggiunge una tappa al percorso; G seguimi, H fermi; rotella zoom, Q/E ruota la camera *(guessed)*. Il carro si guida con WASD in entrambe le modalità.
 
 **Question:** guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15–20 minuti? *(guessed)*
 
@@ -49,6 +51,8 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 ## Features
 - [x] Carro con controlli tank e torretta a rotazione limitata che insegue il mouse; precisione da fermi che peggiora in movimento (cerchio di dispersione visibile)
 - [x] Mondo voxel generato a ogni run (colline, montagne, canyon, laghi, fiumi) con muri, edifici e rocce distruttibili dai colpi
+- [x] Terreno percorribile: colline in pendii e rampe che il carro sale, strade larghe con sponde in rampa; scogliere, creste ripide e acqua profonda restano invalicabili
+- [x] Pausa tattica con Spazio: ordini a tempo fermo (vai, attacca, copertura, percorso a tappe disegnato)
 - [x] Modalità Comando: selezione squadre e ordini movimento / attacco / copertura, solo per le squadre dentro il raggio radio
 - [x] Squadre minuscole e personalizzabili: fucilieri, cecchini, mitraglieri, medici, mortaio, autoblindo; soldati assoldati per rimpiazzare i singoli caduti
 - [x] Predoni con pattuglie, campi e fortezza finale: 4 tipi di nemici, ognuno attacca diversamente (fuciliere, mitragliere, razziere, veicolo/carro)
@@ -62,6 +66,8 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - mappa generata proceduralmente · in the slice
 - truppe con ordini (movimento, copertura) via hotkey e mouse · in the slice
 - raggio radio limitato e migliorabile · in the slice
+- pausa tattica e percorsi a tappe · in the slice
+- terreno a pendii e rampe percorribile dal carro · in the slice
 - pezzi da comprare per moddare il carro · in the slice
 - assoldare soldati e creare team personalizzati · in the slice
 - valuta permanente tra un run e l'altro · thin stand-in *(guessed)*

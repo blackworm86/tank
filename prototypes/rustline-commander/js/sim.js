@@ -185,7 +185,7 @@ function newRun() {
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
     parts: { cannon: 0, tracks: 0, engine: 0, armor: 0, radio: 0, turret: 0, stab: 0 }, lookKey: 1, stats: null, statsStep: -1, stepN: 0,
-    scrap: tune.start_scrap + perk('scrap') * 60, kills: 0, camps: 0, mode: 'tank', tut: 0, nextId: 1, endT: 0, result: null,
+    scrap: tune.start_scrap + perk('scrap') * 60, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, tut: 0, nextId: 1, endT: 0, result: null,
     hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 0, shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
   });
   const s = world.sites, rm = s.roadMain;
@@ -270,12 +270,16 @@ function nearestEnemyTo(x, z, team, maxD) {
   for (const e of state.ents) if (e.alive && e.team !== team) { const d = (e.x - x) ** 2 + (e.z - z) ** 2; if (d < bd) { bd = d; best = e; } }
   return best;
 }
-function orderMove(sq, x, z) {
-  const ms = alive(sq); if (!ms.length) return;
-  const en = nearestEnemyTo(x, z, 0, 45);
+/**
+ * Sends a squad's members to (x,z). how: 'auto' (into cover if there is some), 'cover' (look harder
+ * for cover against the nearest enemy), 'none' (straight there). Returns how many found cover.
+ */
+function goTo(sq, x, z, how) {
+  const ms = alive(sq); if (!ms.length) return 0;
+  const en = nearestEnemyTo(x, z, 0, how === 'cover' ? 90 : 45);
   let threat = null;
   if (en) { const dx = en.x - x, dz = en.z - z, L = Math.hypot(dx, dz) || 1; threat = { x: dx / L, z: dz / L }; }
-  const inf = ms.filter(m => !m.veh), spots = findCoverSpots(x, z, inf.length, threat);
+  const inf = ms.filter(m => !m.veh), spots = how === 'none' ? [] : findCoverSpots(x, z, inf.length, threat);
   let k = 0;
   ms.forEach((m, i) => {
     let d;
@@ -283,9 +287,21 @@ function orderMove(sq, x, z) {
     else { const a = i * 2.1, r = m.veh ? 0 : 1.6; d = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r }; }
     setDest(m, d.x, d.z); m.pref = null;
   });
-  sq.order = { t: 'move', x, z, cover: spots.length > 0, done: false };
-  say(sq.name, spots.length ? 'Ricevuto, ci mettiamo al riparo.' : 'Ricevuto, in movimento.');
-  mark(x, z, 0x4fe3e0);
+  return spots.length;
+}
+/** A move order; with append it becomes the next stop of the squad's drawn path. */
+function orderMove(sq, x, z, how = 'auto', append = false) {
+  if (!alive(sq).length) return;
+  const col = how === 'cover' ? 0x8fe36a : 0x4fe3e0;
+  if (append && sq.order.t === 'move' && !sq.order.done) {
+    sq.order.pts.push({ x, z, how });
+    say(sq.name, 'Tappa ' + (sq.order.pts.length - sq.order.i) + ' aggiunta al percorso.');
+    mark(x, z, col); return;
+  }
+  const n = goTo(sq, x, z, how);
+  sq.order = { t: 'move', pts: [{ x, z, how }], i: 0, cover: n > 0, done: false };
+  say(sq.name, how === 'cover' ? (n ? 'Ricevuto, prendiamo copertura.' : 'Nessuna copertura li, ci andiamo comunque.') : n ? 'Ricevuto, ci mettiamo al riparo.' : 'Ricevuto, in movimento.');
+  mark(x, z, col);
 }
 function orderAttack(sq, target) {
   const ms = alive(sq); if (!ms.length) return;
@@ -316,22 +332,41 @@ function squadUpkeep(sq, dt) {
       if (ok) m.path = null; else if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5) setDest(m, t.x + (m.id % 3 - 1) * 2, t.z + (m.id % 2 - 0.5) * 3);
     }
   } else if (sq.order.t === 'move' && !sq.order.done) {
-    if (ms.every(m => !m.path || m.pi >= m.path.length)) { sq.order.done = true; if (sq.order.cover) say(sq.name, 'In posizione, al coperto.'); }
+    const o = sq.order;
+    if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
+      if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how) > 0; sq.tick = 0.4; }
+      else { o.done = true; if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
+    }
   }
 }
 function selectedSquads() { return state.squads.filter(s => s.selected && alive(s).length); }
-/** Gives the move or attack order under the mouse to every selected squad the radio reaches. */
-function issueOrder(attackMode) {
+/**
+ * Gives an order at the mouse to every selected squad the radio reaches. kind: null (enemy under the
+ * mouse = attack, else move, into cover if near some), 'move', 'attack', 'cover'. append adds a stop
+ * to the drawn path. Returns whether any squad heard it.
+ */
+function issueOrder(kind, append) {
   const sel = selectedSquads();
-  if (!sel.length) { say('Radio', 'Nessuna squadra selezionata: click o tasti 1-6.', '#e0a070'); return; }
-  const tgt = enemyUnderMouse() || (attackMode && state.mouse3 ? nearestEnemyTo(state.mouse3.x, state.mouse3.z, 0, 8) : null);
+  if (!sel.length) { say('Radio', 'Nessuna squadra selezionata: click o tasti 1-6.', '#e0a070'); return false; }
+  let tgt = null;
+  if (kind === 'attack' || !kind) tgt = enemyUnderMouse() || (kind === 'attack' && state.mouse3 ? nearestEnemyTo(state.mouse3.x, state.mouse3.z, 0, 8) : null);
+  if (kind === 'attack' && !tgt) { say('Radio', 'Nessun bersaglio: punta un nemico.', '#e0a070'); return false; }
   let any = false;
   for (const sq of sel) {
     if (!inRadio(sq)) { say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); continue; }
     any = true;
-    if (tgt) orderAttack(sq, tgt); else if (state.mouse3) orderMove(sq, state.mouse3.x, state.mouse3.z);
+    if (tgt) orderAttack(sq, tgt);
+    else if (state.mouse3) orderMove(sq, state.mouse3.x, state.mouse3.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : 'auto', append);
   }
   if (any) { sfx('radio'); if (state.tut === 2) { state.tut = 3; say('Radio', 'Ti sentono solo dentro l\'anello ciano: la radio ha un raggio limitato. Migliorala in officina.', '#9fe3a0'); } }
+  return any;
+}
+/** The order the next click gives, armed with a hotkey (V, F, C). */
+const ARM = { move: 'VAI', attack: 'ATTACCA', cover: 'COPERTURA' };
+/** Space: the tactical pause. Time stops; selection, orders and the camera still work. */
+function setTacticalPause(on) {
+  state.tpause = on; state.arm = null; MS.drag = null;
+  say('Radio', on ? 'Pausa tattica: seleziona squadre e dai ordini, Spazio per riprendere.' : 'Si riprende.', '#ffd27a');
 }
 function enemyUnderMouse() {
   let best = null, bd = 26 * 26;
@@ -362,6 +397,18 @@ function selectSquad(sq, add) {
 // ---- The play step ----------------------------------------------------------------------------------
 /** One fixed step of play. */
 function stepPlay(dt) {
+  if (pressed('Space') && state.tank.alive) setTacticalPause(!state.tpause);
+  if (state.tpause) { // frozen: only orders and the camera move
+    if (R3.ready) state.mouse3 = pickWorld(MS.x, MS.y);
+    handleInput();
+    const ax = (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) - (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0);
+    const az = (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0);
+    const v = tune.pause_pan * cam.dist / 84 * dt, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+    cam.x += (cy * ax - sy * az) * v; cam.z += (-sy * ax - cy * az) * v;
+    cam.x = Math.max(0, Math.min(world.N, cam.x)); cam.z = Math.max(0, Math.min(world.N, cam.z));
+    MS.lp = MS.rp = MS.lr = false; MS.wheel = 0;
+    return;
+  }
   state.t += dt; state.stepN++; state.snd = 0;
   if (R3.ready) state.mouse3 = pickWorld(MS.x, MS.y);
   handleInput();
@@ -392,7 +439,17 @@ function handleInput() {
   if (pressed('KeyG')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderFollow(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
   if (pressed('KeyH')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderHold(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
   if (!tk.alive) return;
-  if (state.mode === 'cmd') {
+  const cmd = state.mode === 'cmd' || state.tpause, shift = down.has('ShiftLeft') || down.has('ShiftRight');
+  if (cmd) {
+    if (pressed('KeyV')) state.arm = state.arm === 'move' ? null : 'move';
+    if (pressed('KeyF')) state.arm = state.arm === 'attack' ? null : 'attack';
+    if (pressed('KeyC')) state.arm = state.arm === 'cover' ? null : 'cover';
+    if (state.arm && MS.lp) { // an armed order goes out on the left click too
+      if (issueOrder(state.arm, shift) && !shift) state.arm = null;
+      MS.lp = false; MS.drag = null;
+    }
+  } else state.arm = null;
+  if (cmd) {
     if (MS.lp) MS.drag = { x: MS.x, y: MS.y };
     if (MS.lr && MS.drag) {
       const d = MS.drag; MS.drag = null;
@@ -405,8 +462,8 @@ function handleInput() {
       }
     }
   } else MS.drag = null;
-  if (MS.rp) issueOrder(down.has('KeyF'));
-  if (state.canShop && pressed('KeyE')) { state.shopSite = state.canShop; state.shopTab = 0; state.shopMsg = ''; state.goScene = 'shop'; }
+  if (MS.rp) { const k = state.arm || (down.has('KeyF') ? 'attack' : null); if (issueOrder(k, shift) && state.arm && !shift) state.arm = null; }
+  if (state.canShop && !state.tpause && pressed('KeyE')) { state.shopSite = state.canShop; state.shopTab = 0; state.shopMsg = ''; state.goScene = 'shop'; }
 }
 
 // ---- The command tank ------------------------------------------------------------------------------------
@@ -415,24 +472,33 @@ function tankFootprint(x, z, h) {
   for (const lx of [-1.3, 0, 1.3]) for (const lz of [-2.3, 0, 2.3]) out.push({ x: x + c * lx + s * lz, z: z - s * lx + c * lz, lx, lz });
   return out;
 }
-/** Can the tank stand at (x,z,h)? Crushes soft voxels in the way. Returns the footprint or null. */
+/**
+ * Can the tank move to (x,z,h)? Each footprint point is compared with where the same point of the
+ * hull stands now, so a 1-voxel step or a ramp is climbable and a cliff is not. A footprint whose
+ * height span grows past tank_slope_span is too steep. Crushes soft voxels in the way.
+ * Returns the footprint or null.
+ */
 function tankFits(tk, x, z, h, climb) {
-  const pts = tankFootprint(x, z, h);
-  for (const p of pts) {
+  const pts = tankFootprint(x, z, h), now = tankFootprint(tk.x, tk.z, tk.heading);
+  let lo = 1e9, hi = -1e9, lo0 = 1e9, hi0 = -1e9;
+  for (let k = 0; k < pts.length; k++) {
+    const p = pts[k];
     if (!inMap(Math.floor(p.x), Math.floor(p.z)) || deepWater(p.x, p.z)) return null;
-    const g = hAt(p.x, p.z);
-    if (g - tk.y > climb) {
+    const g = hAt(p.x, p.z), g0 = Math.min(hAt(now[k].x, now[k].z), tk.y + 3);
+    lo = Math.min(lo, g); hi = Math.max(hi, g); lo0 = Math.min(lo0, g0); hi0 = Math.max(hi0, g0);
+    if (g - g0 > climb) {
       // crush a low soft obstacle (sandbags, junk, wood)
       const ix = Math.floor(p.x), iz = Math.floor(p.z), top = getV(ix, g - 1, iz);
-      if (g - tk.y <= 2.2 && SOFTV.has(top)) {
+      if (g - g0 <= 2.2 && SOFTV.has(top)) {
         const rem = [];
-        for (let y = g - 1; y >= Math.ceil(tk.y); y--) { const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } }
+        for (let y = g - 1; y >= Math.ceil(g0); y--) { const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } }
         recomputeColumn(ix, iz); spawnDebris(rem, p.x, tk.y + 1, p.z, 3);
         sfx('crunch', p.x, p.z);
       }
       return null;
     }
   }
+  if (hi - lo > tune.tank_slope_span && hi - lo > hi0 - lo0 + 0.01) return null;
   return pts;
 }
 function updateTank(dt) {
@@ -459,6 +525,13 @@ function updateTank(dt) {
       pts = tankFits(tk, nx, tk.z, tk.heading, S.climb); bx = nx; bz = tk.z;
       if (!pts || vehicleBlocked(tk, bx, bz)) { pts = tankFits(tk, tk.x, nz, tk.heading, S.climb); bx = tk.x; bz = nz; }
       if (pts && vehicleBlocked(tk, bx, bz)) pts = null;
+      if (!pts) { // a caught corner: steer the hull a little off it and try again
+        for (const sg of [1, -1]) {
+          const nh = tk.heading + sg * tune.tank_glance * Math.PI / 180 * dt, mx = tk.x + Math.sin(nh) * tk.speed * dt * 0.6, mz = tk.z + Math.cos(nh) * tk.speed * dt * 0.6;
+          const p2 = tankFits(tk, mx, mz, nh, S.climb);
+          if (p2 && !vehicleBlocked(tk, mx, mz)) { pts = p2; bx = mx; bz = mz; tk.heading = nh; break; }
+        }
+      }
       tk.speed *= 0.6;
     }
     if (pts) { tk.x = bx; tk.z = bz; }
@@ -499,7 +572,7 @@ function updateTank(dt) {
     const ay = tk.aligned ? m.y : Math.max(world.WL - 0.2, Math.min(hAt(ax, az), 60));
     state.aimP = { x: ax, y: ay, z: az, dist: d };
   }
-  if (state.mode === 'tank' && (MS.l || down.has('Space')) && tk.reload <= 0 && state.aimP) fireCannon(tk, S);
+  if (state.mode === 'tank' && MS.l && tk.reload <= 0 && state.aimP) fireCannon(tk, S);
   // tutorial: the first moves
   if (state.tut === 0 && Math.hypot(tk.x - state.startPos.x, tk.z - state.startPos.z) > 6) {
     state.tut = 1; say('Radio', 'Il mouse punta il cannone, ma la torretta gira lenta. Da fermo il cerchio si stringe. Click sinistro: fuoco.', '#9fe3a0');
@@ -573,7 +646,12 @@ function updateUnits(dt) {
     for (const v of state.ents) {
       if (!v.alive || !v.veh) continue;
       const dx = e.x - v.x, dz = e.z - v.z, r = v.rad + 0.4, d2 = dx * dx + dz * dz;
-      if (d2 < r * r && d2 > 0.0001) { const d = Math.sqrt(d2), p = (r - d) * (e.moving ? 0.25 : 1); nudge(e, dx / d * p, dz / d * p); }
+      if (d2 < r * r && d2 > 0.0001) {
+        // a soldier walking to a point clear of the vehicle is passing by: no shove, or it stalls at the hull
+        const wp = e.moving && e.path && e.path[e.pi];
+        if (wp && (wp.x - v.x) ** 2 + (wp.z - v.z) ** 2 >= r * r) continue;
+        const d = Math.sqrt(d2), p = (r - d) * (e.moving ? 0.25 : 1); nudge(e, dx / d * p, dz / d * p);
+      }
     }
   }
 }
@@ -595,7 +673,8 @@ function moveAlong(e, dt) {
     e.heading = turnToward(e.heading, want, (e.kind === 'boss' ? 45 : 140) * Math.PI / 180 * dt);
     if (Math.abs(angDiff(e.heading, want)) > 0.8) sp *= 0.15;
   } else if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
-  if (d <= sp * dt) { e.x = wp.x; e.z = wp.z; e.pi++; } else { e.x += dx / d * sp * dt; e.z += dz / d * sp * dt; }
+  if (d <= sp * dt) { e.x = wp.x; e.z = wp.z; e.pi++; }
+  else if (!e.veh && e.pi < e.path.length - 1 && d < 0.6) e.pi++; /* a node others crowd is close enough: walk on */ else { e.x += dx / d * sp * dt; e.z += dz / d * sp * dt; }
   e.moving = true;
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */

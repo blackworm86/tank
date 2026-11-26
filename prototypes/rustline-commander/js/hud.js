@@ -136,7 +136,31 @@ function objective() {
 
 // ---- The play HUD ------------------------------------------------------------------------------------------
 function drawHUD() {
-  const tk = state.tank, S = tankStats(), cmd = state.mode === 'cmd';
+  const tk = state.tank, S = tankStats(), cmd = state.mode === 'cmd' || state.tpause, tp = state.tpause;
+  if (tp) { ctx.fillStyle = 'rgba(10,22,34,0.22)'; ctx.fillRect(0, 0, W, H); ctx.strokeStyle = 'rgba(255,210,122,0.55)'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, W - 4, H - 4); }
+  // drawn paths: each selected squad's remaining stops (every squad's in the tactical pause)
+  for (const sq of state.squads) {
+    const ms = alive(sq), o = sq.order; if (!ms.length || !(sq.selected || tp)) continue;
+    let cx = 0, cz = 0, cy = 0; for (const m of ms) { cx += m.x; cz += m.z; cy += m.y; } cx /= ms.length; cz /= ms.length; cy /= ms.length;
+    let prev = toScreen(cx, cy + 0.6, cz);
+    ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+    if (o.t === 'move' && !o.done) {
+      for (let i = o.i; i < o.pts.length; i++) {
+        const p = o.pts[i], q = toScreen(p.x, hAt(p.x, p.z) + 0.6, p.z); if (!q.on || !prev.on) { prev = q; continue; }
+        const col = p.how === 'cover' ? '#8fe36a' : '#4fe3e0';
+        ctx.strokeStyle = col; ctx.globalAlpha = sq.selected ? 0.95 : 0.5;
+        ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(q.x, q.y - 7); ctx.lineTo(q.x + 7, q.y); ctx.lineTo(q.x, q.y + 7); ctx.lineTo(q.x - 7, q.y); ctx.closePath(); ctx.fill();
+        text(String(i - o.i + 1), q.x, q.y - 15, 12, col); ctx.setLineDash([6, 5]);
+        prev = q;
+      }
+    } else if (o.t === 'attack' && o.target && o.target.alive) {
+      const q = toScreen(o.target.x, o.target.y + 1, o.target.z);
+      if (q.on && prev.on) { ctx.strokeStyle = '#ff6a4a'; ctx.globalAlpha = sq.selected ? 0.95 : 0.5; ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+    }
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
   // bars over units
   for (const e of state.ents) {
     if (!e.alive || e.kind === 'tank') continue;
@@ -173,9 +197,31 @@ function drawHUD() {
   tagIcon(196, 122, 14, '#c8c2b2'); text(String(meta.piastrine) + ' piastrine', 210, 122, 14, HC.dim, 'left');
 
   // mode badge
-  rrect(W / 2 - 120, 12, 240, 42, 7, cmd ? 'rgba(18,56,58,0.9)' : 'rgba(60,40,22,0.9)', cmd ? HC.cyan : '#d9a35a');
-  text(cmd ? 'MODALITÀ COMANDO' : 'MODALITÀ CARRO', W / 2, 28, 18, cmd ? HC.cyan : '#ffd9a0');
-  text('Tab per cambiare', W / 2, 46, 13, HC.dim);
+  if (tp) {
+    rrect(W / 2 - 150, 12, 300, 42, 7, 'rgba(70,52,16,0.94)', '#ffd27a');
+    text('PAUSA TATTICA', W / 2, 28, 18, '#ffd27a');
+    text('Spazio per riprendere · WASD sposta la vista', W / 2, 46, 13, '#e8d8b0');
+  } else {
+    rrect(W / 2 - 120, 12, 240, 42, 7, cmd ? 'rgba(18,56,58,0.9)' : 'rgba(60,40,22,0.9)', cmd ? HC.cyan : '#d9a35a');
+    text(cmd ? 'MODALITÀ COMANDO' : 'MODALITÀ CARRO', W / 2, 28, 18, cmd ? HC.cyan : '#ffd9a0');
+    text('Tab per cambiare · Spazio pausa tattica', W / 2, 46, 13, HC.dim);
+  }
+  // order strip: the armed order is lit
+  if (cmd) {
+    const ords = [['V', 'Vai', 'move'], ['F', 'Attacca', 'attack'], ['C', 'Copertura', 'cover'], ['Shift', 'Tappa percorso', null], ['G', 'Seguimi', null], ['H', 'Fermi', null]];
+    ctx.font = `bold 13px ${FONT}`;
+    const ws = ords.map(o => ctx.measureText(o[0]).width + ctx.measureText(o[1]).width + 30);
+    let ox = W / 2 - (ws.reduce((a, b) => a + b, 0) + 6 * (ords.length - 1)) / 2;
+    ords.forEach((o, i) => {
+      const on = o[2] && state.arm === o[2];
+      rrect(ox, 62, ws[i], 26, 5, on ? 'rgba(86,105,58,0.95)' : 'rgba(20,14,10,0.78)', on ? '#d8f59a' : HC.edge);
+      const kw = ctx.measureText(o[0]).width + 10;
+      rrect(ox + 4, 66, kw, 18, 3, 'rgba(0,0,0,0.45)', null);
+      text(o[0], ox + 4 + kw / 2, 75, 12, on ? '#ffffff' : '#ffd9a0');
+      text(o[1], ox + kw + 10, 75, 13, on ? '#ffffff' : HC.text, 'left');
+      ox += ws[i] + 6;
+    });
+  }
 
   // minimap and objective
   const MSZ = 180; drawMinimap(W - MSZ - 20, 20, MSZ);
@@ -219,8 +265,8 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['Click / trascina: seleziona squadre', 'Click destro: muovi (al riparo) / attacca', 'F + click destro: attacca la zona', 'G: seguimi   H: fermi   1-6: squadra']
-    : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Click destro: ordine alle squadre', 'Q/E: ruota camera   Rotella: zoom'];
+    ? ['Click / trascina: seleziona   1-6: squadra', 'Click destro: muovi (al riparo) / attacca', 'V F C + click: vai / attacca / copertura', 'Shift + click destro: aggiungi tappa']
+    : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio: pausa tattica   Tab: comando', 'Q/E: ruota camera   Rotella: zoom'];
   panel(W - 300, H - 108, 286, 94);
   lines.forEach((l, i) => text(l, W - 290, H - 91 + i * 20, 13, HC.dim, 'left'));
 
@@ -229,6 +275,7 @@ function drawHUD() {
     if (MS.drag) { ctx.strokeStyle = HC.cyan; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(MS.drag.x, MS.drag.y, MS.x - MS.drag.x, MS.y - MS.drag.y); ctx.setLineDash([]); ctx.fillStyle = 'rgba(79,227,224,0.08)'; ctx.fillRect(MS.drag.x, MS.drag.y, MS.x - MS.drag.x, MS.y - MS.drag.y); }
     ctx.fillStyle = HC.cyan; ctx.strokeStyle = '#0c1a1a'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(MS.x, MS.y); ctx.lineTo(MS.x + 13, MS.y + 5); ctx.lineTo(MS.x + 6, MS.y + 7); ctx.lineTo(MS.x + 4, MS.y + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (state.arm) { const c = state.arm === 'attack' ? '#ff8a6a' : state.arm === 'cover' ? '#8fe36a' : HC.cyan; rrect(MS.x + 14, MS.y + 12, ctx.measureText(ARM[state.arm]).width + 18, 20, 4, 'rgba(10,14,12,0.85)', c); text(ARM[state.arm], MS.x + 23, MS.y + 22, 12, c, 'left'); }
   } else {
     ctx.strokeStyle = '#ffe6a0'; ctx.lineWidth = 2;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.beginPath(); ctx.moveTo(MS.x + dx * 5, MS.y + dy * 5); ctx.lineTo(MS.x + dx * 12, MS.y + dy * 12); ctx.stroke(); }

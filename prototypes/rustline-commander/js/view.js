@@ -119,6 +119,13 @@ const FACES = [
   { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] },
 ];
 const UVS = [[0, 0], [0, 1], [1, 1], [1, 0]];
+/** Terrain whose 1-voxel steps are drawn as ramps (buildings and walls keep hard edges). */
+function rampTop(x, z) { if (!inMap(x, z)) return -1; const h = world.hmap[x + world.N * z]; return h > 0 && NATURAL.has(world.vox[VH * (x + world.N * z) + h - 1]) ? h : -1; }
+/** How far a column's top corner (cx,cz in 0..1) rises: 1 when a terrain column touching that corner is exactly one voxel taller. */
+function cornerRise(x, z, h, cx, cz) {
+  for (let dz = cz - 1; dz <= cz; dz++) for (let dx = cx - 1; dx <= cx; dx++) if ((dx || dz) && rampTop(x + dx, z + dz) === h + 1) return 1;
+  return 0;
+}
 const NATURAL = new Set([V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
 function buildChunkGeo(cx, cz) {
   const N = world.N, x0 = cx * 16, z0 = cz * 16;
@@ -131,6 +138,9 @@ function buildChunkGeo(cx, cz) {
       const t = world.vox[base + y]; if (!t) continue;
       const bc = R3.vlin[t];
       const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
+      // the surface voxel of natural ground bends its top corners up toward a 1-voxel step: a ramp
+      const ramp = y === top - 1 && NATURAL.has(t);
+      const rise = ramp ? [cornerRise(x, z, top, 0, 0), cornerRise(x, z, top, 1, 0), cornerRise(x, z, top, 0, 1), cornerRise(x, z, top, 1, 1)] : null;
       for (let f = 0; f < 6; f++) {
         const F = FACES[f];
         if (f === 3 && y === 0) continue;
@@ -140,7 +150,7 @@ function buildChunkGeo(cx, cz) {
         if (f !== 2 && f !== 3) k *= 0.8 + 0.2 * Math.min(1, y / 14);
         for (let i = 0; i < 4; i++) {
           const c = F.c[i];
-          pos.push(x + c[0], y + c[1], z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
+          pos.push(x + c[0], y + c[1] + (rise && c[1] ? rise[c[0] + 2 * c[2]] : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
           col.push(bc.r * k, bc.g * k, bc.b * k); uv.push(UVS[i][0], UVS[i][1]);
         }
         idx.push(vcount, vcount + 1, vcount + 2, vcount, vcount + 2, vcount + 3);
