@@ -25,7 +25,7 @@ window.CONFIG = {
   road_half_width: { value: 3, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide (map rule M4: 7 wide)
   road_shoulder: { value: 6, min: 2, max: 10, step: 1 },        // how far the 1-per-voxel ramp beside a road reaches
   camp_count: { value: 5, min: 2, max: 8, step: 1 },            // raider camps per run
-  patrol_count: { value: 6, min: 0, max: 14, step: 1 },         // roaming raider patrols
+  patrol_count: { value: 8, min: 0, max: 14, step: 1 },         // roaming raider patrols
   ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
@@ -46,7 +46,7 @@ window.CONFIG = {
   stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a stealthy soldier's speed
   horde_time: { value: 420, min: 30, max: 900, step: 10 },       // seconds on a sector before the Horde's hunters come
   wave_every: { value: 45, min: 10, max: 180, step: 5 },          // seconds between hunter waves
-  wave_size: { value: 3, min: 1, max: 12, step: 1 },              // raiders in the first wave
+  wave_size: { value: 4, min: 1, max: 12, step: 1 },              // raiders in the first wave
   wave_grow: { value: 1, min: 0, max: 5, step: 0.5 },             // more raiders each wave
   exit_radius: { value: 10, min: 4, max: 20, step: 1 },           // how close to the exit the tank must be to leave
   smart_soldiers: { value: 1, min: 0, max: 1, step: 1 },        // 1 = soldiers score cover against every threat and take positions by role
@@ -63,6 +63,12 @@ window.CONFIG = {
   circle_radius: { value: 18, min: 8, max: 35, step: 1 },       // the distance technicals circle their target at
   rep_friend: { value: 30, min: 10, max: 80, step: 5 },          // reputation at which a faction is a friend (and minus it, an enemy)
   rep_discount: { value: 0.35, min: 0, max: 0.8, step: 0.05 },   // price change at full reputation (friends pay less, enemies more)
+  hold_time: { value: 120, min: 20, max: 600, step: 10 },        // seconds to hold the spot for the engineers
+  hold_radius: { value: 16, min: 6, max: 40, step: 1 },          // the ring the tank must stay in
+  hold_wave: { value: 28, min: 8, max: 120, step: 2 },           // seconds between attacks on the held spot
+  escort_count: { value: 5, min: 1, max: 12, step: 1 },          // refugees to bring to the exit
+  escort_pay: { value: 10, min: 0, max: 100, step: 1 },          // scrap per refugee saved
+  warlord_hp: { value: 1.6, min: 1, max: 5, step: 0.1 },         // a warlord vehicle is this much tougher
   job_scrap: { value: 45, min: 20, max: 300, step: 10 },         // pay for a faction job (delivery, defence)
   raid_delay: { value: 30, min: 5, max: 120, step: 5 },           // seconds before the raid on the settlers' hamlet
   toll: { value: 40, min: 0, max: 200, step: 5 },                 // the deserters' toll at their checkpoint
@@ -181,6 +187,7 @@ window.CONFIG = {
   armor_rear_arc: { value: 45, min: 10, max: 80, step: 5 },     // half-angle of the rear face, degrees
   hull_turn_boss: { value: 22, min: 5, max: 120, step: 1 },     // deg/s a still hull turns to face its enemy
   hull_turn_technical: { value: 80, min: 5, max: 200, step: 5 },
+  hull_turn_enemy: { value: 90, min: 5, max: 300, step: 5 },      // the Horde's other vehicles (bikes and buggies turn on the spot, tanks slowly: see enemies.js)
   hull_turn_car: { value: 100, min: 5, max: 200, step: 5 },
   hull_turn_ltank: { value: 45, min: 5, max: 200, step: 5 },
 
@@ -276,6 +283,27 @@ window.CONFIG = {
   sight_range: { value: 34, min: 10, max: 80, step: 1 },        // how far any soldier spots enemies
 
   // ---- Raiders ----
+  camp_men_k: { value: 1.3, min: 0.5, max: 3, step: 0.1 },       // raiders in a camp, times the old count
+  bomb_damage: { value: 120, min: 20, max: 400, step: 10 },      // a bomber's charge
+  bomber_speed: { value: 1.5, min: 0.5, max: 3, step: 0.1 },     // bombers run (times the infantry speed)
+  dog_speed: { value: 2.0, min: 0.5, max: 4, step: 0.1 },        // war dogs (times the infantry speed)
+  dog_damage: { value: 9, min: 1, max: 60, step: 1 },            // a bite
+  flame_damage: { value: 11, min: 1, max: 60, step: 1 },         // a flamethrower's burst (each 0.3 s)
+  bike_hp: { value: 50, min: 10, max: 300, step: 10 },
+  bike_speed: { value: 11, min: 2, max: 20, step: 0.5 },
+  buggy_hp: { value: 80, min: 10, max: 400, step: 10 },
+  buggy_speed: { value: 10, min: 2, max: 20, step: 0.5 },
+  truck_hp: { value: 240, min: 50, max: 900, step: 10 },
+  truck_speed: { value: 6.5, min: 1, max: 15, step: 0.5 },
+  truck_unload: { value: 26, min: 6, max: 60, step: 1 },          // how near the fight an armoured truck drops its men
+  rtank_hp: { value: 340, min: 50, max: 1500, step: 10 },          // the raiders' scrap tank
+  rtank_speed: { value: 4, min: 1, max: 12, step: 0.5 },
+  spg_hp: { value: 220, min: 50, max: 1000, step: 10 },            // the self-propelled gun
+  spg_range: { value: 95, min: 30, max: 160, step: 5 },
+  spg_damage: { value: 70, min: 10, max: 300, step: 5 },
+  spg_reload: { value: 9, min: 2, max: 30, step: 0.5 },
+  spg_scatter: { value: 5, min: 0, max: 15, step: 0.5 },
+  depot_hp: { value: 400, min: 50, max: 2000, step: 10 },          // a fuel depot to blow up
   raider_hp: { value: 26, min: 5, max: 150, step: 1 },
   raider_sight: { value: 30, min: 10, max: 80, step: 1 },
   raider_acc: { value: 0.4, min: 0.05, max: 1, step: 0.05 },
@@ -309,6 +337,11 @@ window.CONFIG = {
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
   max_squads: { value: 6, min: 1, max: 9, step: 1 },
   squad_max_size: { value: 4, min: 1, max: 8, step: 1 },
+  shape_force: { value: 0, min: 0, max: 3, step: 1 },          // 0 = the campaign's map shape; 1 open, 2 valley, 3 basin (testing)
+  valley_width: { value: 0.24, min: 0.12, max: 0.45, step: 0.01 }, // a valley map's half width (share of the map side)
+  wall_height: { value: 25, min: 14, max: 28, step: 1 },         // the rock walls round a valley or a basin
+  river_chance: { value: 0.65, min: 0, max: 1, step: 0.05 },     // chance a sector without the river geography still has a river
+  geo_combo: { value: 0.4, min: 0, max: 1, step: 0.05 },         // chance a sector has a second geography
   geo_force: { value: 0, min: 0, max: 4, step: 1 },            // 0 = the campaign's geography; 1 ridges, 2 wide river, 3 plateaus, 4 hills (testing)
   ridge_height: { value: 13, min: 4, max: 20, step: 1 },        // how tall the ridges stand over the land (passes cut through)
   plateau_height: { value: 10, min: 3, max: 16, step: 1 },      // the plateaus' cliff height

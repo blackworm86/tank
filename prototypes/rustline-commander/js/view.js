@@ -471,6 +471,7 @@ function modelFor(e) {
   if (e.kind === 'at') return makeATGunModel();
   if (e.kind === 'technical') return makeTechnicalModel();
   if (e.kind === 'boss') return makeBossModel();
+  if (typeof ENEMY_MODELS !== 'undefined' && ENEMY_MODELS[e.kind]) return ENEMY_MODELS[e.kind](); // enemies.js
   return makeSoldier(e.kind);
 }
 

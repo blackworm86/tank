@@ -26,9 +26,11 @@
 <script src="js/terrain.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/tactics.js"></script>
+<script src="js/enemies.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/campaign.js"></script>
 <script src="js/factions.js"></script>
+<script src="js/missions.js"></script>
 <script src="js/loadout.js"></script>
 <script>
 'use strict';
@@ -232,7 +234,9 @@ function reportError(err) { console.error(err); }
 function step() {
   try {
     if (pressed('KeyM')) { setMuted(!muted); hit.delete('KeyM'); }
+    const was = scene;
     scenes[scene].update(STEP);
+    if (scene === 'play' && was !== 'play' && state) state.menuBlock = true; // a click that closed a dialogue or a menu never fires the gun (cleared on release)
   } catch (err) { reportError(err); }
   hit.clear();
   canvas.style.cursor = 'none'; // only the game's own cursor shows

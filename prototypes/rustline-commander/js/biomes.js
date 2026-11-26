@@ -58,23 +58,33 @@ const GEOS = {
   hills: { name: 'colline', brief: 'Colline alte e valli strette.' },
 };
 const GEO_IDS = Object.keys(GEOS);
-/** The sector's geography (config geo_force overrides, for testing). */
-function mapGeoId() { const f = Math.round(tune.geo_force); return f ? GEO_IDS[f - 1] : (world.spec && world.spec.geo) || GEO_IDS[Math.floor(rng() * GEO_IDS.length)]; }
+/** The sector's geographies, one or two (config geo_force overrides, for testing). */
+function mapGeoIds() {
+  const f = Math.round(tune.geo_force), S = world.spec || {};
+  if (f) return [GEO_IDS[f - 1]];
+  if (S.geos && S.geos.length) return S.geos.slice();
+  return [GEO_IDS[Math.floor(rng() * GEO_IDS.length)]];
+}
+function geoName(ids) { return ids.map(g => GEOS[g].name).join(' + '); }
+/** Map shapes: open, a valley between rock walls along the way, a basin ringed by mountains. */
+const SHAPES = { open: { name: 'aperta' }, valley: { name: 'valle tra pareti di roccia' }, basin: { name: 'conca tra le montagne' } };
+const SHAPE_IDS = Object.keys(SHAPES);
+function mapShapeId() { const f = Math.round(tune.shape_force); return f ? SHAPE_IDS[f - 1] : (world.spec && world.spec.shape) || 'open'; }
 /**
  * The geography's shape in canonical space (start near 0,0, exit near N,N), for genWorld: raise(cx,cz) is the
  * height it adds (ridges with a pass or two, plateaus with cliff edges), block(cx,cz) where no site may sit.
  * The ridges run across the whole map, so the passes (and the roads through them) are the only ways on.
  */
-function geoShape(G, N, ns) {
-  const S2 = Math.SQRT1_2, u0 = 22 * 2 * S2, u1 = (N - 27) * 2 * S2, ridges = [];
-  if (G === 'ridges') {
+function geoShape(G, N, ns, SC, EC) {
+  const S2 = Math.SQRT1_2, u0 = (SC[0] + SC[1]) * S2, u1 = (EC[0] + EC[1]) * S2, ridges = [];
+  if (G.includes('ridges')) {
     const ts = N >= 176 ? [0.26, 0.78] : [0.28];
     ts.forEach((t, r) => {
       const passes = [(rng() - 0.5) * N * 0.6]; if (rng() < 0.55) passes.push(passes[0] + (rng() < 0.5 ? 1 : -1) * (30 + rng() * 30));
       ridges.push({ u: u0 + (u1 - u0) * t, passes, s: ns + 40 + r * 7, h: tune.ridge_height * (0.85 + rng() * 0.3) });
     });
   }
-  const plateau = G === 'plateau';
+  const plateau = G.includes('plateau');
   return {
     G, ridges,
     raise(cx, cz) {

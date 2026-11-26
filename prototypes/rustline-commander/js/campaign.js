@@ -33,7 +33,10 @@ function newCampaign() {
       n.biome = rng() < 0.6 ? colBiome : BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)];
       n.layout = LAYOUT_IDS[Math.floor(rng() * LAYOUT_IDS.length)];
       n.geo = GEO_IDS[Math.floor(rng() * GEO_IDS.length)];
-      const m = rng(); n.mission = m < 0.3 ? 'camp' : m < 0.5 ? 'rescue' : m < 0.7 ? 'cache' : 'exit';
+      if (rng() < tune.geo_combo) { const o = GEO_IDS.filter(g => g !== n.geo && !(g === 'hills' && n.geo !== 'river') && !(n.geo === 'hills' && g !== 'river')); n.geo2 = o[Math.floor(rng() * o.length)]; }
+      const sh = rng(); n.shape = sh < 0.45 ? 'open' : sh < 0.75 ? 'valley' : 'basin';
+      n.size = n.shape === 'valley' ? 224 : [160, 192, 208][Math.floor(rng() * 3)];
+      n.mission = pickMission(c); // missions.js
       col.push(n);
     }
     cols.push(col);
@@ -51,12 +54,13 @@ function newCampaign() {
     for (const b of B) if (!A.some(a => a.next.includes(b.id))) A.slice().sort((p, q) => Math.abs(p.y - b.y) - Math.abs(q.y - b.y))[0].next.push(b.id);
   }
   state.camp = { cols, cur: 0, visited: [0], lost: 0, sector: 1, rep: {} };
+  seedChains(); // missions.js: trails over several sectors
 }
 function campNode(id) { for (const c of state.camp.cols) for (const n of c) if (n.id === id) return n; return null; }
 /** What a sector's map holds, from its SITREP. */
 function nodeSpec(n) {
-  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout, geo: 'hills' };
-  return { faction: n.faction, biome: n.biome, layout: n.layout, geo: n.geo, camps: n.enemy + 1, outposts: 0, wrecks: [0, 1, 2, 3][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
+  if (n.final) return { final: true, camps: 0, outposts: 0, wrecks: 5, patrolK: 0, startBase: true, tier: 3, biome: n.biome, layout: n.layout, geos: ['hills'], shape: 'open', size: 176 };
+  return { faction: n.faction, biome: n.biome, layout: n.layout, geos: [n.geo, n.geo2].filter(Boolean), shape: n.shape, size: n.size, camps: n.enemy + 1, outposts: 0, wrecks: [0, 1, 2, 3][n.scrap], patrolK: [0, 0.35, 0.7, 1.1][n.enemy], tier: Math.min(3, 1 + Math.floor(n.col / 3)) };
 }
 /** Leaves for sector n: makes its map and brings the tank and whoever came along. */
 function startNode(n, carry) {
@@ -136,10 +140,11 @@ function setupMap() {
     }
   }
   setupFactions(); // factions.js: the settlement, its people and the faction's ways
+  missionSetup(M, n); chainSetup(n); // missions.js: hold, escort, sabotage, hunt; the trail's step
   if (n.final) setupFinal();
   else {
     say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '.', '#ffd9a0');
-    say('SITREP', GEOS[world.geo].brief + ' Nessuna officina qui: riparazioni e modifiche solo all\'uscita dal settore.', '#b6d77a');
+    say('SITREP', world.geos.map(g => GEOS[g].brief).join(' ') + (world.shape !== 'open' ? ' Mappa: ' + SHAPES[world.shape].name + '.' : '') + ' Nessuna officina qui: riparazioni e modifiche solo all\'uscita dal settore.', '#b6d77a');
   }
 }
 /** The eighth sector: the army's last camp, its squads and tanks, and the Horde's gate. */
@@ -180,6 +185,7 @@ function campaignUpdate(dt) {
     }
     if (M.done && !state.final) say('Radio', 'Missione compiuta! Invio per lasciare il settore subito, o prosegui verso l\'uscita.', '#9fe3a0');
   }
+  missionUpdate(M, dt); chainUpdate(dt); // missions.js
   // side jobs
   for (const q of state.quests) {
     if (q.done) continue;
@@ -211,7 +217,8 @@ function campaignUpdate(dt) {
   }
   // leaving: at the exit, or anywhere once the mission is done
   const ex = world.sites.fortress;
-  state.atExit = !state.final && Math.hypot(ex.x - tk.x, ex.z - tk.z) < tune.exit_radius;
+  state.atExitRaw = !state.final && Math.hypot(ex.x - tk.x, ex.z - tk.z) < tune.exit_radius;
+  state.atExit = state.atExitRaw && exitOpen(M); // a spot still to hold keeps the exit shut
   state.leaveOK = !state.final && (state.atExit || (M.done && M.kind !== 'exit'));
   if (state.leaveOK && pressed('Enter') && !state.goScene) leaveSector();
 }
@@ -226,6 +233,7 @@ function leaveSector() {
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
 function departSector() {
   state.leaving = false;
+  missionLeave(state.mission); chainLeave(); // missions.js
   const c = carryOut();
   if (!c.lost && c.squads.length >= 3) grantAch('allhome');
   state.carry = c; state.carryT = c.time; state.camp.lost = c.lost;
@@ -243,10 +251,9 @@ function spawnWave(n, tier, from) {
   }
   if (!p) p = { x: N - 10, z: N - 10 };
   const g = newGroup('hunt', p.x, p.z, null); g.alert = true; g.seenT = state.t; g.known = { x: tk.x, z: tk.z };
-  for (let i = 0; i < n; i++) {
-    const q = spotNear(p.x, p.z, i), k = i % 5 === 1 ? 'r_mg' : i % 4 === 3 ? 'r_rpg' : 'r_rifle';
-    const e = addRaider(g, k, q.x, q.z, tier); e.think = 0.2 + rng() * 0.5;
-  }
+  waveKinds(n, tier, state.waveN || 0).forEach((k, i) => { // enemies.js: dogs, bikes, rabble, trucks, tanks by turns
+    const q = spotNear(p.x, p.z, i), e = addRaider(g, k, q.x, q.z, tier); e.think = 0.2 + rng() * 0.5;
+  });
   if (tier >= 2 && n >= 6) { const q = spotNear(p.x + 4, p.z, 7); addRaider(g, 'technical', q.x, q.z, tier); }
   return g;
 }
@@ -403,7 +410,8 @@ function drawMapHUD() {
   const tag = (x, z, lab, c, lift) => { const p = toScreen(x, hAt(x, z) + (lift || 4), z); if (!p.on) return; ctx.font = `bold 12px ${FONT}`; const w = ctx.measureText(lab).width + 14; rrect(p.x - w / 2, p.y - 10, w, 20, 5, 'rgba(14,10,8,0.82)', c); text(lab, p.x, p.y, 12, c); };
   if (!state.final) tag(s.fortress.x, s.fortress.z, 'USCITA', '#ffd36a', 6);
   const M = state.mission;
-  if (M.target && !M.done) tag(M.target.x, M.target.z, M.kind === 'cache' ? 'DEPOSITO' : M.kind === 'rescue' ? 'PRIGIONIERI' : 'OBIETTIVO', '#ff8a6a', 7);
+  if (M.target && !M.done) tag(M.target.x, M.target.z, M.kind === 'cache' ? 'DEPOSITO' : M.kind === 'rescue' ? 'PRIGIONIERI' : (MISSIONS[M.kind].tag || 'OBIETTIVO'), '#ff8a6a', 7);
+  missionTags(tag); // missions.js: the boss, the refugees, the ring to hold, the trail
   for (const p of state.npcs) if (p.seen && !p.done) tag(p.x, p.z, p.fac ? FACTIONS[p.fac].short : '?', p.fac ? FACTIONS[p.fac].col : '#b9f59a', 3.4);
   if (state.leaveOK) {
     const c = exitCount(), msg = (state.atExit ? 'USCITA' : 'MISSIONE COMPIUTA') + ' · Invio: lascia il settore · con te ' + c.go + (c.stay ? ', ' + c.stay + ' restano indietro (fuori radio)' : '');
@@ -415,6 +423,7 @@ function drawMapHUD() {
 function missionLine() {
   const M = state.mission, tk = state.tank, s = world.sites; if (!M) return '';
   if (state.final) return 'Difendi il campo dell\'esercito';
+  const ex = missionLineExtra(M); if (ex) return ex; // missions.js
   if (!M.done && M.target) return MISSIONS[M.kind].name + ' · ' + Math.round(Math.hypot(M.target.x - tk.x, M.target.z - tk.z)) + ' m';
   return 'Uscita · ' + Math.round(Math.hypot(s.fortress.x - tk.x, s.fortress.z - tk.z)) + ' m';
 }
@@ -423,6 +432,7 @@ function minimapMarks(k) {
   const M = state.mission; if (!M) return;
   const ring = (x, z, r, c) => { ctx.strokeStyle = c; ctx.lineWidth = 2 / k; ctx.beginPath(); ctx.arc(x, z, r, 0, 6.3); ctx.stroke(); };
   if (M.target && !M.done) ring(M.target.x, M.target.z, 7, '#ff8a6a');
+  missionMinimap(ring); // missions.js
   for (const p of state.npcs) if (p.seen && !p.done) { ctx.fillStyle = '#b9f59a'; ctx.beginPath(); ctx.arc(p.x, p.z, 2.6, 0, 6.3); ctx.fill(); }
   for (const q of state.quests) if (!q.done && q.site) ring(q.site.x, q.site.z, 9, '#ffd36a');
   if (state.campsKnown) for (const c of world.sites.camps) if (!c.cleared) ring(c.x, c.z, 11, '#ff5a40');
@@ -451,6 +461,7 @@ function drawCampaign() {
   for (const col of C.cols) for (const n of col) {
     const p = campPos(n), on = R.includes(n), visited = C.visited.includes(n.id), here = n.id === C.cur;
     const hv = Math.hypot(MS.x - p.x, MS.y - p.y) < 22; if (hv) hover = n;
+    if (n.chain && state.camp.chains && !state.camp.chains[n.chain.id].done && state.camp.chains[n.chain.id].step === n.chain.step) text('★', p.x + 17, p.y - 17, 15, '#ffd36a'); // a trail goes on here
     const r = n.final ? 22 : 15, pulse = on ? 1 + Math.sin(performance.now() / 220) * 0.12 : 1;
     ctx.fillStyle = here ? '#4fe3e0' : visited ? '#6a5a4a' : on ? '#ffd36a' : n.final ? '#8a2f28' : '#3a2c22';
     ctx.strokeStyle = n.final ? '#ff7a6a' : on ? '#fff2d8' : '#8e4b27'; ctx.lineWidth = on || hv ? 3 : 1.5;
@@ -464,18 +475,20 @@ function drawCampaign() {
   const bx = W - 460, by = H - 140;
   panel(bx, by, 440, 124);
   if (sel) {
-    text('SITREP · settore ' + (sel.col + 1) + (sel.final ? ' · ULTIMA DIFESA' : ''), bx + 16, by + 20, 15, '#ffd9a0', 'left');
-    if (sel.biome) text(BIOMES[sel.biome].name + ' · ' + LAYOUTS[sel.layout].name + (sel.geo ? ' · ' + GEOS[sel.geo].name : ''), bx + 424, by + 20, 13, '#9fd8ff', 'right');
-    if (sel.final) wrap('Il campo dell\'esercito. L\'Orda attaccherà con tutto quello che ha: ondate su ondate, poi il Carro del Capo.', 410, 14).forEach((l, i) => text(l, bx + 16, by + 46 + i * 20, 14, HC.text, 'left'));
+    text('SITREP · settore ' + (sel.col + 1) + (sel.final ? ' · ULTIMA DIFESA' : ''), bx + 16, by + 16, 15, '#ffd9a0', 'left');
+    if (sel.biome) text(BIOMES[sel.biome].name + ' · ' + LAYOUTS[sel.layout].name + (sel.geo ? ' · ' + geoName([sel.geo, sel.geo2].filter(Boolean)) + (sel.shape && sel.shape !== 'open' ? ', ' + SHAPES[sel.shape].name : '') : ''), bx + 16, by + 35, 12, '#9fd8ff', 'left'); // the land: biome, zone, geography, shape
+    if (sel.final) wrap('Il campo dell\'esercito. L\'Orda attaccherà con tutto quello che ha: ondate su ondate, poi il Carro del Capo.', 410, 14).forEach((l, i) => text(l, bx + 16, by + 56 + i * 18, 13, HC.text, 'left'));
     else {
-      text('Presenza nemica: ' + LEVEL[sel.enemy], bx + 16, by + 46, 14, ['', HC.ok, HC.warn, HC.bad][sel.enemy], 'left');
-      text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 46, 14, HC.gold, 'left');
+      text('Presenza nemica: ' + LEVEL[sel.enemy], bx + 16, by + 54, 13, ['', HC.ok, HC.warn, HC.bad][sel.enemy], 'left');
+      text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 54, 13, HC.gold, 'left');
       const signs = [];
       if (sel.faction) signs.push(FACTIONS[sel.faction].sign + ' (' + repLabel(sel.faction) + ')');
       if (sel.mission === 'rescue') signs.push('segnale di soccorso');
-      text('Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), bx + 16, by + 70, 14, HC.text, 'left');
+      if (MISSIONS[sel.mission] && MISSIONS[sel.mission].sign) signs.push(MISSIONS[sel.mission].sign);
+      if (sel.chain && !state.camp.chains[sel.chain.id].done) signs.push('pista: ' + CHAINS[sel.chain.id].name);
+      wrap((MISSIONS[sel.mission] ? 'Missione: ' + MISSIONS[sel.mission].name.toLowerCase() + '. ' : '') + 'Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), 412, 12).slice(0, 2).forEach((l, i) => text(l, bx + 16, by + 73 + i * 16, 12, HC.text, 'left'));
     }
-    text('Click o tasto ' + (R.indexOf(sel) + 1) + ' per partire', bx + 16, by + 102, 13, HC.dim, 'left');
+    text('Click o tasto ' + (R.indexOf(sel) + 1) + ' per partire', bx + 16, by + 112, 12, HC.dim, 'left');
   } else text('Passa il mouse su un settore giallo per il SITREP.', bx + 16, by + 60, 14, HC.dim, 'left');
   const rx = 575, ry = H - 140; panel(rx, ry, 230, 124); // the factions' standing
   text('Reputazione', rx + 12, ry + 16, 13, '#ffd9a0', 'left');

@@ -113,6 +113,7 @@ function genWorld() {
   const P = mapPreset(); world.preset = P;
   const S = world.spec || {}; // the campaign sector this map is for (camps, outposts, wrecks, patrols, tier)
   if (S.camps != null) P.camps = S.camps;
+  if (S.size && !tune.map_simple) P.size = S.size; // the sector's own size
   const N = P.size, WL = Math.round(tune.water_level);
   world.N = N; world.WL = WL;
   world.vox = new Uint8Array(N * N * VH);
@@ -123,13 +124,21 @@ function genWorld() {
   world.buildings = []; world.bld = new Int16Array(N * N); world.props = []; world.keep = new Uint8Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
-  world.geo = mapGeoId(); const GS = geoShape(world.geo, N, ns); world.geoShape = GS; // biomes.js
+  // The frame: the map is laid out in a canonical space where the start and the exit sit on the diagonal,
+  // then turned by a random angle about the centre, so they can be on any side, corner or edge.
+  const C = N / 2, alpha = rng() * Math.PI * 2, ca = Math.cos(alpha), sa = Math.sin(alpha);
+  const real = (cx, cz) => { const dx = cx - C, dz = cz - C; return { x: Math.max(1, Math.min(N - 2, Math.round(C + dx * ca - dz * sa))), z: Math.max(1, Math.min(N - 2, Math.round(C + dx * sa + dz * ca))) }; };
+  const canon = (x, z) => { const dx = x - C, dz = z - C; return [C + dx * ca + dz * sa, C - dx * sa + dz * ca]; };
+  const rdx = Math.SQRT1_2 * (ca - sa), rdz = Math.SQRT1_2 * (sa + ca), far = m => (N / 2 - m) / Math.max(Math.abs(rdx), Math.abs(rdz));
+  const dS = far(22), dE = far(27), SC = [C - Math.SQRT1_2 * dS, C - Math.SQRT1_2 * dS], EC = [C + Math.SQRT1_2 * dE, C + Math.SQRT1_2 * dE];
+  world.frame = { C, ca, sa, SC, EC };
+  world.geos = mapGeoIds(); world.geo = world.geos[0]; world.shape = mapShapeId();
+  const GS = geoShape(world.geos, N, ns, SC, EC); world.geoShape = GS; // biomes.js
   // the geography sets the land around it: flat ground makes the ridges and the plateaus read as walls
-  if (world.geo === 'hills') { P.mountains = Math.max(1, P.mountains) * tune.hills_k; P.relief += 4; }
-  else if (world.geo === 'ridges' || world.geo === 'plateau') { P.mountains *= 0.2; P.mesa = false; P.relief = Math.min(P.relief, 6); }
-  else if (world.geo === 'river') { P.mountains *= 0.5; P.mesa = false; }
-  const flipX = rng() < 0.5, flipZ = rng() < 0.5;
-  const real = (cx, cz) => ({ x: flipX ? N - 1 - cx : cx, z: flipZ ? N - 1 - cz : cz });
+  const has = g => world.geos.includes(g);
+  if (has('hills')) { P.mountains = Math.max(1, P.mountains) * tune.hills_k; P.relief += 4; }
+  else if (has('ridges') || has('plateau')) { P.mountains *= 0.2; P.mesa = false; P.relief = Math.min(P.relief, 6); }
+  else if (has('river')) { P.mountains *= 0.5; P.mesa = false; }
 
   // Polylines in canonical space (start near 0,0; fortress near N,N).
   const poly = (ax, az, bx, bz, wig, freq, s, n) => {
@@ -141,7 +150,10 @@ function genWorld() {
     }
     return pts;
   };
-  const river = poly(-6, N * 0.92, N * 0.92, -6, 9, 8, ns + 3, 220);
+  // the river crosses the way somewhere between a third and two thirds of it, at a slant of its own (or there is none)
+  const rt = 0.35 + rng() * 0.3, rb = (rng() - 0.5) * 1.3, rmx = SC[0] + (EC[0] - SC[0]) * rt, rmz = SC[1] + (EC[1] - SC[1]) * rt;
+  const rdir = [Math.cos(-Math.PI / 4 + rb), Math.sin(-Math.PI / 4 + rb)], RL = N * 0.95;
+  const river = has('river') || rng() < tune.river_chance ? poly(rmx - rdir[0] * RL, rmz - rdir[1] * RL, rmx + rdir[0] * RL, rmz + rdir[1] * RL, 9, 8, ns + 3, 260) : [];
   const mesa = poly(N * 0.3, N * 1.1, N * 1.1, N * 0.3, 5, 4, ns + 4, 160);
   const canyon = poly(N * 0.5, N * 0.5, N * 0.9, N * 0.9, 7, 7, ns + 5, 120);
   const distTo = (pts, x, z) => {
@@ -149,15 +161,24 @@ function genWorld() {
     for (let i = 0; i < pts.length; i++) { const dx = pts[i][0] - x, dz = pts[i][1] - z, d = dx * dx + dz * dz; if (d < best) best = d; }
     return Math.sqrt(best);
   };
-  const lakes = [
-    { x: N * (0.12 + rng() * 0.2), z: N * (0.6 + rng() * 0.2), r: 6 + rng() * 5 },
-    { x: N * (0.6 + rng() * 0.2), z: N * (0.12 + rng() * 0.2), r: 6 + rng() * 5 },
-  ].filter(() => P.lakes);
+  const lakes = [];
+  if (P.lakes) for (let k = 0; k < 6 && lakes.length < 2 + (rng() < 0.4 ? 1 : 0); k++) { // anywhere off the start, the exit and the river
+    const [x, z] = canon(16 + rng() * (N - 32), 16 + rng() * (N - 32));
+    if (Math.hypot(x - SC[0], z - SC[1]) < 34 || Math.hypot(x - EC[0], z - EC[1]) < 34 || (river.length && distTo(river, x, z) < 22)) continue;
+    lakes.push({ x, z, r: 6 + rng() * 6 });
+  }
+  // the map's shape: open, a valley between rock walls along the way, or a basin ringed by mountains
+  const vAx = (cx, cz) => ((cx - C) - (cz - C)) * Math.SQRT1_2, uAx = (cx, cz) => ((cx - C) + (cz - C)) * Math.SQRT1_2;
+  const wallK = (cx, cz) => {
+    if (world.shape === 'valley') { const hw = N * tune.valley_width + (vnoise(uAx(cx, cz) / 30, 3.5, ns + 50) - 0.5) * 16; return smooth(hw, hw + 6, Math.abs(vAx(cx, cz))); }
+    if (world.shape === 'basin') { const a = Math.atan2(cz - C, cx - C), R = N * 0.47 * (1 + (vnoise(a * 2 + 9, 0.5, ns + 51) - 0.5) * 0.16); return smooth(R, R + 7, Math.hypot(cx - C, cz - C)); }
+    return 0;
+  };
 
-  const wide = world.geo === 'river', fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
+  const wide = has('river') && river.length > 0, fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
   const Hf = new Float32Array(N * N);
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
-    const cx = flipX ? N - 1 - x : x, cz = flipZ ? N - 1 - z : z;
+    const [cx, cz] = canon(x, z);
     let h = 6 + fbm(cx / 36, cz / 36, ns, 4) * P.relief;
     const rg = 1 - Math.abs(vnoise(cx / 20, cz / 20, ns + 7) * 2 - 1);
     const mask = smooth(0.52, 0.75, fbm(cx / 50, cz / 50, ns + 9, 3));
@@ -175,6 +196,7 @@ function genWorld() {
     if (dr < 4.2 + wd) h = Math.min(h, WL - 1);
     if (dr < 2.6 + wd) h = Math.min(h, WL - 2.2);
     if (wide && dr < 4.2 + wd && fords.some(f => Math.hypot(cx - f[0], cz - f[1]) < 6)) h = Math.max(h, WL - 0.6); // a ford: shallow enough to drive
+    const wk = wallK(cx, cz); if (wk > 0) h = h * (1 - wk) + (tune.wall_height + fbm(cx / 9, cz / 9, ns + 52, 2) * 4) * wk; // the rock walls of a valley or a basin
     for (const L of lakes) {
       const dl = Math.hypot(cx - L.x, cz - L.z);
       if (dl < L.r + 5) h = Math.min(h, WL + 0.5 + (dl - L.r) * 0.7);
@@ -199,7 +221,8 @@ function genWorld() {
   const sites = { start: null, outposts: [], camps: [], fortress: null, wrecks: [], patrols: [], firstWall: null };
   const riverD = (cx, cz) => distTo(river, cx, cz);
   const okSpot = (cx, cz, avoid, minD) => {
-    if (cx < 14 || cz < 14 || cx > N - 14 || cz > N - 14) return false;
+    const rr = real(cx, cz); if (rr.x < 14 || rr.z < 14 || rr.x > N - 14 || rr.z > N - 14) return false;
+    if (wallK(cx, cz) > 0) return false; // not in or under the walls
     if (riverD(cx, cz) < 12) return false;
     for (const L of lakes) if (Math.hypot(cx - L.x, cz - L.z) < L.r + 10) return false;
     if (P.mesa && distTo(mesa, cx, cz) < 15) return false;
@@ -210,13 +233,13 @@ function genWorld() {
   };
   const placed = [];
   const place = (cx, cz, kind, extra) => { const r = real(Math.round(cx), Math.round(cz)); const s = Object.assign({ cx, cz, x: r.x, z: r.z, kind }, extra); placed.push(s); return s; };
-  sites.start = place(22, 22, 'start');
-  sites.fortress = place(N - 27, N - 27, world.spec && !S.final ? 'exit' : 'fortress'); // a sector's exit, or the Horde's gate
+  sites.start = place(SC[0], SC[1], 'start');
+  sites.fortress = place(EC[0], EC[1], world.spec && !S.final ? 'exit' : 'fortress'); // a sector's exit, or the Horde's gate
   // outposts along the way, one each side of the river
   for (const t of (S.outposts === 0 ? [] : S.outposts === 1 ? [0.5] : [0.3, 0.68])) {
     for (let tries = 0; tries < 200; tries++) {
       const off = (rng() - 0.5) * (60 + tries), along = (rng() - 0.5) * Math.min(40, tries * 0.3);
-      const cx = N * t + off * 0.7 + along, cz = N * t - off * 0.7 + along;
+      const cx = SC[0] + (EC[0] - SC[0]) * t + off * 0.7 + along, cz = SC[1] + (EC[1] - SC[1]) * t - off * 0.7 + along;
       if (okSpot(cx, cz, placed, 26)) { sites.outposts.push(place(cx, cz, 'outpost')); break; }
     }
   }
@@ -224,14 +247,14 @@ function genWorld() {
   const want = P.camps;
   for (let tries = 0; tries < 600 && sites.camps.length < want; tries++) {
     let cx, cz;
-    if (sites.camps.length === 0 && tries < 150) { const a = Math.PI / 4 + (rng() - 0.5) * 0.9, d = 54 + rng() * 8; cx = 22 + Math.cos(a) * d; cz = 22 + Math.sin(a) * d; }
-    else { cx = 16 + rng() * (N - 32); cz = 16 + rng() * (N - 32); }
-    if (Math.hypot(cx - 22, cz - 22) < 50) continue;
-    if (Math.hypot(cx - (N - 27), cz - (N - 27)) < 30) continue;
+    if (sites.camps.length === 0 && tries < 150) { const a = Math.PI / 4 + (rng() - 0.5) * 0.9, d = 54 + rng() * 8; cx = SC[0] + Math.cos(a) * d; cz = SC[1] + Math.sin(a) * d; }
+    else [cx, cz] = canon(16 + rng() * (N - 32), 16 + rng() * (N - 32));
+    if (Math.hypot(cx - SC[0], cz - SC[1]) < 50) continue;
+    if (Math.hypot(cx - EC[0], cz - EC[1]) < 30) continue;
     if (!okSpot(cx, cz, placed, 24)) continue;
     sites.camps.push(place(cx, cz, 'camp'));
   }
-  sites.camps.sort((a, b) => Math.hypot(a.cx - 22, a.cz - 22) - Math.hypot(b.cx - 22, b.cz - 22));
+  sites.camps.sort((a, b) => Math.hypot(a.cx - SC[0], a.cz - SC[1]) - Math.hypot(b.cx - SC[0], b.cz - SC[1]));
   sites.camps.forEach((c, i) => { c.tier = 1 + Math.floor(i * 3 / Math.max(1, sites.camps.length)); if (S.tier) c.tier = Math.min(3, S.tier + Math.floor(i * 2 / Math.max(2, sites.camps.length))); c.name = 'Campo ' + 'ABCDEFGH'[i]; });
   sites.outposts.forEach((o, i) => { o.name = ['Avamposto Pozzo Secco', 'Avamposto Ferrovecchio'][i] || 'Avamposto'; });
   sites.start.name = 'Avamposto Base';
@@ -260,7 +283,7 @@ function genWorld() {
   for (let i = 0; i < N * N; i++) hi[i] = Math.max(1, Math.min(VH - 12, Math.round(Hf[i])));
 
   // Roads: a chain from the start through every site to the fortress, carved and bridged.
-  const chain = [sites.start, ...[...sites.camps, ...sites.outposts].sort((a, b) => Math.hypot(a.cx - 22, a.cz - 22) - Math.hypot(b.cx - 22, b.cz - 22)), sites.fortress];
+  const chain = [sites.start, ...[...sites.camps, ...sites.outposts].sort((a, b) => Math.hypot(a.cx - SC[0], a.cz - SC[1]) - Math.hypot(b.cx - SC[0], b.cz - SC[1])), sites.fortress];
   const roadPaths = [];
   for (let k = 0; k + 1 < chain.length; k++) {
     const p = roadAStar(hi, N, WL, chain[k], chain[k + 1]);

@@ -62,6 +62,9 @@ After play: va ripulito di molto il gioco; togli la meccanica delle piastrine, v
 
 After play (risposte): si parte da mezzi ed economia (iteration 12), poi mappe, fazioni (le invento io), AI; sistemi avanzati 3 slot, espandibili a 5; AI: coperture e posizioni, nemici stupidi.
 After play: * le mappe sono troppo piccole e poco varie, la geografia non offre nessuna sfida * i garage sono difficili da interagire; eliminali del tutto, proviamo a consentire gli upgrade e le riparazioni tra una mappa e l'altra * il giocatore raccoglie ancora troppo scrap, il gioco deve essere difficile e "survival" * pianifica un sistema modulare per i mezzi; voglio che una modifica si veda sul mezzo (una torretta nuova, un doppio cannone, placche di corazzatura, cingoli più ampi ecc.) * c'è anche un altro problema; i nemici sono principalmente fanteria, e il giocatore può limitarsi a sparare continuamente con la mitragliatrice coassiale. aggiungi una meccanica di surriscaldamento della mitragliatrice (mitragliatrici base sparano per poco tempo, migliorandole possono sostenere fuoco più cotninuato)
+After play: Tieni da parte l'iteration 17, prima: * le mappe devo essere generate proceduralmente * servono più "template" di situazioni; il giocatore potrebbe dover resistere per un certo periodo prima di poter scappare, oppure scortare civili, oppure affrontare side quest che si sviluppano su più mappe * servono più nemici e più tipi di nemici
+After play (risposte): mappe a forma libera, geografie combinate e mappe di forma diversa; missioni resisti, scorta civili, catene su più settori, sabotaggio e caccia; nemici fanteria speciale, mezzi leggeri, mezzi pesanti, bestie e sciami.
+After play: ATTENZIONE - facendo click su un item nei prompt delle quest, il gioco spara nche un colpo con il cannone!
 
 **Pitch:** Comandi un carro armato arrugginito attraverso una terra desolata in voxel generata a ogni run: guidi con i cingoli, punti un cannone che insegue lento il mouse e mandi via radio piccole squadre di disperati dietro muri che crollano sotto il fuoco.
 
@@ -194,7 +197,12 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Niente più garage sulle mappe: all'uscita (o a missione compiuta, con Invio) si apre l'Officina da campo con le cinque schede (sistemi base, arma e colpi, sistemi avanzati, caserma, riparazioni); Invio o Esc parte per la mappa della campagna, Backspace resta nel settore; i rinforzi arruolati arrivano accanto al carro
 - [x] Economia da sopravvivenza: si parte con 40 rottami; 1 per fante, 8 per mezzo, 15 per campo ripulito (x livello), 6 per relitto e meno relitti; missioni, incarichi ed eventi pagano circa la metà
 - [x] Surriscaldamento della coassiale: ogni colpo scalda la canna (barra sotto "Dx coass."), a caldo il tiro si allarga, al massimo si blocca ("COASS. CALDA") finché non si raffredda; nuova riga Coassiale nei sistemi base: canna pesante (calore x1.7), raffreddata ad acqua (x2.6, si raffredda prima), binata a nastro (fuoco quasi continuo, cadenza +30%) (mg_heat_time, mg_cool, mg_unjam, mg_heat_spread)
-- [x] Piano dei mezzi modulari visibili (punti di attacco per scafo, moduli che si vedono: torretta, doppio cannone, placche, cingoli larghi, lama): design/vehicle-modules-plan.md, da costruire
+- [x] Piano dei mezzi modulari visibili (punti di attacco per scafo, moduli che si vedono: torretta, doppio cannone, placche, cingoli larghi, lama): design/vehicle-modules-plan.md, da costruire (rimandato all'iteration 18)
+- [x] Mappe a forma libera: partenza e uscita su qualsiasi lato o angolo (la mappa ruota di un angolo a caso), fiume con direzione e posizione sue (o nessun fiume), laghi ovunque; due geografie nello stesso settore (per esempio creste + fiume); tre forme: aperta, valle tra pareti di roccia, conca chiusa da montagne; settori da 160 a 224 di lato; il SITREP dice tutto (shape_force, valley_width, wall_height, river_chance, geo_combo)
+- [x] Nuove missioni: Resisti (tieni il cerchio segnato mentre i genieri aprono il varco: il tempo corre solo dentro, attacchi ogni 28 s, l'uscita resta chiusa fino alla fine), Scorta i profughi (cinque civili ti seguono a piedi e i predoni li prendono di mira: rottami per ognuno portato all'uscita, due si arruolano se ne salvi tre), Sabotaggio (fai saltare il deposito di carburante in un campo), Caccia al capo (un capo predone nel suo carro con la scorta) (hold_time, hold_radius, hold_wave, escort_count, escort_pay, warlord_hp)
+- [x] Piste su più settori: Il colonnello scomparso (la jeep, i rapitori, il campo: la sua scorta si unisce), La mappa del deposito (tre pezzi: riparazioni, colpi, un sistema e rottami), Il Macellaio (esploratori, carburante, il Macellaio: rottami, un sistema e reputazione con tutti); due piste per campagna, la stella sulla mappa della campagna segna dove prosegue, lasciata a metà ti segue
+- [x] Dodici nuovi nemici: kamikaze (corre ai mezzi ed esplode, anche da morto), cecchino predone (si apposta in alto), mortaista, lanciafiamme (cono di fuoco a corto raggio), straccioni a sciami, cani dell'Orda (mordono i fanti), moto con molotov, buggy, camion blindato che scarica sei fanti, carro rottame (cannone, tiene la distanza), semovente (artiglieria da lontano, il cerchio rosso segna dove cade), deposito di carburante; campi più popolosi, pattuglie variate (bande in moto, branchi di cani, straccioni, squadre d'assalto, corazzati), ondate che cambiano ogni volta (js/enemies.js)
+- [x] Un click su una scelta di dialogo, un menu o l'officina non fa più partire il colpo del cannone (il fuoco riprende quando si rilascia il tasto)
 
 ## Map rules
 - M1 Rilievo: il terreno è sfumato (media 5x5) e il carro guida su quella superficie; blocca solo una pendenza più ripida di tank_slope_span sotto l'impronta del carro. Un gradino di map_cliff o più è una scogliera e non viene sfumato.
@@ -258,6 +266,9 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - geografia che sfida: creste e passi, fiume largo, altipiani, colline · in the slice
 - officina tra un settore e l'altro, economia da sopravvivenza · in the slice
 - surriscaldamento della coassiale · in the slice
+- mappe a forma libera, geografie combinate, valli e conche · in the slice
+- missioni resisti, scorta, sabotaggio, caccia; piste su più settori · in the slice
+- nemici speciali, mezzi leggeri e pesanti, cani e sciami · in the slice
 
 ## Keep
 -

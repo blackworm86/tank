@@ -48,7 +48,7 @@ function weapon(k) {
     case 'r_mount': return { kind: 'bullet', range: tune.mg_range + 2, dmg: tune.mg_damage, rate: tune.mg_rate * 1.2, acc: tune.raider_acc * 0.75, snd: 'mg', chip: 0.5 };
     case 'boss': return { kind: 'shell', range: 48, dmg: tune.boss_damage, rate: tune.boss_reload, blast: 2.3 };
   }
-  return null;
+  return extraWeapon(k); // enemies.js: the Horde's other weapons
 }
 
 // ---- Tank parts (the workshop) --------------------------------------------------------------------
@@ -205,12 +205,14 @@ function unitHp(e) {
   const tier = e.tier || 1, k = 1 + (tier - 1) * tune.tier_scale;
   switch (e.kind) {
     case 'tank': return tankStats().hp;
+    case 'depot': return enemyHp(e);
     case 'car': return tune.car_hp;
     case 'ltank': return tune.ltank_hp;
     case 'at': return tune.at_hp;
     case 'technical': return tune.technical_hp * k;
     case 'boss': return tune.boss_hp;
-    default: return (e.team ? tune.raider_hp * k : tune.inf_hp * rankK(e, 'rank_hp')) * (e.kind === 'r_mg' ? 1.25 : 1);
+    default: if (ENEMY[e.kind]) return enemyHp(e); // enemies.js
+      return (e.team ? tune.raider_hp * k : tune.inf_hp * rankK(e, 'rank_hp')) * (e.kind === 'r_mg' ? 1.25 : 1);
   }
 }
 function unitSpeed(e) {
@@ -218,6 +220,7 @@ function unitSpeed(e) {
   return k * baseSpeed(e) * modOf(e).speed;
 }
 function baseSpeed(e) {
+  if (ENEMY[e.kind]) return ENEMY[e.kind].speed(); // enemies.js
   switch (e.kind) {
     case 'car': return tune.car_speed;
     case 'ltank': return tune.ltank_speed;
@@ -231,7 +234,7 @@ function baseSpeed(e) {
 }
 function eyeH(e) { return e.kind === 'tank' ? 2.7 : e.kind === 'boss' ? 2.9 : e.kind === 'ltank' ? 2.2 : e.veh ? 2.0 : (e.inCover && !e.moving ? 1.15 : 1.5); }
 /** How fast a vehicle's hull turns, deg/s. */
-function hullTurn(e) { return tune['hull_turn_' + e.kind] || 90; }
+function hullTurn(e) { const k = 'hull_turn_' + e.kind; return (k in CONFIG ? tune[k] : ENEMY[e.kind] && ENEMY[e.kind].veh ? tune.hull_turn_enemy : 0) || 90; }
 function chestH(e) { return e.veh ? 1.3 : 1.15; }
 function canSee(a, b) {
   if (state.smokes && state.smokes.length && smokeBlocks(a, b)) return false; // nobody sees through a smoke screen
@@ -310,18 +313,19 @@ function newRun(carry) {
   // raiders
   for (const c of s.camps) {
     const g = newGroup('camp', c.x + 0.5, c.z + 0.5, c);
-    const n = 4 + c.tier * 2, kinds = [];
+    const n = Math.round((4 + c.tier * 2) * tune.camp_men_k), kinds = [];
     for (let i = 0; i < n; i++) kinds.push(i === 1 ? 'r_mg' : i === 3 || (i === 6 && c.tier >= 3) ? 'r_rpg' : 'r_rifle');
     kinds.forEach((k, i) => { const p = c.spots[(i * 3) % c.spots.length] || spotNear(c.x, c.z, i); addRaider(g, k, p.x, p.z, c.tier); });
     addRaider(g, c.tier >= 2 ? 'r_mg' : 'r_rifle', c.tower.x, c.tower.z, c.tier, true);
     if (c.tier >= 3) { const p = spotNear(c.x + 8, c.z, 0); addRaider(g, 'technical', p.x, p.z, c.tier); }
+    campExtras(g, c); // enemies.js: dogs, bombers, snipers, mortars, bikes, armour
   }
   for (const p of s.patrols) {
     const g = newGroup('patrol', p.x, p.z, null); g.first = !!p.first;
     g.wps = [];
     for (let k = 0; k < 3; k++) { const a2 = k * 2.1 + rng(), r = p.first ? 4 : 12; const w = spotNear(p.x + Math.cos(a2) * r, p.z + Math.sin(a2) * r, k); g.wps.push(w); }
     g.wpi = 0;
-    for (let i = 0; i < p.n; i++) { const q = spotNear(p.x, p.z, i); addRaider(g, (!p.first && i === 2 && p.tier >= 2) ? 'r_rpg' : 'r_rifle', q.x, q.z, p.tier); }
+    patrolKinds(p).forEach((k, i) => { const q = spotNear(p.x, p.z, i); addRaider(g, k, q.x, q.z, p.tier); }); // enemies.js: gangs, packs, rabble
     if (!p.first && p.tier >= 3 && rng() < 0.6) { const q = spotNear(p.x, p.z, 5); addRaider(g, 'technical', q.x, q.z, p.tier); }
   }
   const f = s.fortress;
@@ -1404,7 +1408,7 @@ function updateUnits(dt) {
   state.bldT = (state.bldT || 0) - dt; if (state.bldT <= 0) { state.bldT = 1; checkBuildings(); }
   for (const e of state.ents) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
-    if (e.kind === 'tank') continue;
+    if (e.kind === 'tank' || UT[e.kind].inert) continue; // (a depot only stands there)
     if (e.inside) { e.x = tk.x; e.z = tk.z; e.y = e.vy = tk.y; e.moving = false; continue; } // riding
     const g = e.group;
     if (g && !g.alert && dist2(e, tk) > 90 * 90) continue; // far and calm: asleep
@@ -1432,7 +1436,7 @@ function updateUnits(dt) {
     if (t && t.alive) {
       const want = angTo(e, t);
       if (e.veh) {
-        e.turretYaw = turnToward(e.turretYaw, want, (e.kind === 'boss' ? tune.boss_turret_speed : e.kind === 'ltank' ? 70 : 160) * Math.PI / 180 * dt);
+        e.turretYaw = turnToward(e.turretYaw, want, (e.kind === 'boss' ? tune.boss_turret_speed : e.kind === 'ltank' ? 70 : (ENEMY[e.kind] && ENEMY[e.kind].turret) || 160) * Math.PI / 180 * dt);
         // a still hull turns its front to the enemy unless it was told which way to face
         if (!e.moving && e.face == null) e.heading = turnToward(e.heading, want, hullTurn(e) * Math.PI / 180 * dt);
       } else if (!e.moving) e.heading = turnToward(e.heading, want, (w.turn ? w.turn * Math.PI / 180 : 8) * dt);
@@ -1448,7 +1452,7 @@ function updateUnits(dt) {
         const ps = posture(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory;
         if (ps === 'hold' || (ps === 'return' && !hit) || (ps === 'stealth' && !hit && dist2(e, t) > (w.range * tune.stealth_trigger) ** 2)) aligned = false;
       }
-      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet')) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
+      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet' || w.move)) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
     } else if (!e.moving) {
       if (e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
       if (e.veh) e.turretYaw = turnToward(e.turretYaw, e.heading, tune.turret_return * dt);
@@ -1526,12 +1530,13 @@ function moveAlong(e, dt) {
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */
 function pickTarget(e, w) {
-  const sight = (e.team ? tune.raider_sight : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
+  const sight = (e.team ? tune.raider_sight * (w.sight || 1) : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
   const R = w.indirect ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
   if (e.pref && e.pref.alive && dist2(e, e.pref) <= R * R && (w.indirect ? seenByTeam(e.pref, e.team) : canSee(e, e.pref))) return e.pref;
   const c = [];
   for (const o of state.ents) {
     if (!o.alive || o.team === e.team || o.inside) continue;
+    if (w.noVeh && o.veh) continue; // dogs bite men, not hulls
     const d = dist2(e, o); if (d > R * R) continue;
     if (e.team === 1 && (lurking(o) || stealthy(o)) && d > tune.ambush_reveal ** 2) continue; // an ambush, or a stealthy soldier, still unseen
     if (w.min && d < w.min * w.min) continue;
@@ -1557,6 +1562,7 @@ function raiderThink(e, w) {
     g.alert = true; g.seenT = state.t; g.known = { x: t.x, z: t.z };
   }
   if (e.target) alertGroup(g, e.target);
+  if (!g.alert && ENEMY[e.kind]) enemySpot(e, g); // short reach: it raises the alarm on sight
   if (!g.alert) {
     if (g.kind === 'patrol' && !e.fixed) {
       const wp = g.wps[g.wpi];
@@ -1571,6 +1577,7 @@ function raiderThink(e, w) {
     return;
   }
   if (e.fixed) return;
+  if (ENEMY[e.kind] && enemyThink(e, w, g)) return; // enemies.js: each special kind's way
   if (!e.veh && raiderTactics(e, w)) return;
   if (tune.smart_raiders && !e.veh && raiderRole(e, w)) return; // tactics.js: pin, flank, buildings, retreat
   if (tune.smart_raiders && e.kind === 'technical' && circleTarget(e)) return; // technicals circle, firing on the move
@@ -1663,6 +1670,7 @@ function fire(e, t, w) {
   const yaw = e.veh ? e.turretYaw : e.heading, off = e.veh ? 1.6 : 0.6;
   const mx = e.x + Math.sin(yaw) * off, mz = e.z + Math.cos(yaw) * off, my = e.y + eyeH(e) - 0.2;
   e.recoil = 1;
+  if (w.special) { w.special(e, t, w); return; } // enemies.js: bombs, bites, flames, molotovs, the big gun
   if (w.kind === 'bullet') {
     const d = Math.sqrt(dist2(e, t));
     let acc = w.acc * Math.max(0.35, Math.min(1, 1.25 - d / w.range * 0.6));
@@ -1761,6 +1769,7 @@ function dmgTo(e, amt, kind, src, hit) {
 }
 function kill(e, src, kind) {
   e.alive = false; e.hp = 0; e.deathT = state.t; e.path = null; e.moving = false; e.selected = false;
+  if (ENEMY[e.kind]) enemyOnKill(e); // a bomber's charge, a fuel depot going up
   if (e.veh) {
     blastFx(e.x, e.y + 1.2, e.z, 2.2);
     for (let i = 0; i < 6; i++) state.fx.push({ kind: 'smoke', x: e.x + (rng() - 0.5) * 2, y: e.y + 2, z: e.z + (rng() - 0.5) * 2, t: -i * 0.4, life: 3.5, s: 1.4, rise: 7, col: 0x2e2824 });
@@ -1793,6 +1802,7 @@ function explode(p, x, y, z, direct) {
   const removed = blastVoxels(x, y, z, p.blast);
   spawnDebris(removed, x, y, z, 40);
   blastFx(x, y, z, p.blast);
+  if (p.fire) fireSplash(x, y, z); // a molotov
   sfx(p.kind === 'rpg' ? 'boomS' : 'boom', x, z);
   const tk = state.tank, d = Math.hypot(x - tk.x, z - tk.z);
   cam.shake = Math.max(cam.shake, tune.shake * Math.max(0, 1 - d / 60) * (p.kind === 'shell' ? 1 : 0.6));

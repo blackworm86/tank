@@ -736,9 +736,9 @@ function drawDevPanel() {
   y += 84;
   text('Nemico da piazzare (K)', x0 + 12, y + 6, 11, '#a890c8', 'left'); y += 14;
   DEV_ENEMIES.forEach((k, i) => {
-    const bx0 = x0 + 8 + i * 57;
-    button(bx0, y, 54, 22, '', () => { state.devEnemy = k; }, { active: state.devEnemy === k });
-    text(({ r_rifle: 'Fucile', r_mg: 'Mitragl.', r_rpg: 'Razzi', technical: 'Tecnica', boss: 'Capo' })[k], bx0 + 27, y + 11, 11, HC.text);
+    const bx0 = x0 + 8 + (i % 5) * 57, by0 = y + Math.floor(i / 5) * 25;
+    button(bx0, by0, 54, 22, '', () => { state.devEnemy = k; }, { active: state.devEnemy === k });
+    text(({ r_rifle: 'Fucile', r_mg: 'Mitragl.', r_rpg: 'Razzi', technical: 'Tecnica', boss: 'Capo' })[k] || (ENEMY[k] && ENEMY[k].short) || k, bx0 + 27, by0 + 11, 11, HC.text);
   });
 }
 
