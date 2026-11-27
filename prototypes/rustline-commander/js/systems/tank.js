@@ -187,7 +187,8 @@ function fireCannon(tk, S) {
   const tx = a.x + sy * al + cy * ac, tz = a.z + cy * al - sy * ac;
   const ty = tk.aligned && rr < 1.2 ? a.y : Math.max(world.WL - 0.2, hAt(tx, tz));
   const mx = tk.x + Math.sin(tk.turretYaw) * (1.2 + S.barrel), mz = tk.z + Math.cos(tk.turretYaw) * (1.2 + S.barrel), my = tk.vy + 1.95;
-  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * SHELLS[state.shell].blast, shell: state.shell, vsHeavy: S.vsHeavy }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);
+  const dt = S.dtype || state.shell; // a rocket launcher fires its own kind; a gun the round loaded
+  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * (S.dtype ? 1 : SHELLS[state.shell].blast), shell: state.shell, dtype: dt, pen: dt === 'ap' || dt === 'heat' ? S.pen : undefined }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);
   tk.reload = S.reload; tk.recoil = state.weapon === 'c75' || state.weapon === 'c105' ? 1 : 0.35; tk.spread += S.fireSpread;
   state.lastShot = state.t;
   muzzle(mx, my, mz, 1.3); sfx('cannon', tk.x, tk.z); cam.shake = Math.max(cam.shake, tune.shake * 0.6);
@@ -235,6 +236,7 @@ function fireTankMG(tk, S, sec) {
 /** Sends a projectile on a ballistic arc from (x,y,z) to (tx,ty,tz). */
 function launch(p, x, y, z, tx, ty, tz, speed, g) {
   const dx = tx - x, dz = tz - z, D = Math.max(0.5, Math.hypot(dx, dz)), t = D / speed;
-  Object.assign(p, { x, y, z, vx: dx / t, vz: dz / t, vy: (ty - y + 0.5 * g * t * t) / t, g, life: t + 2 });
+  Object.assign(p, { x, y, z, ox: x, oz: z, vx: dx / t, vz: dz / t, vy: (ty - y + 0.5 * g * t * t) / t, g, life: t + 2 });
+  if (!p.dtype) p.dtype = DTYPE_OF_KIND[p.kind] || 'he'; // js/damage.js
   state.proj.push(p);
 }

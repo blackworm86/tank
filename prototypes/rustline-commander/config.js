@@ -166,8 +166,11 @@ window.CONFIG = {
   ammo_gl: { value: 36, min: 1, max: 300, step: 1 },              // grenade launcher
   ammo_c75: { value: 30, min: 1, max: 200, step: 1 },             // 75mm cannon
   ammo_c105: { value: 20, min: 1, max: 200, step: 1 },            // 105mm cannon
-  ac_vs_heavy: { value: 0.12, min: 0, max: 1, step: 0.02 },       // 25mm damage on tanks (light, medium, heavy), x
-  gl_vs_heavy: { value: 0.3, min: 0, max: 1, step: 0.05 },
+  rl_damage: { value: 150, min: 20, max: 500, step: 5 },          // shaped-charge rocket launcher (test map, garage)
+  rl_reload: { value: 2.6, min: 0.5, max: 8, step: 0.1 },
+  rl_blast: { value: 0.9, min: 0.2, max: 3, step: 0.05 },
+  ammo_rl: { value: 14, min: 1, max: 100, step: 1 },
+  rl_weight: { value: 0.4, min: 0, max: 3, step: 0.1 },
   gl_reload: { value: 1.1, min: 0.2, max: 5, step: 0.1 },
   gl_weight: { value: 0.2, min: 0, max: 3, step: 0.1 },           // speed the weapon costs the hull (APC x1, light x0.5, MBT x0.15)
   c75_weight: { value: 0.7, min: 0, max: 3, step: 0.1 },
@@ -305,6 +308,44 @@ window.CONFIG = {
   ltank_range: { value: 38, min: 10, max: 80, step: 1 },
   ltank_damage: { value: 60, min: 5, max: 300, step: 5 },
   ltank_reload: { value: 4, min: 0.5, max: 15, step: 0.25 },
+
+  // ---- Damage types and armour thickness (js/damage.js, js/systems/combat.js) ----
+  pen_ac25: { value: 30, min: 0, max: 300, step: 5 },             // mm a piercing round of the 25mm gets through at point blank
+  pen_gl: { value: 20, min: 0, max: 300, step: 5 },
+  pen_c75: { value: 90, min: 0, max: 300, step: 5 },
+  pen_c105: { value: 140, min: 0, max: 300, step: 5 },
+  pen_rl: { value: 180, min: 0, max: 400, step: 5 },              // shaped charge: the same at any range
+  pen_ap: { value: 90, min: 0, max: 300, step: 5 },               // a piercing round with none of its own (the anti-tank gun)
+  pen_heat: { value: 120, min: 0, max: 400, step: 5 },            // a rocket with none of its own (RPG)
+  pen_he: { value: 15, min: 0, max: 100, step: 1 },               // blast: only thin plate
+  pen_frag: { value: 4, min: 0, max: 50, step: 1 },
+  pen_bullet: { value: 4, min: 0, max: 50, step: 1 },
+  pen_heavy: { value: 18, min: 0, max: 80, step: 1 },             // heavy machine gun
+  ap_falloff: { value: 400, min: 50, max: 2000, step: 25 },       // metres over which a piercing round loses all its bite (never under 40%)
+  armor_mm_light: { value: 10, min: 0, max: 100, step: 1 },       // front plate of jeeps, buggies, technicals, armoured cars
+  armor_mm_medium: { value: 40, min: 0, max: 200, step: 5 },      // support tank, armoured lorry, guns
+  armor_mm_heavy: { value: 100, min: 0, max: 300, step: 5 },      // tanks
+  armor_mm_side: { value: 0.6, min: 0.1, max: 1, step: 0.05 },    // the sides' thickness, a share of the front's
+  armor_mm_rear: { value: 0.4, min: 0.1, max: 1, step: 0.05 },
+  armor_mm_top: { value: 0.25, min: 0.05, max: 1, step: 0.05 },
+  ricochet_r: { value: 0.7, min: 0.1, max: 1, step: 0.05 },       // a piercing round under this share of the plate glances off
+  ricochet_k: { value: 0.04, min: 0, max: 0.5, step: 0.01 },      // the share of damage a ricochet still does
+  dk_bullet_inf: { value: 1, min: 0, max: 3, step: 0.05 },        // damage types: share that counts on soldiers (inf) and vehicles (veh)
+  dk_bullet_veh: { value: 1, min: 0, max: 3, step: 0.05 },
+  dk_frag_inf: { value: 0.8, min: 0, max: 3, step: 0.05 },
+  dk_frag_veh: { value: 0.3, min: 0, max: 3, step: 0.05 },
+  dk_he_inf: { value: 1.1, min: 0, max: 3, step: 0.05 },
+  dk_he_veh: { value: 0.6, min: 0, max: 3, step: 0.05 },
+  dk_ap_inf: { value: 0.5, min: 0, max: 3, step: 0.05 },
+  dk_ap_veh: { value: 1.4, min: 0, max: 3, step: 0.05 },
+  dk_heat_inf: { value: 0.6, min: 0, max: 3, step: 0.05 },
+  dk_heat_veh: { value: 1.3, min: 0, max: 3, step: 0.05 },
+  dk_fire_inf: { value: 1, min: 0, max: 3, step: 0.05 },
+  dk_fire_veh: { value: 0.15, min: 0, max: 3, step: 0.05 },
+  splash_veh: { value: 0.45, min: 0, max: 1, step: 0.05 },        // share of a blast's splash a vehicle takes (then its armour)
+  splash_pierce: { value: 0.4, min: 0, max: 1, step: 0.05 },      // a piercing or shaped-charge round's splash, a share of a blast's
+  dmg_numbers: { value: 1, min: 0, max: 1, step: 1 },             // 1: damage numbers over the units hit
+  dmg_merge: { value: 0.35, min: 0, max: 2, step: 0.05 },         // seconds within which hits on a unit add up into one number
 
   // ---- Directional armour, hull turning and arcs of fire (js/systems/combat.js, js/systems/entities.js, js/systems/units.js) ----
   armor_front: { value: 0.5, min: 0.1, max: 2, step: 0.05 },

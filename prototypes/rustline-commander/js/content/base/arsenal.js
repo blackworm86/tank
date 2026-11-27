@@ -10,6 +10,7 @@ registerWeapon('hmg', { name: 'Mitragliatrice pesante', cost: 90, desc: 'Colpi i
 registerWeapon('gl', { name: 'Lanciagranate a tamburo', cost: 180, desc: 'Granate rapide ad arco: fanteria e coperture.' });
 registerWeapon('c75', { name: 'Cannone 75mm', cost: 280, desc: 'Un vero cannone: buca anche i carri. Pesa sullo scafo.' });
 registerWeapon('c105', { name: 'Cannone 105mm', cost: 460, desc: 'Il colpo più duro. Lento a ricaricare, pesante.' });
+registerWeapon('rl', { name: 'Lanciarazzi a carica cava', cost: 380, desc: 'Razzi HEAT: bucano qualsiasi corazza a ogni distanza, poco scoppio.' });
 
 // ---- Advanced systems (passive ones are read where they act, by id: modOn('cage')...) ---------------------
 registerSystem('cage', { name: 'Gabbia antirazzo', short: 'Gabbia', desc: 'Passivo: -45% danni da razzi.' });

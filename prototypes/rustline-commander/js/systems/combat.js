@@ -25,22 +25,28 @@ function armorSide(e, hit, src) {
 function dmgTo(e, amt, kind, src, hit) {
   if (!e.alive) return;
   if (e.kind === 'tank' && state.god) return;
-  if (e.veh && (kind === 'bullet' || kind === 'heavy')) amt *= HEAVY.has(e.kind) ? (kind === 'heavy' ? 0.3 : tune.small_arms_vs_tank) : (kind === 'heavy' ? 0.8 : 0.4);
-  if (e.veh && kind !== 'crush' && kind !== 'drown') {
-    const side = armorSide(e, hit, src);
-    amt *= tune['armor_' + side];
-    if (e.kind === 'tank') amt *= tankModDmg(side, kind, src) * platesTake(side, kind, amt); // modules.js: the plates on that side
-    if (kind !== 'bullet' && kind !== 'heavy') {
-      e.lastHit = { side, t: state.t };
-      if (e.kind === 'tank' || (src && src.team === 0)) floatText(e.x, e.y + 3.4, e.z, SIDE_NAME[side] + ' x' + tune['armor_' + side].toFixed(1), side === 'front' ? '#c8c8c8' : side === 'side' ? '#ffd36a' : '#ff8a4a');
+  const D = dmgProfile(kind, hit); // js/damage.js: its type and penetration
+  let res = 'full', side = null;
+  if (e.kind === 'tank') { // the command tank keeps its own armour: sides, modules, plates
+    if (kind === 'bullet' || kind === 'heavy') amt *= kind === 'heavy' ? 0.3 : tune.small_arms_vs_tank;
+    if (kind !== 'crush' && kind !== 'drown') {
+      side = armorSide(e, hit, src);
+      amt *= tune['armor_' + side] * tankModDmg(side, kind, src) * platesTake(side, kind, amt); // modules.js: the plates on that side
+      if (kind !== 'bullet' && kind !== 'heavy') { e.lastHit = { side, t: state.t }; floatText(e.x, e.y + 4.2, e.z, SIDE_NAME[side] + ' x' + tune['armor_' + side].toFixed(1), side === 'front' ? '#c8c8c8' : side === 'side' ? '#ffd36a' : '#ff8a4a'); }
     }
-  }
+  } else if (e.veh && D.dtype) { // any other vehicle: the round's penetration against the face's thickness
+    side = armorSide(e, hit, src);
+    const A = armourHit(e, D, side); res = A.res;
+    amt *= dtypeK(D.dtype, true) * A.k;
+    if (!D.splash && D.dtype !== 'bullet') e.lastHit = { side, t: state.t };
+  } else if (D.dtype) amt *= dtypeK(D.dtype, false); // a soldier: how much of that type counts
   if (e.kind === 'tank' && kind !== 'bullet' && kind !== 'heavy') amt *= 1 - Math.min(0.9, tankStats().armor);
   if (e.kind === 'tank') amt *= tankStats().hullArmor;
   if (kind === 'blast' && ENEMY[e.kind] && ENEMY[e.kind].blastK) amt *= ENEMY[e.kind].blastK;
   if (e.team === 0 && !e.veh) amt *= modOf(e).taken;
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
+  dmgNumber(e, amt, D, res, side, src); // js/damage.js
   if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; if (!e.team && e.squad) e.squad.attackedT = state.t; }
   if (lurking(e)) springAmbush(e.squad);
   if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit); }
@@ -89,15 +95,15 @@ function explode(p, x, y, z, direct) {
   cam.shake = Math.max(cam.shake, tune.shake * Math.max(0, 1 - d / 60) * (p.kind === 'shell' ? 1 : 0.6));
   for (const e of state.ents) {
     if (!e.alive || e.inside) continue;
-    if (e === direct) { dmgTo(e, p.dmg * shellK(p, e), p.kind === 'rpg' ? 'rocket' : 'shell', p.owner, { vx: p.vx, vy: p.vy, vz: p.vz, top: p.kind === 'mortar' }); continue; }
+    if (e === direct) { dmgTo(e, p.dmg, p.kind === 'rpg' ? 'rocket' : 'shell', p.owner, { vx: p.vx, vy: p.vy, vz: p.vz, top: p.kind === 'mortar', dtype: p.dtype, pen: p.pen, range: Math.hypot(x - (p.ox ?? x), z - (p.oz ?? z)) }); continue; }
     const dx = e.x - x, dy = e.y + 0.9 - y, dz = e.z - z, R = p.blast * 1.8 + (e.veh ? e.rad * 0.6 : 0), dd = Math.hypot(dx, dy, dz);
     if (dd < R) {
-      let a = p.dmg * (1 - dd / R) * (e.veh ? (p.kind === 'rpg' ? 0.6 : 0.35) : 1) * shellK(p, e);
+      let a = p.dmg * (1 - dd / R) * (e.veh ? tune.splash_veh : 1) * (p.dtype === 'ap' || p.dtype === 'heat' ? tune.splash_pierce : 1); // a piercing round's splash is a small one
       if (p.shell === 'frag' && e.team === 1 && !e.veh) e.supT = state.t + tune.suppress_time * 1.5; // splinters pin them down
       if (p.owner && e.team === p.owner.team) a *= 0.5;
       const cq = e.veh || e.rideOn ? 0 : coverFrom(e, x, z);
       if (cq === 2) a *= tune.cover_blast; else if (cq === 1) a *= tune.cover_blast_light;
-      dmgTo(e, a, 'blast', p.owner, { x, z, top: p.kind === 'mortar' });
+      dmgTo(e, a, 'blast', p.owner, { x, z, top: p.kind === 'mortar', dtype: p.dtype === 'frag' || p.dtype === 'fire' ? p.dtype : 'he' });
     }
   }
 }

@@ -9,7 +9,8 @@
 /**
  * The main weapons a hull can mount (bought once at a garage, swapped free after). kind shell: counted
  * rounds of three types; bullet: a machine gun, never counted. Numbers come from config (weaponStats).
- * vsHeavy multiplies damage on tanks (the 25mm barely scratches them); weight slows the hull.
+ * pen: the piercing round's penetration in mm (js/damage.js: the 25mm glances off a tank's front); dtype: a weapon that fires one
+ * kind only (the rocket launcher: heat); weight slows the hull.
  */
 const WEAPONS = adopt('weapon_main', {});
 /** Adds a main weapon (its numbers come from config, by id, in weaponStats). */
@@ -20,10 +21,11 @@ function weaponIds() { return Object.keys(WEAPONS); }
 function weaponStats(id) {
   switch (id) {
     case 'hmg': return { kind: 'bullet', dmg: tune.tank_hmg_damage, reload: tune.tank_hmg_rate, range: tune.tank_mg_range, ammo: 0, weight: 0 };
-    case 'gl': return { kind: 'shell', dmg: tune.cannon_damage * 0.5, reload: tune.gl_reload, blast: tune.cannon_blast * 1.05, spreadK: 1.3, barrel: 1.1, ammo: tune.ammo_gl, vsHeavy: tune.gl_vs_heavy, weight: tune.gl_weight };
-    case 'c75': return { kind: 'shell', dmg: tune.cannon_damage, reload: tune.cannon_reload, blast: tune.cannon_blast, spreadK: 1, barrel: 2.6, ammo: tune.ammo_c75, vsHeavy: 1, weight: tune.c75_weight };
-    case 'c105': return { kind: 'shell', dmg: tune.cannon_damage * 1.7, reload: tune.cannon_reload + 1, blast: tune.cannon_blast * 1.45, spreadK: 1.15, barrel: 3.8, ammo: tune.ammo_c105, vsHeavy: 1.25, weight: tune.c105_weight };
-    default: return { kind: 'shell', dmg: tune.tank_ac_damage, reload: tune.tank_ac_reload, blast: tune.tank_ac_blast, spreadK: 0.25, barrel: 1.6, ammo: tune.ammo_ac, vsHeavy: tune.ac_vs_heavy, weight: 0 };
+    case 'gl': return { kind: 'shell', dmg: tune.cannon_damage * 0.5, reload: tune.gl_reload, blast: tune.cannon_blast * 1.05, spreadK: 1.3, barrel: 1.1, ammo: tune.ammo_gl, pen: tune.pen_gl, weight: tune.gl_weight };
+    case 'c75': return { kind: 'shell', dmg: tune.cannon_damage, reload: tune.cannon_reload, blast: tune.cannon_blast, spreadK: 1, barrel: 2.6, ammo: tune.ammo_c75, pen: tune.pen_c75, weight: tune.c75_weight };
+    case 'rl': return { kind: 'shell', dtype: 'heat', dmg: tune.rl_damage, reload: tune.rl_reload, blast: tune.rl_blast, spreadK: 0.8, barrel: 1.4, ammo: tune.ammo_rl, pen: tune.pen_rl, weight: tune.rl_weight };
+    case 'c105': return { kind: 'shell', dmg: tune.cannon_damage * 1.7, reload: tune.cannon_reload + 1, blast: tune.cannon_blast * 1.45, spreadK: 1.15, barrel: 3.8, ammo: tune.ammo_c105, pen: tune.pen_c105, weight: tune.c105_weight };
+    default: return { kind: 'shell', dmg: tune.tank_ac_damage, reload: tune.tank_ac_reload, blast: tune.tank_ac_blast, spreadK: 0.25, barrel: 1.6, ammo: tune.ammo_ac, pen: tune.pen_ac25, weight: 0 };
   }
 }
 /** Buys (once) or equips a main weapon at the garage. The rounds carried scale to the new racks. */
@@ -87,11 +89,6 @@ function buyAmmo(type, n) {
   let k = n ? Math.min(n, room) : room; k = Math.min(k, Math.floor(state.scrap / Math.max(1, cost)));
   if (k <= 0) { state.shopMsg = 'Non bastano i rottami.'; return; }
   state.scrap -= k * cost; state.ammo[type] += k; state.shopMsg = '+' + k + ' ' + SHELLS[type].name.toLowerCase() + '.'; sfx('coin');
-}
-/** A round's damage multiplier on unit e: its type, and the gun's bite on heavy armour. */
-function shellK(p, e) {
-  const S = SHELLS[p.shell]; if (!S) return 1;
-  return e.veh ? S.veh * (HEAVY.has(e.kind) ? (p.vsHeavy ?? 1) : 1) : S.inf;
 }
 
 // ---- Advanced systems (3 slots on the modular APC, up to 5 with its frame) --------------------------------------

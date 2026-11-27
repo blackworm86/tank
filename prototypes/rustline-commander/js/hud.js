@@ -264,7 +264,7 @@ function drawHUD() {
     ctx.beginPath(); ctx.moveTo(p.x, p.y + 6); ctx.lineTo(p.x - 5, p.y - 1); ctx.lineTo(p.x + 5, p.y - 1); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
   drawBlips3D();
-  for (const f of state.floats) { const p = toScreen(f.x, f.y + f.t * 1.5, f.z); if (p.on) { ctx.globalAlpha = Math.max(0, 1 - f.t / 1.6); text(f.s, p.x, p.y, 16, f.col); ctx.globalAlpha = 1; } }
+  for (const f of state.floats) { const p = toScreen(f.x, f.y + f.t * 1.5, f.z); if (p.on) { ctx.globalAlpha = Math.max(0, 1 - f.t / 1.6); text(f.s, p.x, p.y, f.size || 16, f.col); ctx.globalAlpha = 1; } }
   const hurt = Math.max(0, 1 - (state.t - state.hurtT) * 2.5);
   if (hurt > 0) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(160,20,10,0)'); g.addColorStop(1, `rgba(160,20,10,${0.45 * hurt})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
 
