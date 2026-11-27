@@ -12,47 +12,67 @@ function menuItems(g, append) {
   const sel = selectedSquads(), tk = state.tank, p = g.p, items = [];
   if (append) { // a stop on the drawn path: how to get there
     const n = Math.max(1, ...sel.map(sq => sq.order.t === 'move' && !sq.order.done && sq.order.pts ? sq.order.pts.length - (sq.order.i || 0) + 1 : 1));
-    items.push({ key: 'V', label: 'Tappa ' + n + ': vai', act: () => issueOrder('move', true, p, g.face) });
-    if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'C', label: 'Tappa ' + n + ': al riparo', col: '#b9f59a', act: () => issueOrder('cover', true, p, g.face) });
-    items.push({ key: 'F', label: 'Tappa ' + n + ': avanza all\'attacco', col: '#ff8a6a', act: () => issueOrder('attack', true, p, g.face, null) });
+    items.push({ key: 'V', label: 'Tappa ' + n + ': vai', desc: DESC.move, act: () => issueOrder('move', true, p, g.face) });
+    if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'C', label: 'Tappa ' + n + ': vai al riparo', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', true, p, g.face) });
+    items.push({ key: 'F', label: 'Tappa ' + n + ': assalto', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', true, p, g.face, null) });
     return items;
   }
   const ms = sel.flatMap(sq => alive(sq)), inf = ms.some(m => !m.veh && m.kind !== 'at'), riders = ms.some(m => canRide(m) && !m.inside);
   const onTank = Math.hypot(p.x - tk.x, p.z - tk.z) < tk.rad + 0.9;
   const b = inf && !onTank && !g.tgt ? buildingAt(p.x, p.z) : null;
   const all = f => () => { let any = false; for (const sq of sel) { if (inRadio(sq)) { f(sq); any = true; } else say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); } if (any) sfx('radio'); };
-  if (g.tgt) items.push({ key: 'F', label: 'Attacca: ' + UT[g.tgt.kind].name.toLowerCase(), col: '#ff8a6a', act: () => issueOrder('attack', false, p, g.face, g.tgt) });
+  if (g.tgt) {
+    const nm = UT[g.tgt.kind].name.toLowerCase();
+    items.push({ key: 'F', label: 'Attacca: ' + nm, col: '#ff8a6a', desc: DESC.attack, act: () => issueOrder('attack', false, p, g.face, g.tgt) });
+    items.push({ key: 'S', label: 'Fuoco di soppressione su: ' + nm, col: '#9fd8ff', desc: DESC.suppress, act: () => issueOrder('suppress', false, p, g.face, g.tgt) });
+  }
   if (onTank) {
-    items.push({ key: 'G', label: 'Seguimi', act: all(orderFollow) });
-    if (riders && tankStats().seats > 0) items.push({ key: 'B', label: 'Sali a bordo (' + Math.max(0, seatsFree()) + ' posti)', act: () => { let any = false; for (const sq of sel) if (inRadio(sq)) any = orderBoard(sq) || any; if (any) sfx('radio'); } });
+    items.push({ key: 'G', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
+    if (riders && tankStats().seats > 0) items.push({ key: 'B', label: 'Sali a bordo (' + Math.max(0, seatsFree()) + ' posti)', desc: DESC.board, act: () => { let any = false; for (const sq of sel) if (inRadio(sq)) any = orderBoard(sq) || any; if (any) sfx('radio'); } });
   }
   if (b) {
     if (!b.ruined && buildingWalls(b) < b.walls0 * tune.garrison_ruin) b.ruined = true;
-    items.push(b.ruined ? { key: 'E', label: 'Edificio crollato', off: true } : { key: 'E', label: 'Entra nell\'edificio (' + b.occ.length + '/' + b.cap + ')', col: '#b9f59a', act: () => issueOrder(null, false, p, null, null) });
+    items.push(b.ruined ? { key: 'E', label: 'Edificio crollato', off: true, desc: 'Troppo distrutto per entrarci.' } : { key: 'E', label: 'Entra nell\'edificio (' + b.occ.length + '/' + b.cap + ')', col: '#b9f59a', desc: DESC.enter, act: () => issueOrder(null, false, p, null, null) });
   }
   if (!onTank) {
-    items.push({ key: 'V', label: g.tgt ? 'Vai lì (senza attaccare)' : 'Vai qui', act: () => issueOrder('move', false, p, g.face) });
-    if (inf) items.push({ key: 'C', label: 'Al riparo qui', col: '#b9f59a', act: () => issueOrder('cover', false, p, g.face) });
-    if (!g.tgt) items.push({ key: 'F', label: 'Avanza all\'attacco', col: '#ff8a6a', act: () => issueOrder('attack', false, p, g.face, null) });
-    if (inf) items.push({ key: 'R', label: 'Imboscata qui', act: () => issueOrder('ambush', false, p, g.face) });
-    if (sel.some(sq => sq.order.t === 'move' && !sq.order.done)) items.push({ key: 'T', label: 'Aggiungi tappa al percorso', act: () => issueOrder('move', true, p, g.face) });
-    items.push({ key: 'G', label: 'Seguimi', act: all(orderFollow) });
+    items.push({ key: 'V', label: g.tgt ? 'Vai lì (senza attaccare)' : 'Vai qui', desc: DESC.move, act: () => issueOrder('move', false, p, g.face) });
+    if (inf) items.push({ key: 'C', label: 'Vai al riparo qui', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', false, p, g.face) });
+    if (!g.tgt) items.push({ key: 'F', label: 'Assalto fin qui', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', false, p, g.face, null) });
+    if (inf) items.push({ key: 'R', label: 'Agguato qui', desc: DESC.ambush(), act: () => issueOrder('ambush', false, p, g.face) });
+    if (sel.some(sq => sq.order.t === 'move' && !sq.order.done)) items.push({ key: 'T', label: 'Aggiungi tappa al percorso', desc: DESC.stop, act: () => issueOrder('move', true, p, g.face) });
+    items.push({ key: 'G', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
   }
-  items.push({ key: 'Z', label: 'Fermi dove siete', act: all(orderHold) });
+  items.push({ key: 'Z', label: 'Fermi qui', desc: DESC.hold, act: all(orderHold) });
   { const cur = roeOf(sel[0]), nx = nextOf(ROES, cur.k), g = gaitOf(sel[0]), ng = nextOf(GAITS, g.k);
     items.push({ key: 'Q', label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
     items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } }); }
-  if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
-  if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', act: () => unloadSelected() });
+  if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', desc: 'Escono dalla porta e si fermano fuori.', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
+  if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', desc: 'Chi è a bordo scende accanto al carro comando.', act: () => unloadSelected() });
   return items;
 }
+/** What each order does, shown at the menu's foot under the highlighted row. */
+const DESC = {
+  move: 'Ci vanno per la via più rapida, senza cercare riparo; in marcia sparano secondo le regole d\'ingaggio.',
+  cover: 'Ci vanno e si mettono dietro la copertura migliore lì vicino, rivolti verso la freccia trascinata o verso il nemico.',
+  assault: 'Avanzano fin qui sparando a ciò che incontrano, senza fermarsi né cercare riparo. Rapido ma esposto.',
+  ambush: () => 'Si appostano al coperto e restano nascosti (il nemico li vede solo entro ' + tune.ambush_reveal + ' m). Aprono il fuoco tutti insieme quando il nemico arriva a ' + Math.round(tune.ambush_trigger * 100) + '% della loro portata, con mira migliore per 4 s.',
+  stop: 'La squadra ci passa dopo l\'ultima tappa del percorso (anche Shift + click destro).',
+  follow: 'Seguono il carro comando restandogli dietro; se ingaggiati si fermano a combattere al riparo.',
+  hold: 'Si fermano dove sono e sparano secondo le regole d\'ingaggio.',
+  attack: 'Si avvicinano finché il bersaglio è a tiro e in vista, poi gli sparano anche se le regole d\'ingaggio dicono di non sparare. Abbattuto, si fermano.',
+  suppress: 'Se serve si portano appena a tiro, poi restano lì e tengono il bersaglio sotto fuoco continuo, anche senza vederlo: ogni colpo, a segno o no, lo sopprime (mira e passo peggiori). Abbattuto, smettono.',
+  board: 'La fanteria sale nel carro comando: viaggia al sicuro e scende dove serve.',
+  enter: 'Entrano e sparano dalle finestre: l\'edificio li protegge finché non crolla.',
+};
 /** Opens the menu at the mouse for the order gesture g (its point, its dragged bearing, its enemy). */
 function openMenu(g, append) {
   const items = menuItems(g, append); if (!items.length) return;
-  const h = MENU.head + items.length * MENU.row + MENU.pad + MENU.foot; // the foot: what the highlighted order does
+  // the foot: what the highlighted order does, as tall as the longest explanation needs
+  const lines = Math.max(2, ...items.map(it => it.desc ? wrap(it.desc, MENU.w - 24, 11).length : 1)), foot = MENU.foot + (lines - 2) * 13;
+  const h = MENU.head + items.length * MENU.row + MENU.pad + foot;
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
-  state.menu = { x, y, h, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
+  state.menu = { x, y, h, foot, lines, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
 }
 /** The next order row that can be picked from row k, going dir (1 down, -1 up), wrapping round. */
 function menuStep(m, k, dir) {
@@ -88,7 +108,7 @@ function menuInput() {
   if (pick && !pick.off && pick.act) { state.menu = null; pick.act(); }
 }
 /** The order the next click gives, armed with a hotkey (V, F, C). */
-const ARM = { move: 'VAI', attack: 'ATTACCA', cover: 'COPERTURA', ambush: 'IMBOSCATA' };
+const ARM = { move: 'VAI', attack: 'ATTACCA / ASSALTO', cover: 'AL RIPARO', ambush: 'AGGUATO' };
 /** WASD (or the arrows) slide the view over the map, at a speed that follows the zoom. */
 function panCamera(dt) {
   const ax = (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) - (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0);

@@ -36,6 +36,7 @@ function unitHp(e) {
   switch (e.kind) {
     case 'tank': return tankStats().hp;
     case 'car': return tune.car_hp;
+    case 'jeep': return tune.jeep_hp;
     case 'ltank': return tune.ltank_hp;
     case 'at': return tune.at_hp;
     default: if (ENEMY[e.kind]) return enemyHp(e); // the enemy registry (content/horde.js)
@@ -50,6 +51,7 @@ function baseSpeed(e) {
   if (ENEMY[e.kind]) return ENEMY[e.kind].speed(); // the enemy registry
   switch (e.kind) {
     case 'car': return tune.car_speed;
+    case 'jeep': return tune.jeep_speed;
     case 'ltank': return tune.ltank_speed;
     case 'at': return tune.inf_speed * 0.55;
     case 'mortar': case 'mg': return tune.inf_speed * 0.85;

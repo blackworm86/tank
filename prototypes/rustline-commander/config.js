@@ -253,6 +253,10 @@ window.CONFIG = {
   veh_lookahead: { value: 3.5, min: 1, max: 8, step: 0.5 },     // how far ahead along its path a driver steers (m): wider curves, no zigzag
   veh_wheel_turn: { value: 0.35, min: 0, max: 1, step: 0.05 },  // a wheeled vehicle's turning at a standstill, of its full turn rate (tracks pivot: 1)
   turret_scan: { value: 0.6, min: 0, max: 1.5, step: 0.05 },    // how far a vehicle's turret sweeps either side of its watch bearing with no target (rad)
+  jeep_hp: { value: 90, min: 20, max: 400, step: 5 },            // jeep: open, fast, thin-skinned (rifles hurt it)
+  jeep_speed: { value: 10.5, min: 2, max: 18, step: 0.5 },
+  jeep_turret: { value: 160, min: 20, max: 400, step: 5 },       // its pintle machine gun, degrees a second
+  jeep_acc: { value: 0.55, min: 0.05, max: 1, step: 0.01 },
   car_turret: { value: 90, min: 20, max: 300, step: 5 },        // armoured car turret, degrees a second
   car_hp: { value: 160, min: 30, max: 600, step: 10 },          // armoured car
   car_speed: { value: 8, min: 2, max: 16, step: 0.5 },
@@ -281,6 +285,7 @@ window.CONFIG = {
   hull_turn_technical: { value: 80, min: 5, max: 200, step: 5 },
   hull_turn_enemy: { value: 90, min: 5, max: 300, step: 5 },      // the Horde's other vehicles (bikes and buggies turn on the spot, tanks slowly: see enemies.js)
   hull_turn_car: { value: 100, min: 5, max: 200, step: 5 },
+  hull_turn_jeep: { value: 130, min: 5, max: 300, step: 5 },
   hull_turn_ltank: { value: 45, min: 5, max: 200, step: 5 },
   mg_arc: { value: 40, min: 10, max: 180, step: 5 },           // half-angle, degrees
   mg_turn: { value: 70, min: 10, max: 360, step: 5 },          // deg/s
@@ -385,6 +390,7 @@ window.CONFIG = {
   cost_mg: { value: 55, min: 0, max: 300, step: 5 },
   cost_medic: { value: 50, min: 0, max: 300, step: 5 },
   cost_mortar: { value: 85, min: 0, max: 400, step: 5 },
+  cost_jeep: { value: 140, min: 0, max: 1000, step: 10 },        // not sold yet: the barracks get it with its passengers (command mode step 5)
   cost_car: { value: 220, min: 0, max: 1000, step: 10 },
   cost_at: { value: 110, min: 0, max: 500, step: 5 },
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },

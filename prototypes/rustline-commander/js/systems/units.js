@@ -19,9 +19,10 @@ const UT = {
   at: { name: 'Cannone anticarro', team: 0, w: 'atgun', cost: 'cost_at' },
   car: { name: 'Autoblindo', team: 0, veh: true, rad: 1.6, w: 'autocannon', cost: 'cost_car' },
   ltank: { name: 'Carro di supporto', team: 0, veh: true, rad: 1.9, w: 'ltgun', cost: 'cost_ltank' },
+  jeep: { name: 'Jeep', team: 0, veh: true, rad: 1.4, w: 'jeepmg', cost: 'cost_jeep' },
 };
 const INF_KINDS = ['rifle', 'mg', 'medic', 'eng', 'radio', 'scout', 'sniper', 'mortar', 'at'];
-const VEH_KINDS = ['car', 'ltank'];
+const VEH_KINDS = ['car', 'ltank', 'jeep'];
 /** Vehicles whose hull shrugs off rifle fire. */
 const HEAVY = new Set(['tank', 'ltank']); // and every enemy entry marked heavy
 /** A weapon's numbers, read live from config. */
@@ -36,6 +37,7 @@ function weapon(k) {
     case 'scout': return { kind: 'bullet', range: tune.rifle_range * 0.95, dmg: tune.rifle_damage * 0.85, rate: tune.rifle_rate, acc: tune.rifle_acc };
     case 'pistol': return { kind: 'bullet', range: 14, dmg: 4, rate: 1.4, acc: 0.45 };
     case 'mortar': return { kind: 'mortar', range: tune.mortar_range, min: tune.mortar_min, dmg: tune.mortar_damage, rate: tune.mortar_rate, blast: tune.mortar_blast, indirect: true };
+    case 'jeepmg': return { kind: 'bullet', range: tune.mg_range, dmg: tune.mg_damage, rate: tune.mg_rate, acc: tune.jeep_acc, snd: 'mg', chip: 0.5 }; // the mounted machine gun: no tripod arc, it turns on its post
     case 'autocannon': return { kind: 'bullet', heavy: true, range: tune.car_range, dmg: tune.car_damage, rate: tune.car_rate, acc: 0.6, snd: 'mg' };
   }
   const W = registry('weapon')[k]; return W ? W() : null; // the Horde's weapons (content/horde.js, enemies.js)

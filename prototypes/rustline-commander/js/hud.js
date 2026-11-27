@@ -34,7 +34,10 @@ function clickButtons() {
 function unitIcon(kind, x, y, s, col) {
   ctx.save(); ctx.translate(x, y); ctx.scale(s / 20, s / 20); ctx.fillStyle = col;
   const dead = col === '#5a3a32';
-  if (kind === 'car') {
+  if (kind === 'jeep') {
+    ctx.fillRect(-9, -1, 18, 5); ctx.fillRect(1, -5, 2, 4); ctx.fillRect(-6, -8, 2, 7); ctx.fillRect(-6, -9, 8, 2);
+    ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-8, 4, 4, 4); ctx.fillRect(4, 4, 4, 4);
+  } else if (kind === 'car') {
     ctx.fillRect(-9, -3, 18, 7); ctx.fillRect(-4, -7, 8, 4); ctx.fillRect(3, -6, 8, 2);
     ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-8, 4, 4, 4); ctx.fillRect(4, 4, 4, 4);
   } else if (kind === 'ltank') {
@@ -222,9 +225,9 @@ function drawHUD() {
         ctx.setLineDash([6, 5]);
         prev = q;
       }
-    } else if (o.t === 'attack' && o.target && o.target.alive) {
+    } else if ((o.t === 'attack' || o.t === 'suppress') && o.target && o.target.alive) {
       const q = toScreen(o.target.x, o.target.y + 1, o.target.z);
-      if (q.on && prev.on) { ctx.strokeStyle = '#ff6a4a'; ctx.globalAlpha = sq.selected ? 0.95 : 0.5; ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+      if (q.on && prev.on) { ctx.strokeStyle = o.t === 'suppress' ? '#9fd8ff' : '#ff6a4a'; ctx.globalAlpha = sq.selected ? 0.95 : 0.5; ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
     }
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
@@ -333,7 +336,7 @@ function drawHUD() {
     });
     UI.cards.push(card);
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
-    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
+    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : 'In marcia') : 'Ferma';
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
     { ctx.font = `11px ${FONT}`; const sw = ctx.measureText(heard ? ord : 'Fuori portata').width; ctx.font = `bold 9px ${FONT}`; const gw = ctx.measureText(gt.short).width + 12; // the gait, left of the order
       card.gait = { x: 232 - sw - gw, y: y + 31, w: gw, h: 15 };
@@ -549,9 +552,9 @@ function drawMenu() {
   text(m.title, m.x + 12, m.y + 14, 13, HC.gold, 'left');
   text('Tab · Invio · Esc', m.x + MENU.w - 10, m.y + 14, 11, HC.dim, 'right');
   const hv = m.sel;
-  const sd = m.items[hv] || null, fy = m.y + m.h - MENU.foot; // the foot: what the highlighted order does
+  const sd = m.items[hv] || null, fy = m.y + m.h - (m.foot || MENU.foot); // the foot: what the highlighted order does
   ctx.fillStyle = 'rgba(142,75,39,0.45)'; ctx.fillRect(m.x + 8, fy, MENU.w - 16, 1);
-  wrap(sd ? (sd.desc || sd.label) : 'Mouse, Tab o frecce: scegli · Invio o click: ordina', MENU.w - 24, 11).slice(0, 2).forEach((l, i) => text(l, m.x + 12, fy + 11 + i * 13, 11, sd && sd.desc ? '#e8dcc4' : HC.dim, 'left'));
+  wrap(sd ? (sd.desc || sd.label) : 'Mouse, Tab o frecce: scegli · Invio o click: ordina', MENU.w - 24, 11).slice(0, m.lines || 2).forEach((l, i) => text(l, m.x + 12, fy + 11 + i * 13, 11, sd && sd.desc ? '#e8dcc4' : HC.dim, 'left'));
   m.items.forEach((it, k) => {
     const y = m.y + MENU.head + k * MENU.row;
     if (k === hv && !it.off) rrect(m.x + 4, y + 1, MENU.w - 8, MENU.row - 2, 4, 'rgba(79,227,224,0.18)', null);

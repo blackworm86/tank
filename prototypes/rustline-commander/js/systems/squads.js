@@ -12,7 +12,7 @@ function squadName(slots) {
     return { rifle: n > 1 ? 'Fucilieri' : 'Fuciliere', sniper: n > 1 ? 'Team cecchini' : 'Cecchino solitario', mg: n > 1 ? 'Mitraglieri' : 'Mitragliere',
       medic: n > 1 ? 'Medici' : 'Medico', mortar: n > 1 ? 'Batteria mortai' : 'Artigliere', car: n > 1 ? 'Autoblinde' : 'Autoblindo',
       eng: n > 1 ? 'Genieri' : 'Geniere', radio: n > 1 ? 'Operatori radio' : 'Operatore radio', scout: n > 1 ? 'Esploratori' : 'Esploratore',
-      at: n > 1 ? 'Batteria anticarro' : 'Cannone anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto' }[t];
+      at: n > 1 ? 'Batteria anticarro' : 'Cannone anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto', jeep: 'Jeep' }[t];
   }
   const tr = traitsOf(slots).find(t => t.squad);
   return tr ? tr.squad : 'Squadra mista';
@@ -205,6 +205,18 @@ function orderAttack(sq, target) {
   sq.tick = 0;
   say(sq.name, 'Bersaglio ricevuto: ' + UT[target.kind].name.toLowerCase() + '.');
   mark(target.x, target.z, 0xff6a4a);
+}
+/**
+ * Suppression fire on target: the squad stays where it is and keeps firing at it, seen or not (pickTarget), whatever
+ * its rules of engagement; every round at it pins it down (fire). It ends when the target falls.
+ */
+function orderSuppress(sq, target) {
+  const ms = alive(sq); if (!ms.length) return;
+  for (const m of ms) { m.pref = target; m.path = null; m.moveFace = null; m.face = Math.atan2(target.x - m.x, target.z - m.z); }
+  sq.order = { t: 'suppress', target };
+  sq.tick = 0;
+  say(sq.name, 'Fuoco di soppressione su ' + UT[target.kind].name.toLowerCase() + '!');
+  mark(target.x, target.z, 0x9fd8ff);
 }
 /** Infantry that can ride (not the anti-tank gun, not vehicles). */
 function canRide(m) { return m && m.alive && !m.veh && m.kind !== 'at'; }
@@ -418,6 +430,15 @@ function squadUpkeep(sq, dt) {
       const px = tk.x + Math.sin(a) * r, pz = tk.z + Math.cos(a) * r;
       if ((m.x - px) ** 2 + (m.z - pz) ** 2 > 9 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5)) setDest(m, px, pz);
     });
+  } else if (sq.order.t === 'suppress') {
+    const t = sq.order.target;
+    if (!t || !t.alive) { for (const m of ms) m.pref = null; sq.order = { t: 'hold' }; say(sq.name, 'Bersaglio abbattuto, cessiamo il fuoco.'); return; }
+    for (const m of ms) { // out of reach: closer, just into range (no need to see it); in reach: they stay and fire
+      m.pref = t; if (m.kind === 'medic') continue;
+      const w = weapon(UT[m.kind].w), far = dist2(m, t) > (w.range * 0.9) ** 2;
+      if (!far) { if (m.path && m.suppGo) { m.path = null; m.suppGo = false; } if (!m.moving) m.face = Math.atan2(t.x - m.x, t.z - m.z); }
+      else if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5) { const d = Math.sqrt(dist2(m, t)) || 1, k = (d - w.range * 0.75) / d; setDest(m, m.x + (t.x - m.x) * k, m.z + (t.z - m.z) * k); m.suppGo = true; }
+    }
   } else if (sq.order.t === 'attack') {
     const t = sq.order.target;
     if (!t || !t.alive) { sq.order = { t: 'hold' }; say(sq.name, 'Bersaglio eliminato.'); return; }
@@ -449,6 +470,7 @@ function issueOrder(kind, append, pt, face, tgt) {
   pt = pt || state.mouse3; if (!pt) return false;
   if (kind === 'attack' && !tgt) tgt = nearestEnemyTo(pt.x, pt.z, 0, 4);
   if (kind === 'move' || kind === 'cover' || kind === 'ambush') tgt = null;
+  if (kind === 'suppress' && !(tgt && tgt.alive)) return false;
   let any = false;
   for (const sq of sel) {
     if (!inRadio(sq)) { say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); continue; }
@@ -465,6 +487,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     if (leaveBuilding(sq)) say(sq.name, 'Usciamo!');
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
+    else if (kind === 'suppress') orderSuppress(sq, tgt);
     else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
   }

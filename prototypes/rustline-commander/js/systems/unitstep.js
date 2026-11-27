@@ -114,7 +114,7 @@ function nudge(e, dx, dz) {
   if (walkable(Math.floor(nx), Math.floor(nz)) && Math.abs(hAt(nx, nz) - hAt(e.x, e.z)) <= 1) { e.x = nx; e.z = nz; }
 }
 /** A vehicle's turret speed, radians a second: the support tank's, the armoured car's, a raider's. */
-function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'car' ? tune.car_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
+function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'car' ? tune.car_turret : e.kind === 'jeep' ? tune.jeep_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
 /**
  * Where a vehicle's gunner looks with no target: along the way it drives, the way it was told to face, or the
  * last enemy seen, swept slowly turret_scan either side as the crew watches.
@@ -179,10 +179,13 @@ function moveAlong(e, dt) {
   if (e.stuckT > tune.unstick_time && e.dest) { const d0 = e.dest; e.stuckT = 0; setDest(e, d0.x + (rng() - 0.5) * 1.5, d0.z + (rng() - 0.5) * 1.5); }
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */
+/** True for a member of a squad under a suppression order (orderSuppress). */
+function suppressing(e) { return !!(e.squad && e.squad.order && e.squad.order.t === 'suppress'); }
 function pickTarget(e, w) {
   const sight = (e.team ? tune.raider_sight * (w.sight || 1) : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
   const R = w.indirect ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
   if (e.pref && e.pref.alive && dist2(e, e.pref) <= R * R && (w.indirect ? seenByTeam(e.pref, e.team) : canSee(e, e.pref))) return e.pref;
+  if (e.pref && e.pref.alive && suppressing(e) && !w.indirect && dist2(e, e.pref) <= w.range * w.range) return e.pref; // suppression: at where it is, seen or not
   const c = [];
   for (const o of state.ents) {
     if (!o.alive || o.team === e.team || o.inside) continue;
@@ -342,8 +345,8 @@ function fire(e, t, w) {
       tracer(mx, my, mz, t.x + (rng() - 0.5) * 3, t.y + 0.4 + rng(), t.z + (rng() - 0.5) * 3, col);
       if (cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
     }
-    // machine guns pin infantry down: slower, worse aim for a while
-    if (w.chip && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup; }
+    // machine guns pin infantry down: slower, worse aim for a while; so does every round of a suppression order
+    if ((w.chip || (suppressing(e) && t === e.pref)) && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup; }
     sfx(w.snd || 'small', e.x, e.z);
   } else if (w.kind === 'rpg') {
     launch({ kind: 'rpg', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, mx, my, mz, t.x + (rng() - 0.5) * 1.5, t.y + chestH(t), t.z + (rng() - 0.5) * 1.5, tune.rpg_speed, 3);

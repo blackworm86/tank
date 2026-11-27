@@ -415,6 +415,24 @@ function makeCarModel() {
   selRing(g, 2.6);
   return g;
 }
+/** The jeep: open, low, a windscreen, a machine gun on a post at the back with its gunner. */
+function makeJeepModel() {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+  bx(b, 1.7, 0.55, 3.2, PC.olive, 0, 0.8, 0); bx(b, 1.6, 0.3, 1.1, PC.olive2, 0, 1.0, 1.0, -0.15);
+  for (const sx of [-1, 1]) for (const sz of [-1.05, 1.05]) bx(b, 0.35, 0.75, 0.75, PC.track, sx * 0.92, 0.38, sz);
+  bx(b, 1.5, 0.5, 0.06, PC.glass, 0, 1.35, 0.45); bx(b, 1.6, 0.06, 0.08, PC.black, 0, 1.6, 0.45);
+  bx(b, 0.5, 0.35, 0.5, PC.olive2, -0.4, 1.25, -0.2); bx(b, 0.5, 0.35, 0.5, PC.olive2, 0.4, 1.25, -0.2); // the seats
+  bx(b, 1.72, 0.1, 0.3, PC.stripe, 0, 1.1, -1.2);
+  const tur = new THREE.Group(); tur.position.set(0, 1.1, -0.9); g.add(tur);
+  bx(tur, 0.12, 0.8, 0.12, PC.metal, 0, 0.4, 0);
+  const gun = new THREE.Group(); gun.position.set(0, 0.85, 0.1); tur.add(gun);
+  bx(gun, 0.14, 0.16, 1.1, PC.metal, 0, 0, 0.45); bx(gun, 0.4, 0.3, 0.05, PC.grey, 0, 0.08, 0.05);
+  bx(tur, 0.42, 0.5, 0.3, PC.olive2, 0, 0.75, -0.42); bx(tur, 0.26, 0.26, 0.26, PC.skin, 0, 1.15, -0.42); bx(tur, 0.3, 0.12, 0.3, PC.olive, 0, 1.3, -0.42);
+  bx(b, 0.05, 1.2, 0.05, PC.black, 0.7, 1.6, -1.4); bx(b, 0.1, 0.1, 0.1, PC.cyan, 0.7, 2.2, -1.4); // the radio aerial
+  g.userData = { turret: tur, gun, hull: b, gunZ: 0.1 };
+  selRing(g, 2.2);
+  return g;
+}
 function makeTechnicalModel() {
   const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
   bx(b, 2.0, 0.5, 4.0, PC.rustD, 0, 0.75, 0);
@@ -536,6 +554,7 @@ function modelFor(e) {
   if (e.kind === 'tank') { const L = tankLook(), g = L.hull === 'apc' ? makeAPCModel(L.barrel) : L.hull === 'light' ? makeLightTankModel(L.barrel) : makeTankModel(L); dressTank(g, L.hull); return g; } // modules.js: the fitted modules
   if (e.kind === 'apc') return makeAPCModel();
   if (e.kind === 'car') return makeCarModel();
+  if (e.kind === 'jeep') return makeJeepModel();
   if (e.kind === 'ltank') return makeLightTankModel();
   if (e.kind === 'at') return makeATGunModel();
   const mk = registry('model')[e.kind]; if (mk) return mk(); // each registered kind's own figure (content/horde.js, enemies.js, missions.js)
@@ -778,7 +797,7 @@ function renderWorld() {
 
 // ---- The figures sheet (?scene=figures) ----------------------------------------------------------
 const FIGS = [
-  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['at', 'Cannone anticarro'], ['car', 'Autoblindo'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
+  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['at', 'Cannone anticarro'], ['car', 'Autoblindo'], ['jeep', 'Jeep'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
   // the enemies join from the enemy registry (registerEnemy)
 ];
 function renderFigures() {
