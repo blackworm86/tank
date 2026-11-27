@@ -24,6 +24,7 @@ function stepPlay(dt) {
   updateProjectiles(dt);
   updateEffects(dt);
   updateRun(dt);
+  emit('playStep', dt); // core.js events: anything that runs each step of play (the test map's targets)
   const tk = state.tank, aim = state.mode === 'tank' && state.mouse3 ? state.mouse3 : null;
   let lx = 0, lz = 0;
   if (aim) { lx = (aim.x - tk.x) * 0.22; lz = (aim.z - tk.z) * 0.22; const L = Math.hypot(lx, lz); if (L > 12) { lx *= 12 / L; lz *= 12 / L; } }

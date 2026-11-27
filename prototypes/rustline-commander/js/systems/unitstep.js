@@ -11,7 +11,7 @@ function updateUnits(dt) {
   state.bldT = (state.bldT || 0) - dt; if (state.bldT <= 0) { state.bldT = 1; checkBuildings(); }
   for (const e of state.ents) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
-    if (e.kind === 'tank' || UT[e.kind].inert) continue; // (a depot only stands there)
+    if (e.kind === 'tank' || UT[e.kind].inert || e.dummy) continue; // (a depot only stands there; a practice target neither moves nor shoots)
     if (e.inside) { e.x = tk.x; e.z = tk.z; e.y = e.vy = tk.y; e.moving = false; continue; } // riding
     const g = e.group;
     if (g && !g.alert && dist2(e, tk) > 90 * 90) continue; // far and calm: asleep

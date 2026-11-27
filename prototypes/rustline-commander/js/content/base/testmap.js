@@ -48,6 +48,42 @@ function wgTestRelief(G) {
 }
 registerWorldStep('testRelief', { order: 35, run: wgTestRelief });
 
+/**
+ * The practice targets ahead of the start, in the tank's view: raiders standing in the open and behind sandbags at
+ * 15 to 70 m, a technical, a buggy and a scrap tank. They neither move, nor shoot, nor answer; one destroyed comes
+ * back where it stood after TEST_RESPAWN seconds. [kind, metres ahead, metres to the right, sandbags in front]
+ */
+const TEST_TARGETS = [['r_rifle', 15, -4], ['r_rifle', 15, 4], ['r_rifle', 25, -8, true], ['r_mg', 25, 0, true], ['r_rifle', 25, 8, true],
+  ['buggy', 32, -14], ['r_rifle', 40, -3], ['r_rifle', 40, 3], ['technical', 45, 14], ['r_rifle', 55, -6, true], ['r_rpg', 55, 6, true], ['r_tank', 65, -12], ['r_rifle', 70, 0]];
+const TEST_RESPAWN = 6;
+function placeTargets() {
+  const tk = state.tank, s = Math.sin(tk.heading), c = Math.cos(tk.heading), g = newGroup('target', tk.x, tk.z, null);
+  state.testTargets = { g, back: [], down: 0 };
+  TEST_TARGETS.forEach(([kind, ahead, right, bags], i) => {
+    const x = tk.x + s * ahead - c * right, z = tk.z + c * ahead + s * right, p = spotNear(x, z, i);
+    if (bags) for (let k = -1; k <= 1; k++) { // a low sandbag wall between the target and the tank
+      const bx = Math.floor(p.x - s * 1.5 - c * k), bz = Math.floor(p.z - c * 1.5 + s * k);
+      if (inMap(bx, bz) && !world.road[bx + world.N * bz]) { setV(bx, world.hmap[bx + world.N * bz], bz, V.BAG); recomputeColumn(bx, bz); }
+    }
+    addTarget(kind, p.x, p.z);
+  });
+}
+function addTarget(kind, x, z) {
+  const tk = state.tank, e = addRaider(state.testTargets.g, kind, x, z, 1, true);
+  e.dummy = true; e.heading = e.turretYaw = Math.atan2(tk.x - x, tk.z - z); e.y = e.vy = e.veh ? surfaceY(x, z) : hAt(x, z);
+  return e;
+}
+on('kill', e => {
+  if (!e.dummy || !state.testTargets) return;
+  const T = state.testTargets; T.down++; T.back.push({ kind: e.kind, x: e.homeSpot ? e.homeSpot.x : e.x, z: e.homeSpot ? e.homeSpot.z : e.z, t: state.t + TEST_RESPAWN });
+  floatText(e.x, e.y + 2.6, e.z, 'abbattuto · ' + T.down, '#ffd36a');
+});
+on('playStep', () => {
+  if (!state.test || !state.testTargets) return;
+  const T = state.testTargets;
+  for (let i = T.back.length - 1; i >= 0; i--) if (state.t >= T.back[i].t) { const b = T.back.splice(i, 1)[0]; addTarget(b.kind, b.x, b.z); }
+  const m = ammoMax(); if (state.ammo && m) { state.ammo.he = Math.max(state.ammo.he, Math.round(m * 0.6)); state.ammo.ap = Math.max(state.ammo.ap, m - Math.round(m * 0.6)); state.ammo.frag = Math.max(state.ammo.frag, 10); } // rounds never run out here
+});
 /** The fog switch as it was before the test map, put back when a campaign starts (null: nothing to put back). */
 let TEST_FOG = null;
 on('campaignStart', () => { if (TEST_FOG !== null) { CONFIG.fog.value = TEST_FOG; TEST_FOG = null; } });
@@ -60,8 +96,10 @@ function startTestMap() {
   state.mission = null; state.npcs = []; state.quests = []; // no mission, no Horde, no one met on the way
   const tk = state.tank, back = (k, d) => ({ x: tk.x - Math.sin(tk.heading + k) * d, z: tk.z - Math.cos(tk.heading + k) * d });
   for (const [slots, k] of [[['rifle', 'rifle', 'rifle', 'mg'], 0.6], [['sniper', 'at'], -0.6], [['ltank'], 0.2], [['car'], -0.2]]) {
-    const p = back(k, 9); const sq = addSquad(slots, p.x, p.z); if (sq) sq.order = { t: 'hold' };
+    const p = back(k, 9); const sq = addSquad(slots, p.x, p.z); if (sq) { sq.order = { t: 'hold' }; sq.posture = 'hold'; } // fire held: the targets are the player's (Q in the order menu lets them shoot)
   }
   state.scrap = 999;
-  say('Test', 'Mappa di test: nessun nemico. Rampe, strada, gola nella montagna, altopiano con una rampa, scarpata, fiume con un guado, villaggi e rocce.', '#9fe3a0');
+  placeTargets();
+  say('Test', 'Mappa di test: nessun nemico vero. Rampe, strada, gola nella montagna, altopiano con una rampa, scarpata, fiume con un guado, villaggi e rocce.', '#9fe3a0');
+  say('Test', 'Davanti a te ' + TEST_TARGETS.length + ' bersagli da 15 a 70 m (alcuni dietro sacchi): non si muovono e non sparano, abbattuti ricompaiono dopo ' + TEST_RESPAWN + ' s. Colpi infiniti.', '#ffd36a');
 }
