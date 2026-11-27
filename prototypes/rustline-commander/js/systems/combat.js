@@ -37,7 +37,7 @@ function dmgTo(e, amt, kind, src, hit) {
   }
   if (e.kind === 'tank' && kind !== 'bullet' && kind !== 'heavy') amt *= 1 - Math.min(0.9, tankStats().armor);
   if (e.kind === 'tank') amt *= tankStats().hullArmor;
-  if (e.kind === 'boss' && kind === 'blast') amt *= 0.8;
+  if (kind === 'blast' && ENEMY[e.kind] && ENEMY[e.kind].blastK) amt *= ENEMY[e.kind].blastK;
   if (e.team === 0 && !e.veh) amt *= modOf(e).taken;
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
@@ -57,16 +57,17 @@ function kill(e, src, kind) {
     if (e.team === 1) {
       state.pickups.push({ x: e.x, z: e.z, value: tune.scrap_vehicle, taken: false });
       dropAmmo(e.x + 1.5, e.z + 1, 3, tune.ammo_drop_veh);
-      dropLoot(e.x - 1.5, e.z - 1, e.kind === 'boss' ? 1 : tune.loot_technical);
+      dropLoot(e.x - 1.5, e.z - 1, ENEMY[e.kind] && ENEMY[e.kind].loot ? ENEMY[e.kind].loot() : tune.loot_technical);
     }
   }
   if (e.team === 1) {
     state.kills++;
-    if (e.kind === 'technical') state.techKills = (state.techKills || 0) + 1;
+    const D = ENEMY[e.kind];
+    if (D && D.tally) state[D.tally] = (state[D.tally] || 0) + 1; // a counter an achievement reads
     if (kind === 'crush') state.crushes = (state.crushes || 0) + 1;
     if (src && src.team === 0) giveXp(src, tune.xp_kill * (e.veh ? 3 : 1));
     if (!e.veh) { state.scrap += tune.scrap_infantry; floatText(e.x, e.y + 2.2, e.z, '+' + tune.scrap_infantry, '#ffd36a'); }
-    if (e.kind === 'boss' && !e.dev) say('Radio', 'Il Carro del Capo è in fiamme!', '#9fe3a0');
+    if (D && D.deathSay && !e.dev) say('Radio', D.deathSay, '#9fe3a0');
   } else if (e.kind === 'tank') {
     state.result = 'lose'; state.endT = state.t + 3;
     say('Radio', 'Il carro comando è distrutto...', '#ff7a6a');

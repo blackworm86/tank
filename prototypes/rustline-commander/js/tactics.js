@@ -135,7 +135,7 @@ function groupPlan(g) {
   if (g.n0 == null) {
     g.n0 = g.members.length;
     let k = 0; // roles: rockets hunt hulls, technicals circle, a share of riflemen go round the flank
-    for (const m of ms) m.role = m.veh ? 'circle' : m.kind === 'r_rpg' ? 'rocket' : m.fixed ? 'fixed' : m.kind !== 'r_mg' && (k++ % Math.max(2, Math.round(1 / tune.flank_share))) === 1 ? 'flank' : 'pin';
+    for (const m of ms) m.role = m.veh ? 'circle' : ENEMY[m.kind] && ENEMY[m.kind].rocket ? 'rocket' : m.fixed ? 'fixed' : !(ENEMY[m.kind] && ENEMY[m.kind].noFlank) && (k++ % Math.max(2, Math.round(1 / tune.flank_share))) === 1 ? 'flank' : 'pin';
     g.flankSide = rng() < 0.5 ? 1 : -1;
   }
   const loss = 1 - ms.length / g.n0;

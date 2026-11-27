@@ -39,11 +39,11 @@ function updateUnits(dt) {
     if (t && t.alive) {
       const want = angTo(e, t);
       if (e.veh) {
-        e.turretYaw = turnToward(e.turretYaw, want, (e.kind === 'boss' ? tune.boss_turret_speed : e.kind === 'ltank' ? 70 : (ENEMY[e.kind] && ENEMY[e.kind].turret) || 160) * Math.PI / 180 * dt);
+        e.turretYaw = turnToward(e.turretYaw, want, (e.kind === 'ltank' ? 70 : enemyTurret(ENEMY[e.kind])) * Math.PI / 180 * dt);
         // a still hull turns its front to the enemy unless it was told which way to face
         if (!e.moving && e.face == null) e.heading = turnToward(e.heading, want, hullTurn(e) * Math.PI / 180 * dt);
       } else if (!e.moving) e.heading = turnToward(e.heading, want, (w.turn ? w.turn * Math.PI / 180 : 8) * dt);
-      let aligned = !e.veh || Math.abs(angDiff(e.turretYaw, want)) < (e.kind === 'boss' ? 0.05 : 0.2);
+      let aligned = !e.veh || Math.abs(angDiff(e.turretYaw, want)) < ((ENEMY[e.kind] && ENEMY[e.kind].alignTol) || 0.2);
       if (w.arc && Math.abs(angDiff(e.heading, want)) > w.arc * Math.PI / 180) aligned = false; // outside the arc: swing first
       if (w.kind === 'ap' && e.moving) aligned = false;
       if (e.kind === 'sniper' && e.moving) aligned = false; // a sniper shoots from a position, never on the move
@@ -119,7 +119,7 @@ function moveAlong(e, dt) {
     let want = Math.atan2(dx, dz);
     // told which way to face and the way runs the other way: back up, front to the enemy
     if (e.moveFace != null && Math.abs(angDiff(e.moveFace, want)) > 1.9) { want += Math.PI; sp *= 0.55; }
-    e.heading = turnToward(e.heading, want, (e.kind === 'boss' ? 45 : Math.max(60, hullTurn(e) * 1.4)) * Math.PI / 180 * dt);
+    e.heading = turnToward(e.heading, want, ((ENEMY[e.kind] && ENEMY[e.kind].hullTurnMove) || Math.max(60, hullTurn(e) * 1.4)) * Math.PI / 180 * dt);
     if (Math.abs(angDiff(e.heading, want)) > 0.8) sp *= 0.15;
   } else if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
   const before = d;
@@ -165,7 +165,8 @@ function raiderThink(e, w) {
     g.alert = true; g.seenT = state.t; g.known = { x: t.x, z: t.z };
   }
   if (e.target) alertGroup(g, e.target);
-  if (!g.alert && ENEMY[e.kind]) enemySpot(e, g); // short reach: it raises the alarm on sight
+  const D = ENEMY[e.kind];
+  if (!g.alert && D && D.spot) D.spot(e, g); // short reach: it raises the alarm on sight
   if (!g.alert) {
     if (g.kind === 'patrol' && !e.fixed) {
       const wp = g.wps[g.wpi];
@@ -180,10 +181,10 @@ function raiderThink(e, w) {
     return;
   }
   if (e.fixed) return;
-  if (ENEMY[e.kind] && enemyThink(e, w, g)) return; // enemies.js: each special kind's way
+  if (D && D.think && D.think(e, w, g)) return; // the entry's own way of fighting (enemies.js)
   if (!e.veh && raiderTactics(e, w)) return;
   if (tune.smart_raiders && !e.veh && raiderRole(e, w)) return; // tactics.js: pin, flank, buildings, retreat
-  if (tune.smart_raiders && e.kind === 'technical' && circleTarget(e)) return; // technicals circle, firing on the move
+  if (tune.smart_raiders && D && D.circleSmart && circleTarget(e)) return; // technicals circle, firing on the move
   if (e.target && !e.veh) { e.path = null; return; }
   if (e.target && e.veh && dist2(e, e.target) < 16 * 16) { e.path = null; return; }
   if (g.known && (!e.path || e.pi >= e.path.length || state.t - e.pathT > 3)) {
@@ -221,7 +222,7 @@ function openSpot(x, z) {
  */
 function raiderTactics(e, w) {
   if (e.fleeT && state.t - e.fleeT < 1.4 && e.path && e.pi < e.path.length) return true; // still diving clear
-  const v = nearestFriendVeh(e, Math.max(tune.raider_flee + 14, e.kind === 'r_rpg' ? tune.rpg_range * 1.7 : 0));
+  const D = ENEMY[e.kind], v = nearestFriendVeh(e, Math.max(tune.raider_flee + 14, D && D.rocket ? tune.rpg_range * 1.7 : 0));
   // 1. out of the way of a hull bearing down
   const reach = v ? tune.raider_flee + Math.abs(v.kind === 'tank' ? v.speed : 3) * 1.2 : 0; // a fast hull is seen coming from further
   if (v && dist2(v, e) < reach * reach && bearingDown(v, e)) {
@@ -230,7 +231,7 @@ function raiderTactics(e, w) {
     if (p) { setDest(e, p.x, p.z); e.fleeT = state.t; e.coverT = 0; return true; }
   }
   // 2. rockets: to the vehicle's side or back, then fire
-  if (e.kind === 'r_rpg' && v) {
+  if (D && D.rocket && v) {
     const off = Math.abs(angDiff(v.heading, angTo(v, e))), d = Math.sqrt(dist2(v, e));
     const there = off > tune.rpg_flank_angle * Math.PI / 180 && d < tune.rpg_range * 0.95 && canSee(e, v);
     if (there) { e.path = null; e.pref = v; return true; }
@@ -312,7 +313,7 @@ function fire(e, t, w) {
     muzzle(gx, gy, gz, 1.0); sfx('cannon', e.x, e.z);
   } else if (w.kind === 'shell') {
     const d = Math.sqrt(dist2(e, t)), sp = 0.035 * d, a = rng() * 6.28, r = Math.sqrt(rng()) * sp;
-    const go = e.kind === 'boss' ? 6.2 : 3.4, gx = e.x + Math.sin(e.turretYaw) * go, gz = e.z + Math.cos(e.turretYaw) * go, gy = e.y + (e.kind === 'boss' ? 2.4 : 1.75);
+    const mz = (ENEMY[e.kind] && ENEMY[e.kind].muzzle) || [3.4, 1.75], go = mz[0], gx = e.x + Math.sin(e.turretYaw) * go, gz = e.z + Math.cos(e.turretYaw) * go, gy = e.y + mz[1];
     launch({ kind: 'shell', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, gx, gy, gz, t.x + Math.cos(a) * r, t.y + 1, t.z + Math.sin(a) * r, 60, 10);
     muzzle(gx, gy, gz, 1.5); sfx('cannon', e.x, e.z);
   }

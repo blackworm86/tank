@@ -41,11 +41,12 @@
 
 ## I passi
 
-1. **Iteration 19: nucleo e divisione.** Nasce `js/core.js` (registro ed eventi). `sim.js`, 2.000
+1. **Fatto, iteration 19: nucleo e divisione.** Nasce `js/core.js` (registro ed eventi). `sim.js`, 2.000
    righe, si divide in file per sistema in `js/systems/`, nello stesso ordine. Gli agganci della
    campagna e la morte diventano eventi.
-2. **Nemici in un solo registro.** I predoni base escono da `UT` e da sim; ogni nemico ha statistiche,
-   arma, `think`, modello e pesi di comparsa. Spariscono i controlli `e.kind === 'boss'` sparsi.
+2. **Fatto, iteration 20: nemici in un solo registro.** I predoni base escono da `UT` e da sim; ogni
+   nemico ha statistiche, arma, `think` e modello. Spariscono i controlli `e.kind === 'boss'` sparsi.
+   I pesi di comparsa non sono ancora fatti (vedi in fondo).
 3. **Missioni in un solo registro**, con un ciclo di vita: `setup`, `update`, `done`, `sitrep`,
    `minimap`, `leave`.
 4. **L'officina come un solo sistema.** Le tab (moduli, arma, sistemi, caserma, riparazioni) si
@@ -55,3 +56,27 @@
    nell'elenco dei file.
 7. **La config divisa per sistema.** Le chiavi restano piatte, perché `tune` e il pannello le leggono
    così, ma ogni sistema ha il suo file.
+
+## Come aggiungere un nemico (dall'iteration 20)
+
+Una chiamata in un file di contenuti (oggi `js/content/horde.js` o `js/enemies.js`):
+
+```js
+EXTRA_W.lancia = () => ({ kind: 'bullet', range: 20, dmg: 6, rate: 0.8, acc: 0.5 }); // la sua arma
+registerEnemy('r_lancia', {
+  name: 'Lanciere', short: 'Lancia', w: 'lancia',
+  hp: () => tune.raider_hp * 0.8, speed: () => tune.inf_speed * 1.1,  // o hpOf(e, k) per il valore intero
+  model: () => makeSoldier('r_rifle'),                                // la sua figura
+  think: enemyThink, spot: enemySpot,                                 // facoltativi: il suo modo di combattere
+});
+```
+
+`registerEnemy` lo mette nel registro, nella tabella delle unità, nel pannello di sviluppo (K) e nella
+scheda delle figure. I sistemi leggono solo i campi della voce: `eye`, `turret`, `alignTol`,
+`hullTurnMove`, `muzzle`, `blastK`, `loot`, `tally`, `deathSay`, `bigBar`, `rocket`, `noFlank`,
+`circleSmart`, `think`, `spot`, `onKill` (vedi il commento in testa a `js/content/horde.js`).
+
+Resta da fare: **dove** compaiono i nemici. Le composizioni di campi, pattuglie, ondate, fazioni e
+missioni nominano ancora i tipi (`run.js`, `campaign.js`, `factions.js`, `missions.js`,
+`enemies.js`); diventeranno tabelle di comparsa registrate. Anche gli alleati (`UT`, `weapon()`)
+hanno ancora la loro tabella e il loro switch.

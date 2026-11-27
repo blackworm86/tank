@@ -15,8 +15,8 @@ Object.assign(MISSIONS, {
   hunt: { name: 'Caccia al capo', tag: 'CAPO PREDONE', sign: 'un capo predone', brief: 'Un capo predone e la sua scorta tengono la zona: abbattilo.' },
 });
 UT.civ = { name: 'Profugo', team: 0, w: 'none' };
-EXTRA_W.none = () => ({ kind: 'none', range: 0, rate: 99 });
-ENEMY_MODELS.civ = () => { const g = makeSoldier('civ'), s = g.userData.body; bx(s, 0.6, 0.66, 0.4, 0x7a5a8a, 0, 0.92, 0); bx(s, 0.36, 0.14, 0.36, 0xb8a070, 0, 1.55, 0); bx(s, 0.44, 0.44, 0.3, 0x8a6a40, 0, 1.0, -0.34); return g; };
+registry('weapon').none = () => ({ kind: 'none', range: 0, rate: 99 });
+registry('model').civ = () => { const g = makeSoldier('civ'), s = g.userData.body; bx(s, 0.6, 0.66, 0.4, 0x7a5a8a, 0, 0.92, 0); bx(s, 0.36, 0.14, 0.36, 0xb8a070, 0, 1.55, 0); bx(s, 0.44, 0.44, 0.3, 0x8a6a40, 0, 1.0, -0.34); return g; };
 
 /** A sector's mission (not in the first sector: that one is set by hand). */
 function pickMission(col) {

@@ -6,7 +6,7 @@
 
 // ---- The development panel (F2): change and test squads freely -----------------------------------
 const DEV_KINDS = [...INF_KINDS, ...VEH_KINDS];
-const DEV_ENEMIES = ['r_rifle', 'r_mg', 'r_rpg', 'technical', 'boss'];
+const DEV_ENEMIES = []; // every registered enemy joins (registerEnemy)
 function devSquad() { return state.squads[state.devSq] || null; }
 /** A new squad of one unit of this kind, behind the tank, following it. */
 function devAddSquad(kind) {

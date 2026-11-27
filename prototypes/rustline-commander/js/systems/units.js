@@ -5,7 +5,7 @@
 'use strict';
 
 // ---- Units and weapons ----------------------------------------------------------------------------
-/** Every unit kind. veh: a vehicle; rad: its body radius. */
+/** Every unit kind. veh: a vehicle; rad: its body radius. The Horde's kinds join from the enemy registry (content/horde.js). */
 const UT = {
   tank: { name: 'Carro comando', team: 0, veh: true, rad: 2.2 },
   rifle: { name: 'Fuciliere', team: 0, w: 'rifle', cost: 'cost_rifle' },
@@ -19,16 +19,11 @@ const UT = {
   at: { name: 'Cannone anticarro', team: 0, w: 'atgun', cost: 'cost_at' },
   car: { name: 'Autoblindo', team: 0, veh: true, rad: 1.6, w: 'autocannon', cost: 'cost_car' },
   ltank: { name: 'Carro di supporto', team: 0, veh: true, rad: 1.9, w: 'ltgun', cost: 'cost_ltank' },
-  r_rifle: { name: 'Predone', team: 1, w: 'r_rifle' },
-  r_mg: { name: 'Mitragliere predone', team: 1, w: 'r_mg' },
-  r_rpg: { name: 'Razziere', team: 1, w: 'rpg' },
-  technical: { name: 'Tecnica', team: 1, veh: true, rad: 1.6, w: 'r_mount' },
-  boss: { name: 'Carro del Capo', team: 1, veh: true, rad: 2.8, w: 'boss' },
 };
 const INF_KINDS = ['rifle', 'mg', 'medic', 'eng', 'radio', 'scout', 'sniper', 'mortar', 'at'];
 const VEH_KINDS = ['car', 'ltank'];
 /** Vehicles whose hull shrugs off rifle fire. */
-const HEAVY = new Set(['tank', 'boss', 'ltank']);
+const HEAVY = new Set(['tank', 'ltank']); // and every enemy entry marked heavy
 /** A weapon's numbers, read live from config. */
 function weapon(k) {
   switch (k) {
@@ -42,11 +37,6 @@ function weapon(k) {
     case 'pistol': return { kind: 'bullet', range: 14, dmg: 4, rate: 1.4, acc: 0.45 };
     case 'mortar': return { kind: 'mortar', range: tune.mortar_range, min: tune.mortar_min, dmg: tune.mortar_damage, rate: tune.mortar_rate, blast: tune.mortar_blast, indirect: true };
     case 'autocannon': return { kind: 'bullet', heavy: true, range: tune.car_range, dmg: tune.car_damage, rate: tune.car_rate, acc: 0.6, snd: 'mg' };
-    case 'r_rifle': return { kind: 'bullet', range: tune.rifle_range * 0.95, dmg: tune.rifle_damage, rate: 1.4, acc: tune.raider_acc };
-    case 'r_mg': return { kind: 'bullet', range: tune.mg_range, dmg: tune.mg_damage, rate: tune.mg_rate * 1.1, acc: tune.raider_acc * 0.7, snd: 'mg', chip: 0.5, arc: tune.mg_arc, turn: tune.mg_turn };
-    case 'rpg': return { kind: 'rpg', range: tune.rpg_range, dmg: tune.rpg_damage, rate: tune.rpg_rate, blast: 1.5 };
-    case 'r_mount': return { kind: 'bullet', range: tune.mg_range + 2, dmg: tune.mg_damage, rate: tune.mg_rate * 1.2, acc: tune.raider_acc * 0.75, snd: 'mg', chip: 0.5 };
-    case 'boss': return { kind: 'shell', range: 48, dmg: tune.boss_damage, rate: tune.boss_reload, blast: 2.3 };
   }
-  return extraWeapon(k); // enemies.js: the Horde's other weapons
+  const W = registry('weapon')[k]; return W ? W() : null; // the Horde's weapons (content/horde.js, enemies.js)
 }

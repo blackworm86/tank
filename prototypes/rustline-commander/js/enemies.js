@@ -5,8 +5,8 @@
 // dogs, light vehicles (bikes with molotovs, buggies, armoured trucks that unload men), heavy ones (the
 // raiders' scrap tank, the self-propelled gun) and the fuel depot to blow up. Each kind has its numbers,
 // its weapon, its model and its way of fighting (enemyThink); campExtras, patrolKinds and waveKinds
-// decide who turns up where. Hooks: UT, weapon(), unitHp(), baseSpeed(), pickTarget(), fire(), kill(),
-// raiderThink() in systems/unitstep.js; modelFor() in view.js; the kill event (core.js).
+// decide who turns up where. Each kind is an entry in the enemy registry (content/horde.js), with
+// think, spot and onKill; the systems read the entries.
 
 /**
  * The new kinds. hp and speed are functions of the config (and of the tier for the infantry).
@@ -14,7 +14,7 @@
  * stay: keeps to its home spot; circle: drives round the target; carry: unloads men near the fight;
  * standoff: keeps that distance; inert: never acts (a target to destroy).
  */
-const ENEMY = {
+const HORDE_SPECIAL = {
   r_bomber: { name: 'Kamikaze', short: 'Kamik.', w: 'bomb', hp: () => tune.raider_hp * 0.6, speed: () => tune.inf_speed * tune.bomber_speed, charge: true },
   r_sniper: { name: 'Cecchino predone', short: 'Cecch.', w: 'r_sniper', hp: () => tune.raider_hp * 0.9, speed: () => tune.inf_speed * 0.85, perch: true },
   r_mortar: { name: 'Mortaista predone', short: 'Mort.', w: 'r_mortar', hp: () => tune.raider_hp * 0.9, speed: () => tune.inf_speed * 0.8, stay: true },
@@ -28,13 +28,11 @@ const ENEMY = {
   r_spg: { name: 'Semovente', short: 'Semov.', veh: true, rad: 2.2, w: 'howitzer', hp: () => tune.spg_hp, speed: () => tune.rtank_speed * 0.8, standoff: 60, turret: 35 },
   depot: { name: 'Deposito di carburante', short: 'Depos.', veh: true, rad: 3.2, w: null, hp: () => tune.depot_hp, speed: () => 0, inert: true },
 };
-for (const k in ENEMY) { const D = ENEMY[k]; UT[k] = { name: D.name, team: 1, veh: !!D.veh, rad: D.rad, w: D.w, inert: !!D.inert }; if (D.heavy) HEAVY.add(k); }
-const ENEMY_IDS = Object.keys(ENEMY).filter(k => k !== 'depot');
-DEV_ENEMIES.push(...ENEMY_IDS, 'depot'); // the dev panel can place them (K)
-FIGS.push(...ENEMY_IDS.map(k => [k, ENEMY[k].name]), ['depot', ENEMY.depot.name]); // and the figures sheet shows them
+// each one through the registry (content/horde.js), with the special kinds' own ways
+for (const k in HORDE_SPECIAL) registerEnemy(k, Object.assign(HORDE_SPECIAL[k], { think: enemyThink, spot: enemySpot, onKill: enemyOnKill }));
 
 /** The extra weapons (weapon() in systems/units.js asks here for kinds it does not know). */
-const EXTRA_W = {
+Object.assign(EXTRA_W, {
   bomb: () => ({ kind: 'bomb', special: bombFire, range: 2.4, dmg: tune.bomb_damage, rate: 0.4, blast: 2.3, move: true }),
   r_sniper: () => ({ kind: 'bullet', range: tune.sniper_range * 0.9, dmg: tune.sniper_damage * 0.8, rate: tune.sniper_rate * 1.25, acc: Math.min(0.9, tune.raider_acc * 1.8), snd: 'sniper', sight: 1.7 }),
   r_mortar: () => ({ kind: 'mortar', range: tune.mortar_range, min: tune.mortar_min, dmg: tune.mortar_damage * 0.8, rate: tune.mortar_rate * 1.3, blast: tune.mortar_blast, indirect: true }),
@@ -44,9 +42,7 @@ const EXTRA_W = {
   molotov: () => ({ kind: 'molotov', special: molotovFire, range: 15, dmg: 26, rate: 3.2, blast: 1.7 }),
   r_gun: () => ({ kind: 'shell', range: 40, dmg: tune.ltank_damage * 0.85, rate: tune.ltank_reload * 1.3, blast: 1.5 }),
   howitzer: () => ({ kind: 'howitzer', special: howitzerFire, range: tune.spg_range, min: 22, dmg: tune.spg_damage, rate: tune.spg_reload, blast: 2.6, indirect: true }),
-};
-function extraWeapon(k) { return EXTRA_W[k] ? EXTRA_W[k]() : null; }
-function enemyHp(e) { const k = 1 + ((e.tier || 1) - 1) * tune.tier_scale; return ENEMY[e.kind].hp() * (ENEMY[e.kind].veh ? Math.sqrt(k) : k); }
+});
 
 // ---- The special weapons ------------------------------------------------------------------------------------
 /** A bomber's charge goes off on him: everyone close is hurt, him first. */
@@ -260,5 +256,4 @@ const ENEMY_MODELS = {
   },
 };
 
-// ---- Events (core.js) -----------------------------------------------------------------------------------
-on('kill', e => { if (ENEMY[e.kind]) enemyOnKill(e); }); // a bomber's charge, a fuel depot going up
+Object.assign(registry('model'), ENEMY_MODELS); // modelFor (view.js) finds them there

@@ -165,7 +165,7 @@ function applyMods(s) {
 /** The mounted protection against a hit on the command tank: a damage multiplier. */
 function tankModDmg(side, kind, src) {
   let k = 1;
-  if (modOn('cage') && (kind === 'rocket' || (kind === 'blast' && src && src.kind === 'r_rpg'))) k *= 1 - tune.mod_cage;
+  if (modOn('cage') && (kind === 'rocket' || (kind === 'blast' && src && ENEMY[src.kind] && ENEMY[src.kind].rocket))) k *= 1 - tune.mod_cage;
   if (modOn('skirts') && (side === 'side' || side === 'rear')) k *= 1 - tune.mod_skirts;
   if (modOn('era') && (kind === 'rocket' || kind === 'shell') && (state.eraLeft ?? 3) > 0) {
     state.eraLeft = (state.eraLeft ?? 3) - 1; floatText(state.tank.x, state.tank.y + 3.6, state.tank.z, 'carica reattiva! (' + state.eraLeft + ')', '#ffd36a'); return 0;

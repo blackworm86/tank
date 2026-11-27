@@ -232,10 +232,10 @@ function drawHUD() {
   // bars over units
   for (const e of state.ents) {
     if (!e.alive || e.kind === 'tank' || e.inside || hiddenFoe(e)) continue;
-    if (!(e.selected || e.hp < e.maxhp - 0.5 || (e.kind === 'boss' && e.group.alert))) continue;
+    if (!(e.selected || e.hp < e.maxhp - 0.5 || (ENEMY[e.kind] && ENEMY[e.kind].bigBar && e.group.alert))) continue;
     const p = toScreen(e.x, e.y + (e.veh ? 3.6 : 2.6), e.z); if (!p.on) continue;
-    const w = e.kind === 'boss' ? 80 : e.veh ? 36 : 22;
-    bar(p.x - w / 2, p.y, w, e.kind === 'boss' ? 7 : 4, e.hp / e.maxhp, e.team ? '#e0503a' : '#8fd86a');
+    const big = ENEMY[e.kind] && ENEMY[e.kind].bigBar, w = big ? 80 : e.veh ? 36 : 22;
+    bar(p.x - w / 2, p.y, w, big ? 7 : 4, e.hp / e.maxhp, e.team ? '#e0503a' : '#8fd86a');
   }
   if (cmd) for (const sq of state.squads) {
     const m = alive(sq)[0]; if (!m) continue;
@@ -791,7 +791,7 @@ function drawDevPanel() {
   DEV_ENEMIES.forEach((k, i) => {
     const bx0 = x0 + 8 + (i % 5) * 57, by0 = y + Math.floor(i / 5) * 25;
     button(bx0, by0, 54, 22, '', () => { state.devEnemy = k; }, { active: state.devEnemy === k });
-    text(({ r_rifle: 'Fucile', r_mg: 'Mitragl.', r_rpg: 'Razzi', technical: 'Tecnica', boss: 'Capo' })[k] || (ENEMY[k] && ENEMY[k].short) || k, bx0 + 27, by0 + 11, 11, HC.text);
+    text((ENEMY[k] && ENEMY[k].short) || k, bx0 + 27, by0 + 11, 11, HC.text);
   });
 }
 

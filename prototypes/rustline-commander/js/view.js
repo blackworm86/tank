@@ -469,9 +469,7 @@ function modelFor(e) {
   if (e.kind === 'car') return makeCarModel();
   if (e.kind === 'ltank') return makeLightTankModel();
   if (e.kind === 'at') return makeATGunModel();
-  if (e.kind === 'technical') return makeTechnicalModel();
-  if (e.kind === 'boss') return makeBossModel();
-  if (typeof ENEMY_MODELS !== 'undefined' && ENEMY_MODELS[e.kind]) return ENEMY_MODELS[e.kind](); // enemies.js
+  const mk = registry('model')[e.kind]; if (mk) return mk(); // each registered kind's own figure (content/horde.js, enemies.js, missions.js)
   return makeSoldier(e.kind);
 }
 
@@ -701,7 +699,7 @@ function renderWorld() {
 // ---- The figures sheet (?scene=figures) ----------------------------------------------------------
 const FIGS = [
   ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['at', 'Cannone anticarro'], ['car', 'Autoblindo'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
-  ['r_rifle', 'Predone'], ['r_mg', 'Mitragliere predone'], ['r_rpg', 'Razziere'], ['technical', 'Tecnica'], ['boss', 'Carro del Capo'],
+  // the enemies join from the enemy registry (registerEnemy)
 ];
 function renderFigures() {
   if (!R3.ready) return [];
