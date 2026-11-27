@@ -379,7 +379,13 @@ function drawHUD() {
     lines.forEach((l, i) => text(l, W - 290, H - 91 + i * 20, 13, HC.dim, 'left'));
   }
 
-  // cursor
+}
+/**
+ * The game's own cursor, drawn last so nothing covers it (the order menu opens right under it): the command
+ * arrow in command mode or over the menu, the gun's cross while driving.
+ */
+function drawCursor() {
+  const cmd = state.mode === 'cmd' || state.tpause || !!state.menu;
   if (cmd) {
     if (MS.drag) { ctx.strokeStyle = HC.cyan; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(MS.drag.x, MS.drag.y, MS.x - MS.drag.x, MS.y - MS.drag.y); ctx.setLineDash([]); ctx.fillStyle = 'rgba(79,227,224,0.08)'; ctx.fillRect(MS.drag.x, MS.drag.y, MS.x - MS.drag.x, MS.y - MS.drag.y); }
     ctx.fillStyle = HC.cyan; ctx.strokeStyle = '#0c1a1a'; ctx.lineWidth = 1.5;
@@ -516,8 +522,8 @@ function drawMenu() {
   if (m.face != null) groundArrow(m.p.x, m.p.z, m.face, 5, HC.cyan, 3);
   rrect(m.x, m.y, MENU.w, m.h, 7, 'rgba(18,14,11,0.94)', HC.edge);
   text(m.title, m.x + 12, m.y + 14, 13, HC.gold, 'left');
-  text('Esc: chiudi', m.x + MENU.w - 10, m.y + 14, 11, HC.dim, 'right');
-  const hv = menuHover();
+  text('Tab · Invio · Esc', m.x + MENU.w - 10, m.y + 14, 11, HC.dim, 'right');
+  const hv = m.sel;
   m.items.forEach((it, k) => {
     const y = m.y + MENU.head + k * MENU.row;
     if (k === hv && !it.off) rrect(m.x + 4, y + 1, MENU.w - 8, MENU.row - 2, 4, 'rgba(79,227,224,0.18)', null);

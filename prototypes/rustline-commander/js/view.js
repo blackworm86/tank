@@ -591,7 +591,7 @@ function syncModel(e) {
   if (u.turret) u.turret.rotation.y = (e.turretYaw ?? e.heading) - e.heading;
   if (u.gun) u.gun.position.z = u.gunZ - (e.recoil || 0) * 0.7;
   if (u.ring) { // the squad's colour; a picked soldier in white, the rest of his squad faint
-    const on = !!e.selected && e.alive; u.ring.visible = on;
+    const on = !!e.selected && e.alive && (state.mode === 'cmd' || !!state.tpause); u.ring.visible = on; // only while orders are given: the selection stays for the next pause
     if (on) {
       const pk = state.picked && state.picked.size ? state.picked.has(e) : null;
       u.ring.material.color.set(pk ? '#ffffff' : e.squad && e.kind !== 'tank' ? sqColor(e.squad) : '#4fe3e0');

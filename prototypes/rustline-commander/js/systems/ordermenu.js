@@ -51,7 +51,12 @@ function openMenu(g, append) {
   const h = MENU.head + items.length * MENU.row + MENU.pad;
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
-  state.menu = { x, y, h, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name) };
+  state.menu = { x, y, h, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
+}
+/** The next order row that can be picked from row k, going dir (1 down, -1 up), wrapping round. */
+function menuStep(m, k, dir) {
+  for (let s = 1; s <= m.items.length; s++) { const j = ((k < 0 && dir < 0 ? 0 : k) + dir * s + m.items.length * 2) % m.items.length; if (!m.items[j].off && m.items[j].act) return j; }
+  return -1;
 }
 /** Which menu row is under the mouse (-1: none). */
 function menuHover() {
@@ -59,10 +64,19 @@ function menuHover() {
   if (MS.x < m.x || MS.x > m.x + MENU.w || MS.y < m.y + MENU.head) return -1;
   const k = Math.floor((MS.y - m.y - MENU.head) / MENU.row); return k >= 0 && k < m.items.length ? k : -1;
 }
-/** The menu's input: a click on a row or its letter sends the order; Esc or a click outside closes it. */
+/**
+ * The menu's input: a click on a row or its letter sends the order; Tab (Shift+Tab back) or the arrows move the
+ * highlighted row and Enter or Space sends it; the mouse moving over a row highlights it; Esc or a click outside closes it.
+ */
 function menuInput() {
   const m = state.menu; let pick = null;
-  for (const it of m.items) if (!it.off && it.act && pressed('Key' + it.key)) { pick = it; break; }
+  if (MS.x !== m.mx || MS.y !== m.my) { m.mx = MS.x; m.my = MS.y; const k = menuHover(); if (k >= 0 && !m.items[k].off) m.sel = k; }
+  const back = down.has('ShiftLeft') || down.has('ShiftRight');
+  if (pressed('Tab')) m.sel = menuStep(m, m.sel, back ? -1 : 1);
+  if (pressed('ArrowDown')) m.sel = menuStep(m, m.sel, 1);
+  if (pressed('ArrowUp')) m.sel = menuStep(m, m.sel, -1);
+  if ((pressed('Enter') || pressed('NumpadEnter') || pressed('Space')) && m.sel >= 0) pick = m.items[m.sel];
+  for (const it of m.items) if (!pick && !it.off && it.act && pressed('Key' + it.key)) { pick = it; break; }
   if (!pick && MS.lp) {
     const k = menuHover(); MS.lp = false; MS.drag = null; state.menuBlock = true; // this click is the menu's, not the cannon's
     if (k < 0) { if (!(MS.x >= m.x && MS.x <= m.x + MENU.w && MS.y >= m.y && MS.y <= m.y + m.h)) state.menu = null; return; }

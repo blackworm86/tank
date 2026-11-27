@@ -216,7 +216,7 @@ const scenes = {
       state.score = state.kills;
       follow();
     },
-    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawMapHUD(); drawMenu(); },
+    draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawMapHUD(); drawMenu(); drawCursor(); },
   },
   // the campaign map between two sectors
   campaign: {
