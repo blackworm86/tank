@@ -26,7 +26,7 @@
 | Nucleo | `index.html`, `js/core.js` | ciclo a passo fisso, input, audio, scene, `rng()`, `register`/`registry`, `on`/`emit` |
 | Mondo | `js/world.js`, `js/biomes.js`, `js/terrain.js` | voxel, generazione, rilievo, raggi, percorsi |
 | Sistemi | `js/systems/` | unità, mezzo, squadre e ordini, nebbia, combattimento, economia, officina, suono, sviluppo |
-| Contenuti | oggi sparsi (`enemies.js`, `missions.js`, `modules.js`...) | i cataloghi e i comportamenti |
+| Contenuti | `js/content/<pacchetto>/` (oggi `base`) | nemici, missioni, terre, moduli, armi e sistemi: le voci, con i loro comportamenti |
 | Presentazione | `js/view.js`, `js/hud.js` | modelli, disegno, HUD, schermate |
 
 ## Gli eventi di oggi
@@ -63,14 +63,17 @@
    Biomi, impianti, geografie e forme sono registri in `js/biomes.js`, con i loro comportamenti nella
    voce: la terra intorno e il rilievo di una geografia, le pareti di una forma, gli edifici di un
    impianto, la capanna di un bioma. `world.js` e `campaign.js` non nominano più nessuno di loro.
-6. **I contenuti in pacchetti** (`js/content/<pacchetto>/`): un'espansione è una cartella e una riga
-   nell'elenco dei file.
+6. **Fatto, iteration 24: i contenuti in pacchetti.** Il pacchetto `js/content/base/` ha i nemici
+   (`raiders.js`, `enemies.js`), le missioni (`missions.js`), le terre (`lands.js`: biomi, impianti,
+   geografie, forme), i moduli con il loro aspetto (`modules.js`) e le armi e i sistemi con il loro
+   effetto (`arsenal.js`). I file dei sistemi tengono solo i registri; il registro dei nemici è in
+   `js/systems/horde.js`. In `index.html` i pacchetti si caricano dopo tutti i sistemi.
 7. **La config divisa per sistema.** Le chiavi restano piatte, perché `tune` e il pannello le leggono
    così, ma ogni sistema ha il suo file.
 
 ## Come aggiungere un nemico (dall'iteration 20)
 
-Una chiamata in un file di contenuti (oggi `js/content/horde.js` o `js/enemies.js`):
+Una chiamata in un file di contenuti (nel pacchetto base: `js/content/base/raiders.js` o `enemies.js`):
 
 ```js
 EXTRA_W.lancia = () => ({ kind: 'bullet', range: 20, dmg: 6, rate: 0.8, acc: 0.5 }); // la sua arma
@@ -85,7 +88,7 @@ registerEnemy('r_lancia', {
 `registerEnemy` lo mette nel registro, nella tabella delle unità, nel pannello di sviluppo (K) e nella
 scheda delle figure. I sistemi leggono solo i campi della voce: `eye`, `turret`, `alignTol`,
 `hullTurnMove`, `muzzle`, `blastK`, `loot`, `tally`, `deathSay`, `bigBar`, `rocket`, `noFlank`,
-`circleSmart`, `think`, `spot`, `onKill` (vedi il commento in testa a `js/content/horde.js`).
+`circleSmart`, `think`, `spot`, `onKill` (vedi il commento in testa a `js/systems/horde.js`).
 
 Resta da fare: **dove** compaiono i nemici. Le composizioni di campi, pattuglie, ondate, fazioni e
 missioni nominano ancora i tipi (`run.js`, `campaign.js`, `factions.js`, `missions.js`,
@@ -94,7 +97,7 @@ hanno ancora la loro tabella e il loro switch.
 
 ## Come aggiungere una missione (dall'iteration 21)
 
-Una chiamata in un file di contenuti (oggi `js/missions.js`):
+Una chiamata in un file di contenuti (nel pacchetto base: `js/content/base/missions.js`):
 
 ```js
 registerMission('recon', {
@@ -164,3 +167,23 @@ registerBiome('swamp', { name: 'Palude', /* cielo, luce, acqua, tinte, alberi, c
 La campagna sceglie tra tutte le voci registrate, nell'ordine di registrazione. Attenzione: una voce in
 più cambia le campagne di tutti i semi (si tira su una lista più lunga), e un passo che chiama `rng()`
 cambia tutte le mappe che vengono dopo di lui. Il gioco resta giusto, ma non uguale a prima.
+
+## Come fare un'espansione (dall'iteration 24)
+
+Un'espansione è una cartella e le sue righe in `index.html`:
+
+1. Crea `js/content/<nome>/` con i file che servono, per esempio `js/content/deserto-rosso/nemici.js`,
+   `missioni.js`, `terre.js`. Ogni file è fatto di chiamate: `registerEnemy`, `registerMission`,
+   `registerModule`, `registerWeapon`, `registerSystem`, `registerBiome`, `registerLayout`, `registerGeo`,
+   `registerShape`, `registerShopTab`, `registerWorldStep` (gli esempi sono nelle sezioni sopra).
+2. In `index.html`, sotto il blocco `<!-- pack: base -->`, aggiungi `<!-- pack: <nome> -->` e una riga
+   `<script src="js/content/<nome>/....js"></script>` per ogni file.
+3. Un'espansione può anche cambiare una voce del pacchetto base: registrarla di nuovo con lo stesso id la
+   sostituisce (la console lo segnala con `register: ... replaced`).
+
+Le voci di un'espansione si aggiungono in fondo alle liste: le probabilità delle missioni e dei moduli, le
+scelte della campagna e le mappe cambiano per tutti i semi (vedi le avvertenze sopra).
+
+Restano nominati per id nei file dei sistemi, e quindi non ancora estendibili da un pacchetto: i sistemi
+passivi (letti dove agiscono: `modOn('cage')`, `modOn('rack')`...), i tre tipi di colpo (`he`, `ap`,
+`frag`), gli scafi, gli achievement, le fazioni e i loro dialoghi (`js/factions.js`) e gli alleati (`UT`).

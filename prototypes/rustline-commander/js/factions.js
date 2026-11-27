@@ -189,7 +189,7 @@ function raidOn(site, n) {
 }
 function addAmmo(type, n) { let k = 0; while (n-- > 0 && ammoTotal() < ammoMax()) { state.ammo[type]++; k++; } return k; }
 function randomSystem(activeFirst) {
-  const pool = SYSTEM_IDS.filter(id => !state.owned.includes(id)), act = pool.filter(id => SYSTEMS[id].active);
+  const pool = systemIds().filter(id => !state.owned.includes(id)), act = pool.filter(id => SYSTEMS[id].active);
   const from = activeFirst && act.length ? act : pool; return from.length ? from[Math.floor(rng() * from.length)] : null;
 }
 function giveSystem(id) { state.owned.push(id); if (state.systems.length < sysSlots()) mountSystem(id); return SYSTEMS[id].name + (modOn(id) ? ' (montato)' : ' (in magazzino: montalo all\'officina, all\'uscita)'); }

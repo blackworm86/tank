@@ -11,14 +11,11 @@
  * rounds of three types; bullet: a machine gun, never counted. Numbers come from config (weaponStats).
  * vsHeavy multiplies damage on tanks (the 25mm barely scratches them); weight slows the hull.
  */
-const WEAPONS = {
-  ac25: { name: 'Cannoncino 25mm', cost: 0, desc: 'Raffiche rapide: ottimo sui mezzi leggeri, quasi inutile sui carri.' },
-  hmg: { name: 'Mitragliatrice pesante', cost: 90, desc: 'Colpi infiniti, solo contro fanteria e tecniche.' },
-  gl: { name: 'Lanciagranate a tamburo', cost: 180, desc: 'Granate rapide ad arco: fanteria e coperture.' },
-  c75: { name: 'Cannone 75mm', cost: 280, desc: 'Un vero cannone: buca anche i carri. Pesa sullo scafo.' },
-  c105: { name: 'Cannone 105mm', cost: 460, desc: 'Il colpo più duro. Lento a ricaricare, pesante.' },
-};
-const WEAPON_IDS = Object.keys(WEAPONS);
+const WEAPONS = adopt('weapon_main', {});
+/** Adds a main weapon (its numbers come from config, by id, in weaponStats). */
+function registerWeapon(id, D) { return register('weapon_main', id, D); }
+/** The main weapons' ids in their order. */
+function weaponIds() { return Object.keys(WEAPONS); }
 /** A main weapon's live numbers. */
 function weaponStats(id) {
   switch (id) {
@@ -102,23 +99,11 @@ function shellK(p, e) {
  * Systems: passive ones work while mounted; active ones fire with the key of their slot (1-5) while
  * driving, then recharge (cd seconds). Bought at garages (each sells a couple) or found in rare crates.
  */
-const SYSTEMS = {
-  cage: { name: 'Gabbia antirazzo', short: 'Gabbia', desc: 'Passivo: -45% danni da razzi.' },
-  skirts: { name: 'Minigonne', short: 'Gonne', desc: 'Passivo: -30% danni su fianchi e retro.' },
-  era: { name: 'Corazza reattiva a cariche', short: 'ERA', desc: 'Passivo: annulla i primi 3 colpi pesanti di ogni settore.' },
-  thermal: { name: 'Visore termico', short: 'Termico', desc: 'Passivo: il mezzo vede il 40% più lontano.' },
-  autorep: { name: 'Kit autoriparante', short: 'Autorip', desc: 'Passivo: lontano dal fuoco lo scafo si ripara.' },
-  loader: { name: 'Caricatore automatico', short: 'Caricat', desc: 'Passivo: -25% tempo di ricarica dell\'arma principale.' },
-  rack: { name: 'Rastrelliera extra', short: 'Rastrel', desc: 'Passivo: +50% colpi trasportati.' },
-  relay: { name: 'Ripetitore di bordo', short: 'Ripetit', desc: 'Passivo: +40% raggio radio.' },
-  medbay: { name: 'Infermeria da campo', short: 'Infermer', desc: 'Passivo: i soldati entro 8 m dal mezzo guariscono.' },
-  smoke: { name: 'Lanciafumogeni', short: 'Fumo', active: true, cd: 30, desc: 'Attivo: cortina di fumo, i nemici non vedono attraverso per 9 s.' },
-  turbo: { name: 'Iniezione d\'azoto', short: 'Azoto', active: true, cd: 25, desc: 'Attivo: +60% velocità per 5 s.' },
-  repair: { name: 'Saldatrice automatica', short: 'Saldat', active: true, cd: 60, desc: 'Attivo: ripara il 35% dello scafo in 4 s.' },
-  ping: { name: 'Impulso radar', short: 'Impulso', active: true, cd: 40, desc: 'Attivo: mostra tutti i nemici entro 140 per 6 s.' },
-  salvo: { name: 'Lanciarazzi a salve', short: 'Salva', active: true, cd: 20, desc: 'Attivo: 4 razzi anticarro dove miri.' },
-};
-const SYSTEM_IDS = Object.keys(SYSTEMS);
+const SYSTEMS = adopt('system', {});
+/** Adds an advanced system (active ones: use(tk), what the key does). */
+function registerSystem(id, D) { return register('system', id, D); }
+/** The systems' ids in their order. */
+function systemIds() { return Object.keys(SYSTEMS); }
 /** True when system id is mounted. */
 function modOn(id) { return !!state.systems && state.systems.includes(id); }
 /** How many advanced systems the hull takes now. */
@@ -143,7 +128,7 @@ function trimSystems() { state.stats = null; while (state.systems.length > sysSl
 /** A garage's stock: two systems the player lacks, picked once per garage. */
 function garageStock(site) {
   if (!site.stock) {
-    const pool = SYSTEM_IDS.filter(id => !state.owned.includes(id)), out = [];
+    const pool = systemIds().filter(id => !state.owned.includes(id)), out = [];
     for (let k = 0; k < 2 && pool.length; k++) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     site.stock = out;
   }
@@ -191,14 +176,7 @@ function activateSystem(id) {
   const S = SYSTEMS[id], tk = state.tank; if (!S || !S.active || !tk.alive) return;
   if (sysWait(id) > 0) { say('Equipaggio', S.name + ': pronto tra ' + Math.ceil(sysWait(id)) + ' s.', '#e0a070'); return; }
   state.sysCd[id] = state.t + S.cd;
-  if (id === 'smoke') {
-    state.smokes.push({ x: tk.x, z: tk.z, r: tune.smoke_radius, until: state.t + 9 });
-    for (let i = 0; i < 26; i++) { const a = rng() * 6.28, r = rng() * tune.smoke_radius; state.fx.push({ kind: 'smoke', x: tk.x + Math.cos(a) * r, y: hAt(tk.x, tk.z) + 1, z: tk.z + Math.sin(a) * r, t: -rng() * 0.6, life: 9, s: 2.6, rise: 0.4, col: 0xcfc8bd }); }
-    sfx('rpg', tk.x, tk.z);
-  } else if (id === 'turbo') { state.turboUntil = state.t + 5; state.stats = null; sfx('cannon', tk.x, tk.z); }
-  else if (id === 'repair') state.repairUntil = state.t + 4;
-  else if (id === 'ping') { for (const e of state.ents) if (e.alive && e.team === 1 && dist2(e, tk) < 140 * 140) e.pingT = state.t + 6; sfx('radio'); }
-  else if (id === 'salvo') state.salvo = { n: 4, next: state.t };
+  if (S.use) S.use(tk); // the entry's own effect
   say('Equipaggio', S.name + '!', '#8fe0ff');
 }
 /** True when the line from a to b crosses a smoke screen (they cannot see each other through it). */
@@ -277,7 +255,7 @@ function resetMeta() {
 function dropLoot(x, z, chance) {
   if (rng() >= chance) return;
   const lying = new Set(state.pickups.filter(p => p.loot && !p.taken).map(p => p.loot));
-  const pool = SYSTEM_IDS.filter(id => !state.owned.includes(id) && !lying.has(id)); if (!pool.length) return;
+  const pool = systemIds().filter(id => !state.owned.includes(id) && !lying.has(id)); if (!pool.length) return;
   const q = spotNear(x, z, 0); state.pickups.push({ x: q.x, z: q.z, value: 0, loot: pool[Math.floor(rng() * pool.length)], taken: false });
 }
 /** Leaves a crate of n rounds at (x,z), with probability chance (none while the gun is a machine gun). */
@@ -510,7 +488,7 @@ registerShopTab('weapon', {
     // the main weapon: bought once, swapped free after
     text('Arma principale (comprata una volta, poi si cambia gratis)', x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
     const cw = Math.floor((w - 48 - 4 * 10) / 5);
-    WEAPON_IDS.forEach((id, i) => {
+    weaponIds().forEach((id, i) => {
       const W0 = WEAPONS[id], bx0 = x0 + 24 + i * (cw + 10), own = state.weaponsOwned.includes(id), eq = state.weapon === id, afford = own || state.scrap >= W0.cost;
       button(bx0, cy + 24, cw, 92, '', () => equipWeapon(id), { active: eq, off: !afford });
       text(W0.name, bx0 + 8, cy + 40, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');

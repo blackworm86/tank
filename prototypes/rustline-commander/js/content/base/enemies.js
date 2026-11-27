@@ -1,6 +1,7 @@
 // PROTOTYPE - NOT FOR PRODUCTION
 // Question: guidare il carro, anticipare la torretta lenta e dirigere squadre fragili entro il raggio radio su un terreno che si sbriciola è divertente per un run da 15-20 minuti?
 // Date: 2026-11-26
+// Content pack "base".
 // The Horde's other faces: special infantry (bombers, snipers, mortar crews, flamethrowers, rabble), war
 // dogs, light vehicles (bikes with molotovs, buggies, armoured trucks that unload men), heavy ones (the
 // raiders' scrap tank, the self-propelled gun) and the fuel depot to blow up. Each kind has its numbers,

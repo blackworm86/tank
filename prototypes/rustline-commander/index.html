@@ -41,15 +41,22 @@
 <script src="js/systems/barracks.js"></script>
 <script src="js/systems/sound.js"></script>
 <script src="js/systems/dev.js"></script>
+<script src="js/systems/horde.js"></script>
 <script src="js/tactics.js"></script>
-<script src="js/content/horde.js"></script>
-<script src="js/enemies.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/campaign.js"></script>
 <script src="js/factions.js"></script>
-<script src="js/missions.js"></script>
 <script src="js/loadout.js"></script>
 <script src="js/modules.js"></script>
+<!-- Content packs: a pack is a folder in js/content/ and its lines here, after every system; an expansion
+     is one more folder and its lines below base (docs/architecture/rustline-modular-plan.md). -->
+<!-- pack: base -->
+<script src="js/content/base/raiders.js"></script>
+<script src="js/content/base/enemies.js"></script>
+<script src="js/content/base/missions.js"></script>
+<script src="js/content/base/lands.js"></script>
+<script src="js/content/base/modules.js"></script>
+<script src="js/content/base/arsenal.js"></script>
 <script>
 'use strict';
 // The one-shot's starter: only what the checks read. Keep the fixed step, the clock hook,
