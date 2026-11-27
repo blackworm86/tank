@@ -49,6 +49,33 @@ function wgTestRelief(G) {
 registerWorldStep('testRelief', { order: 35, run: wgTestRelief });
 
 /**
+ * The test yard, near the start (order 72, after the sites' structures): one of each kind of structure, whole, on
+ * level ground, to try how they are damaged and how they fall: a water tower, a petrol station, a silo, a brick
+ * house, a four-storey block, a car wreck, a fence and a stack of bales. world.testYard: its box.
+ */
+function wgTestYard(G) {
+  world.testYard = null;
+  if (!(world.spec && world.spec.test)) return;
+  const st = G.sites.start, W = 38, D = 26;
+  let A = null;
+  for (const r of [20, 35, 55]) { A = findArea(W, D, { sites: [st], cx: st.x, cz: st.z, r, flat: 4, road: 1, margin: 2, tries: 200 }); if (A) break; }
+  if (!A) return;
+  levelGround(A.x, A.z, W, D, A.g, 1); recomputeArea(A.x - 2, A.z - 2, W + 4, D + 4);
+  const x = A.x, z = A.z, g = A.g;
+  waterTower(x + 2, z + 2, g);
+  petrolStation(x + 10, z + 1, g);
+  silo(x + 24, z + 4, g);
+  buildHouse(x + 2, z + 15, 6, 5, g, { wall: V.BRICK, corner: V.CONC, face: [0, -1], ruin: 0 });
+  buildHouse(x + 12, z + 15, 8, 8, g, { wall: V.CONC, corner: V.CONC, floors: 4, face: [0, -1], ruin: 0 });
+  carWreck(x + 24, z + 16, g, true);
+  for (let k = 0; k < 11; k++) if (k !== 5) put(x + 24 + k, g, z + 22, V.WOOD); // a fence with a gap
+  for (let k = 0; k < 3; k++) { put(x + 30 + k, g, z + 10, V.HAY); put(x + 30 + k, g, z + 11, V.HAY); if (k < 2) put(x + 30 + k, g + 1, z + 10, V.HAY); }
+  keepArea(x, z, W, D, 1); recomputeArea(x - 4, z - 4, W + 8, D + 8);
+  world.testYard = { x, z, w: W, d: D, g };
+}
+registerWorldStep('testYard', { order: 72, run: wgTestYard });
+
+/**
  * The practice targets ahead of the start, in the tank's view: raiders standing in the open and behind sandbags at
  * 15 to 70 m, a technical, a buggy and a scrap tank. They neither move, nor shoot, nor answer; one destroyed comes
  * back where it stood after TEST_RESPAWN seconds. [kind, metres ahead, metres to the right, sandbags in front]
@@ -101,5 +128,6 @@ function startTestMap() {
   state.scrap = 999;
   placeTargets();
   say('Test', 'Mappa di test: nessun nemico vero. Rampe, strada, gola nella montagna, altopiano con una rampa, scarpata, fiume con un guado, villaggi e rocce.', '#9fe3a0');
+  if (world.testYard) say('Test', 'Cantiere vicino alla partenza: cisterna su gambe, pensilina, silos, casa, palazzo di 4 piani, auto, recinzione e balle, interi, per provare danni e crolli.', '#9fe3a0');
   say('Test', 'Davanti a te ' + TEST_TARGETS.length + ' bersagli da 15 a 70 m (alcuni dietro sacchi): non si muovono e non sparano, abbattuti ricompaiono dopo ' + TEST_RESPAWN + ' s. Colpi infiniti. Le squadre sparano ai bersagli a tiro: Q nel menu ordini (Non sparare) le ferma. Nuovi: la jeep con mitragliatrice e, col click destro su un bersaglio, il Fuoco di soppressione (S).', '#ffd36a');
 }

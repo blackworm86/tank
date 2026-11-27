@@ -135,11 +135,22 @@ function barn(x, z, g, face) {
 }
 /** A grain silo: a tall ribbed cylinder with a cone cap. */
 function silo(x, z, g) { cylinder(x, z, 2.2, g, 9, V.METAL, V.STRIPE, V.METAL); }
-/** A water tower: four wooden legs, a tank and a cap on top. */
+/**
+ * A water tower, one structure on the fine grid: four wooden legs half a metre square braced crosswise, a ring beam
+ * halfway up, a plank deck and the metal tank with a rusty cap on it. Shot through, its legs give way and it all comes down.
+ */
 function waterTower(x, z, g) {
-  for (const [a, b] of [[0, 0], [3, 0], [0, 3], [3, 3]]) for (let y = 0; y < 6; y++) put(x + a, g + y, z + b, V.WOOD);
-  fillBox(x, g + 6, z, 4, 1, 4, V.WOOD);
-  cylinder(x + 1.5, z + 1.5, 1.9, g + 7, 3, V.METAL, null, V.RUST);
+  const S = objStruct(x - 1, z - 1, 6, 6, g, 15), W = FM.WOOD, top = g + 6.5;
+  const legs = [[x + 0.25, z + 0.25], [x + 3.75, z + 0.25], [x + 3.75, z + 3.75], [x + 0.25, z + 3.75]];
+  for (const [a, b] of legs) fbox(S, a - 0.25, g, b - 0.25, a + 0.25, top, b + 0.25, W);
+  for (let i = 0; i < 4; i++) {
+    const [a, b] = legs[i], [c, d] = legs[(i + 1) % 4];
+    fbox(S, Math.min(a, c) - 0.125, g + 3, Math.min(b, d) - 0.125, Math.max(a, c) + 0.125, g + 3.25, Math.max(b, d) + 0.125, W); // the ring beam
+    fbeam(S, a, g + 0.5, b, c, g + 3, d, 0.25, W); fbeam(S, c, g + 3.25, d, a, top - 0.25, b, 0.25, W); // the braces
+  }
+  fbox(S, x - 0.25, top, z - 0.25, x + 4.25, top + 0.5, z + 4.25, W); // the deck
+  fineCylinder(x + 1.5, z + 1.5, 1.9, top + 0.5, 3, V.METAL, null, V.RUST, S);
+  projectStruct(S); world.sdirty.add(S.id);
 }
 /** A church: a plastered nave with a tiled roof and a bell tower with open arches and a cross. */
 function church(x, z, g, face) { return buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, floors: 2, face: [0, 1] }); }
@@ -154,8 +165,11 @@ function adobeHut(x, z, g, face) { return buildHouse(x, z, 4 + Math.floor(rng() 
 function shack(x, z, g, face) { return buildHouse(x, z, 5, 4, g, { wall: V.METAL, corner: V.RUST, roof: 'gable', roofT: V.RUST, face }); }
 /** A petrol station: a canopy on four posts over two pumps, a little shop, a sign. */
 function petrolStation(x, z, g) {
-  for (const [a, b] of [[0, 0], [5, 0], [0, 3], [5, 3]]) for (let y = 0; y < 3; y++) put(x + a, g + y, z + b, V.METAL);
-  for (let a = 0; a < 6; a++) for (let b = 0; b < 4; b++) put(x + a, g + 3, z + b, a === 0 || a === 5 || b === 0 || b === 3 ? V.STRIPE : V.METAL);
+  const S = objStruct(x, z, 6, 4, g, 5), top = g + 3; // the canopy, one structure on the fine grid: four posts, a slab with a striped rim
+  for (const [a, b] of [[0.5, 0.5], [5.5, 0.5], [0.5, 3.5], [5.5, 3.5]]) fbox(S, x + a - 0.25, g, z + b - 0.25, x + a + 0.25, top, z + b + 0.25, FM.METAL);
+  fbox(S, x, top, z, x + 6, top + 0.5, z + 4, FM.METAL);
+  for (const [a0, b0, a1, b1] of [[0, 0, 6, 0.25], [0, 3.75, 6, 4], [0, 0, 0.25, 4], [5.75, 0, 6, 4]]) fbox(S, x + a0, top, z + b0, x + a1, top + 0.5, z + b1, FM.STRIPE);
+  projectStruct(S); world.sdirty.add(S.id);
   addProp('pump', x + 2, g, z + 2, { ay: g - 1 }); addProp('pump', x + 4, g, z + 2, { ay: g - 1 });
   buildHouse(x, z + 6, 6, 4, g, { wall: V.PLAST, corner: V.STRIPE, roof: 'flat', shop: true, face: [0, -1] });
   signboard(x + 8, z + 1, g, 0, 'fuel', false);

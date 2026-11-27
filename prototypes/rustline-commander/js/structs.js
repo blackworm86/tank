@@ -37,15 +37,16 @@ function structRes() { return Math.max(2, Math.min(4, Math.round(tune.struct_res
 function structsReset(N) { world.structs = []; world.sown = new Int16Array(N * N); world.fmark = new Uint8Array(N * N * VH); world.sdirty = new Set(); world.schip = new Set(); world.settleT = 0; world.pieces = []; }
 /**
  * A new structure over the 1 m box from (x0, z0), w x d columns, its ground floor at height g, h metres tall
- * above it and `below` metres of foundation under it. Columns another structure already holds stay out of it.
+ * above it and `below` metres of foundation under it. Columns another structure already holds stay out of it,
+ * and with cols (a Set of column indices x + N z) so do the columns not in it.
  */
-function newStruct(x0, z0, w, d, g, h, below) {
+function newStruct(x0, z0, w, d, g, h, below, cols) {
   const F = structRes(), N = world.N, yb = g - below, hgt = Math.min(VH - yb, h + below);
   const S = { id: world.structs.length, x0, z0, w, d, g, yb, hgt, F, sx: w * F, sy: hgt * F, sz: d * F, own: new Uint8Array(w * d), mesh: null, bld: null };
   S.cells = new Uint8Array(S.sx * S.sy * S.sz);
   for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) {
     const x = x0 + dx, z = z0 + dz; if (!inMap(x, z)) continue;
-    const i = x + N * z; if (world.sown[i]) continue;
+    const i = x + N * z; if (world.sown[i] || (cols && !cols.has(i))) continue;
     world.sown[i] = S.id + 1; S.own[dx + w * dz] = 1;
   }
   world.structs.push(S);
@@ -115,8 +116,9 @@ registerWorldStep('structSync', { order: 95, run: () => structsSync() });
 
 // ---- Damage ------------------------------------------------------------------------------------------------
 /**
- * Removes what no longer stands: a fine cell joins the ground when it rests on the foundation's bottom or on
- * 1 m ground below the box, and through its six neighbours. Returns how many fine cells fell. With fall (in play)
+ * Removes what no longer stands: a fine cell is anchored when the 1 m cell under it is solid ground or another
+ * 1 m voxel no structure holds (never merely because it is the bottom of its box), and the rest stands through
+ * its six neighbours. Returns how many fine cells fell. With fall (in play)
  * the loose cells come away as falling pieces (spawnPieces); without (building the map) they just go.
  */
 function dropLoose(S, fall) {
@@ -127,7 +129,7 @@ function dropLoose(S, fall) {
     for (let fy = 0; fy < sy; fy += F) { // the first fine row of each 1 m layer rests on the 1 m cell below
       const l = fx + sx * (fz + sz * fy); if (!C[l]) continue;
       const y = S.yb + fy / F, k = y > 0 ? vi(X, y - 1, Z) : -1;
-      if (fy === 0 || (k >= 0 && world.vox[k] && !world.fmark[k])) { seen[l] = 1; q[qt++] = l; }
+      if (y === 0 || (k >= 0 && world.vox[k] && !world.fmark[k])) { seen[l] = 1; q[qt++] = l; }
     }
   }
   const sxz = sx * sz;
@@ -527,13 +529,35 @@ function fput(x, y, z, m) {
   sset(S, Math.floor((x - S.x0) * F + 1e-6), Math.floor((y - S.yb) * F + 1e-6), Math.floor((z - S.z0) * F + 1e-6), m);
   return S;
 }
+// ---- The kit: one object, one structure, built straight on the fine grid ------------------------------------
+/** A structure for one built object, w x d columns from (x0, z0), from height g (its lowest cell), h metres tall. */
+function objStruct(x0, z0, w, d, g, h) { const S = newStruct(x0, z0, w, d, g, Math.max(1, Math.min(VH - g, h)), 0); S.obj = true; return S; }
+/** Fills the box between world points a and b (metres) with material m: the fine cells whose centres fall inside. */
+function fbox(S, ax, ay, az, bx, by, bz, m) {
+  const F = S.F, r = v => Math.round(v * F);
+  const y0 = Math.max(0, r(ay - S.yb)), y1 = Math.min(S.sy, r(by - S.yb)), z0 = Math.max(0, r(az - S.z0)), z1 = Math.min(S.sz, r(bz - S.z0)), x0 = Math.max(0, r(ax - S.x0)), x1 = Math.min(S.sx, r(bx - S.x0));
+  for (let fy = y0; fy < y1; fy++) for (let fz = z0; fz < z1; fz++) for (let fx = x0; fx < x1; fx++) sset(S, fx, fy, fz, m);
+}
+/** A beam s metres thick from world point a to b, its cells joined face to face (a brace, a strut, a girder). */
+function fbeam(S, ax, ay, az, bx, by, bz, s, m) {
+  const F = S.F, k = Math.max(1, Math.round(s * F)), o = k >> 1, n = Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) * F * 3) + 1;
+  const cell = t => [Math.floor((ax + (bx - ax) * t - S.x0) * F), Math.floor((ay + (by - ay) * t - S.yb) * F), Math.floor((az + (bz - az) * t - S.z0) * F)];
+  const put = c => { for (let dy = 0; dy < k; dy++) for (let dz = 0; dz < k; dz++) for (let dx = 0; dx < k; dx++) sset(S, c[0] + dx - o, c[1] + dy - o, c[2] + dz - o, m); };
+  let p = null;
+  for (let i = 0; i <= n; i++) {
+    const c = cell(i / n);
+    if (!p) put(c); else for (let a = 0; a < 3; a++) while (p[a] !== c[a]) { p[a] += Math.sign(c[a] - p[a]); put(p); }
+    p = c.slice();
+  }
+}
 /**
  * An upright cylinder on the fine grid (silos, water tanks, wells): a round shell half a metre thick on a solid
  * floor, a band of `band` every 4 m, a cone cap of `cap`. Centred where the old voxel cylinder was, (cx + 0.5, cz + 0.5).
+ * into: the structure to build it in (a water tower's tank on its legs), else a new one.
  */
-function fineCylinder(cx, cz, r, g, h, t, band, cap) {
+function fineCylinder(cx, cz, r, g, h, t, band, cap, into) {
   const F = structRes(), R = Math.ceil(r) + 1, capH = cap ? Math.ceil(r) : 0;
-  const S = newStruct(Math.floor(cx) - R, Math.floor(cz) - R, 2 * R + 2, 2 * R + 2, g, h + capH + 1, 0);
+  const S = into || objStruct(Math.floor(cx) - R, Math.floor(cz) - R, 2 * R + 2, 2 * R + 2, g, h + capH + 1);
   const m = fmOf(t, FM.METAL), mb = band ? fmOf(band, m) : m, mc = cap ? fmOf(cap, m) : m, ox = cx + 0.5, oz = cz + 0.5, rr = r + 0.35, th = 0.5, touched = new Set([S]);
   for (let fy = 0; fy < (h + capH) * F; fy++) for (let fz = 0; fz < S.sz; fz++) for (let fx = 0; fx < S.sx; fx++) {
     const X = S.x0 + (fx + 0.5) / F, Z = S.z0 + (fz + 0.5) / F, d = Math.hypot(X - ox, Z - oz);
@@ -549,7 +573,7 @@ function fineCylinder(cx, cz, r, g, h, t, band, cap) {
  * four tyres, a cab of pillars and a roof with the glass gone. Cover for infantry.
  */
 function fineCar(x, z, g, ax, bodyK) {
-  const F = structRes(), S = newStruct(x, z, ax ? 4 : 2, ax ? 2 : 4, g, 3, 0), bm = fmOf(bodyK, FM.RUST), L = 4 * F, Wd = 2 * F, ns = Math.floor(rng() * 9999), touched = new Set([S]);
+  const F = structRes(), S = objStruct(x, z, ax ? 4 : 2, ax ? 2 : 4, g, 3), bm = fmOf(bodyK, FM.RUST), L = 4 * F, Wd = 2 * F, ns = Math.floor(rng() * 9999), touched = new Set([S]);
   const c0 = Math.round(L * 0.3), c1 = Math.round(L * 0.72), cabH = Math.round(F * 0.75), wb = [Math.round(L * 0.12), Math.round(L * 0.25)], wf = [Math.round(L * 0.72), Math.round(L * 0.85)];
   for (let l = 0; l < L; l++) for (let w = 0; w < Wd; w++) for (let y = 0; y <= F + cabH; y++) {
     let m = 0;
@@ -569,11 +593,12 @@ function fineCar(x, z, g, ax, bodyK) {
  * nb: its six neighbours' kinds [+x, -x, +z, -z, +y, -y]. Its shape follows what it is and what it touches: a post
  * (nothing beside it, something above or below), a fence (wood with one or two wooden neighbours: a post and two
  * rails toward them), a thin slab (a canopy, a platform: nothing under it), a sandbag or a bale (rounded), a lone
- * lump (a little mound), else a block with its open top edges worn. Returns the structure, or null.
+ * lump (a little mound), else a block with its open top edges worn. into: the structure to write it in (its
+ * object), else the one holding the column (a new rubble tile when none). Returns the structure, or null.
  */
-function portVoxel(x, y, z, t, nb) {
+function portVoxel(x, y, z, t, nb, into) {
   const m = fmOf(t, 0); if (!m) return null;
-  const S = rubbleStructAt(x + 0.5, z + 0.5); if (!S) return null;
+  const S = into || rubbleStructAt(x + 0.5, z + 0.5); if (!S) return null;
   const F = S.F, fy0 = (y - S.yb) * F; if (fy0 < 0 || fy0 + F > S.sy) return null;
   const built = k => !!k && !GROUNDV.has(k) && k !== V.TREE, wood = k => k === V.WOOD || k === V.PLANK;
   const hx = (built(nb[0]) ? 1 : 0) + (built(nb[1]) ? 1 : 0) + (built(nb[2]) ? 1 : 0) + (built(nb[3]) ? 1 : 0), up = built(nb[4]), down = built(nb[5]);
@@ -599,19 +624,40 @@ function portVoxel(x, y, z, t, nb) {
   if (S.rubble) S.port = true;
   return S;
 }
-/** After the map rules (before structSync): every built 1 m voxel still left (fences, hay, posts, canopies, walls, tents, junk) goes onto the fine grid. */
+/**
+ * After the map rules (before structSync): every built 1 m voxel still left (fences, hay, posts, walls, tents, junk)
+ * goes onto the fine grid. One in a column a structure holds joins that structure; the rest are grouped into
+ * objects, the voxels joined face to face or sharing a column, and each object becomes one structure holding just
+ * its own columns: a fence, a stack of bales, a lean-to stand and fall as one thing, never cut into map tiles.
+ */
 function structPort() {
-  const N = world.N, list = [];
+  const N = world.N, list = [], colOf = new Map();
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const base = VH * (x + N * z);
     for (let y = 1; y < VH; y++) {
       const k = base + y, t = world.vox[k];
       if (!t || GROUNDV.has(t) || t === V.TREE || t === V.YEL || world.fmark[k] || !fmOf(t, 0)) continue;
+      const c = x + N * z; if (!colOf.has(c)) colOf.set(c, []); colOf.get(c).push(list.length);
       list.push([x, y, z, t, [getV(x + 1, y, z), getV(x - 1, y, z), getV(x, y, z + 1), getV(x, y, z - 1), getV(x, y + 1, z), getV(x, y - 1, z)]]);
     }
   }
-  world.ported = 0;
-  for (const [x, y, z, t, nb] of list) if (portVoxel(x, y, z, t, nb)) { world.vox[vi(x, y, z)] = 0; world.ported++; }
+  world.ported = 0; world.portObjs = 0;
+  const done = new Uint8Array(list.length), port = (j, S) => { const [x, y, z, t, nb] = list[j]; if (portVoxel(x, y, z, t, nb, S)) { world.vox[vi(x, y, z)] = 0; world.ported++; } };
+  for (let i0 = 0; i0 < list.length; i0++) {
+    if (done[i0]) continue;
+    if (world.sown[list[i0][0] + N * list[i0][2]]) { done[i0] = 1; port(i0, null); continue; }
+    const q = [i0]; done[i0] = 1;
+    for (let h = 0; h < q.length; h++) {
+      const [x, y, z] = list[q[h]], near = (colOf.get(x + N * z) || []).slice();
+      for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const j of colOf.get(x + a + N * (z + b)) || []) if (list[j][1] === y) near.push(j);
+      for (const j of near) if (!done[j] && !world.sown[list[j][0] + N * list[j][2]]) { done[j] = 1; q.push(j); }
+    }
+    let ax = 1e9, az = 1e9, ay = 1e9, bx = -1, bz = -1, by = -1; const cols = new Set();
+    for (const j of q) { const [x, y, z] = list[j]; ax = Math.min(ax, x); bx = Math.max(bx, x); ay = Math.min(ay, y); by = Math.max(by, y); az = Math.min(az, z); bz = Math.max(bz, z); cols.add(x + N * z); }
+    const S = newStruct(ax, az, bx - ax + 1, bz - az + 1, ay, Math.min(VH - ay, Math.max(6, by - ay + 3)), 0, cols);
+    S.port = true; S.obj = true; world.portObjs++;
+    for (const j of q) port(j, S);
+  }
 }
 registerWorldStep('structPort', { order: 94, run: () => structPort() });
 /** Lays a 1 m voxel of kind t at (x, y, z) on the fine grid in play (sandbags), projected at once; the old 1 m voxel when it cannot. */
