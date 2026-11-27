@@ -115,57 +115,10 @@ function signboard(x, z, g, yaw, tex, wide) {
   addProp('sign', x + 0.5, g + 3.2, z + 0.5, { yaw, tex, w: wide ? 5.2 : 3.2, h: wide ? 1.9 : 1.5, ax: x + ux * half, ay: g + 2, az: z + uz * half });
 }
 /**
- * A house: walls of `wall` with window rows (glass), a door 2 high on the side facing o.face, and a roof:
- * 'gable' (pitched, ridge along the long side, gable ends in the wall stuff), 'flat' (with a parapet) or
- * 'none'. Floors are 3 voxels tall. Registered as a building soldiers can enter.
+ * A house or block of flats: built on the fine grid by structHouse (js/structs.js), ruined, with a door on the side
+ * facing o.face and o.floors storeys of 3 m. Registered as a building soldiers can enter.
  */
-function buildHouse(x0, z0, w, d, g, o) {
-  const fl = o.floors || 1, H = fl * 3 + (o.extra || 0), wall = o.wall;
-  // the door side: the one facing o.face, else the south side
-  const f = o.face || [0, 1];
-  const side = Math.abs(f[0]) > Math.abs(f[1]) ? (f[0] > 0 ? 'e' : 'w') : (f[1] > 0 ? 's' : 'n');
-  const dX = side === 'w' ? 0 : side === 'e' ? w - 1 : Math.floor(w / 2), dZ = side === 'n' ? 0 : side === 's' ? d - 1 : Math.floor(d / 2);
-  const dw = o.doorW || 1;
-  for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) {
-    const ex = dx === 0 || dx === w - 1, ez = dz === 0 || dz === d - 1; if (!ex && !ez) continue;
-    const corner = ex && ez, along = ez ? dx : dz;
-    const onDoorSide = (side === 'n' && dz === 0) || (side === 's' && dz === d - 1) || (side === 'w' && dx === 0) || (side === 'e' && dx === w - 1);
-    const dAt = ez ? dX : dZ;
-    for (let y = 0; y < H; y++) {
-      const isDoor = onDoorSide && !corner && Math.abs(along - dAt) < dw && y < (o.doorH || 2);
-      if (isDoor) continue;
-      let t = corner ? (o.corner || wall) : wall;
-      const fy = y % 3;
-      if (!corner && y < fl * 3) {
-        if (o.shop && y < 2 && onDoorSide) t = V.GLASS; // a shop front: big panes at the ground floor
-        else if (fy === 1 && along % 2 === 1 && !(onDoorSide && Math.abs(along - dAt) <= dw)) t = o.win === false ? wall : V.GLASS;
-        else if (o.band && fy === 2) t = o.band;
-      }
-      put(x0 + dx, g + y, z0 + dz, t);
-    }
-  }
-  const roof = o.roof || 'gable', rt = o.roofT || V.TILE;
-  if (roof === 'flat') {
-    fillBox(x0, g + H, z0, w, 1, d, o.roofSlab || V.CONC);
-    for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) if (dx === 0 || dz === 0 || dx === w - 1 || dz === d - 1) if ((dx + dz) % 5 !== 2) put(x0 + dx, g + H + 1, z0 + dz, wall);
-  } else if (roof === 'gable') {
-    const alongX = w >= d, span = alongX ? d : w, len = alongX ? w : d;
-    for (let k = -1; k * 2 < span; k++) { // k = -1: the eaves, overhanging one cell along the long sides
-      const y = g + H + Math.max(0, k) - (k < 0 ? 1 : 0);
-      for (let l = 0; l < len; l++) for (const r of [k, span - 1 - k]) {
-        if (alongX) put(x0 + l, y, z0 + r, rt); else put(x0 + r, y, z0 + l, rt);
-      }
-      if (k >= 0) for (let r = k + 1; r < span - 1 - k; r++) for (const l of [0, len - 1]) { // the gable ends
-        if (alongX) put(x0 + l, y, z0 + r, wall); else put(x0 + r, y, z0 + l, wall);
-      }
-    }
-    if (o.chimney) for (let y = H; y < H + Math.ceil(span / 2) + 2; y++) put(x0 + 1, g + y, z0 + 1, V.BRICK);
-  }
-  // the doorstep outside kept clear, and the building registered for its garrison
-  const ox = x0 + dX + (side === 'w' ? -1 : side === 'e' ? 1 : 0), oz = z0 + dZ + (side === 'n' ? -1 : side === 's' ? 1 : 0);
-  if (inMap(ox, oz)) for (let y = g; y < g + 3; y++) if (!GROUNDV.has(getV(ox, y, oz))) world.vox[vi(ox, y, oz)] = 0;
-  return registerBuilding(x0, z0, w, d, g, H, dX, dZ);
-}
+function buildHouse(x0, z0, w, d, g, o) { return structHouse(x0, z0, w, d, g, o); }
 /** An upright cylinder shell of voxels (silos, fuel and water tanks), a cone cap on top. */
 function cylinder(cx, cz, r, g, h, t, band, cap) {
   const R = Math.ceil(r);
@@ -207,43 +160,11 @@ function waterTower(x, z, g) {
   cylinder(x + 1.5, z + 1.5, 1.9, g + 7, 3, V.METAL, null, V.RUST);
 }
 /** A church: a plastered nave with a tiled roof and a bell tower with open arches and a cross. */
-function church(x, z, g, face) {
-  const b = buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, roof: 'gable', roofT: V.TILE, extra: 1, face: [0, 1] });
-  const tx = x + 1, tz = z - 3; // the tower behind the nave, away from the door
-  for (let dz = 0; dz < 3; dz++) for (let dx = 0; dx < 3; dx++) for (let y = 0; y < 12; y++) {
-    const edge = dx !== 1 || dz !== 1; if (!edge && y < 11) continue;
-    if (y >= 8 && y <= 9 && (dx === 1 || dz === 1)) continue; // the bell arches
-    put(tx + dx, g + y, tz + dz, y === 7 || y === 10 ? V.CONC : V.PLAST);
-  }
-  const cx = tx + 1, cz = tz + 1;
-  put(cx, g + 12, cz, V.TILE);
-  for (let y = 13; y < 16; y++) put(cx, g + y, cz, V.WOOD);
-  put(cx - 1, g + 14, cz, V.WOOD); put(cx + 1, g + 14, cz, V.WOOD);
-  return b;
-}
+function church(x, z, g, face) { return buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, floors: 2, face: [0, 1] }); }
 /** A city block: two to four storeys of concrete or brick, window rows, maybe a shop front, a flat roof, half shot away. */
 function cityBlock(x, z, w, d, g, face) {
   const floors = 2 + Math.floor(rng() * 3), brick = rng() < 0.45;
-  const b = buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : V.CONC, corner: V.CONC, band: brick ? V.CONC : null, roof: 'flat', roofSlab: V.CONC, floors, shop: rng() < 0.5, face });
-  const H = floors * 3;
-  if (rng() < 0.5) { const rx = x + 1 + Math.floor(rng() * (w - 3)), rz = z + 1 + Math.floor(rng() * (d - 3)); addProp('tank', rx + 0.5, g + H + 1, rz + 0.5, { ay: g + H }); }
-  if (rng() < 0.4) addProp('antenna', x + w - 1.5, g + H + 1, z + 1.5, { ay: g + H, ax: x + w - 2, az: z + 1 });
-  // the war: a corner or two blown out, rubble spilt round the foot
-  for (let k = 0; k < 1 + Math.floor(rng() * 2); k++) {
-    const cx = x + (rng() < 0.5 ? 0 : w - 1), cz = z + (rng() < 0.5 ? 0 : d - 1), cy = g + 3 + rng() * H, r = 2 + rng() * 2.2;
-    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) {
-      if (dx * dx + dz * dz + dy * dy > r * r || cy + dy < g + 3) continue;
-      const xx = cx + dx, zz = cz + dz, yy = Math.floor(cy + dy); if (!inMap(xx, zz) || yy >= VH || xx < x || zz < z || xx >= x + w || zz >= z + d) continue; // only its own walls
-      const t = world.vox[vi(xx, yy, zz)]; if (t && !GROUNDV.has(t)) world.vox[vi(xx, yy, zz)] = 0;
-    }
-    const sx = Math.sign(cx - x - w / 2) || 1, sz = Math.sign(cz - z - d / 2) || 1;
-    for (let n = 0; n < 9; n++) {
-      const rx = cx + sx * (1 + Math.floor(rng() * 3)), rz = cz + sz * (1 + Math.floor(rng() * 3));
-      if (!inMap(rx, rz) || buildingAt(rx + 0.5, rz + 0.5)) continue;
-      put(rx, colTop(rx, rz), rz, rng() < 0.5 ? (brick ? V.BRICK : V.CONC) : V.JUNK);
-    }
-  }
-  return b;
+  return buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : V.CONC, corner: V.CONC, floors, face, ruin: tune.struct_ruin * (0.8 + rng() * 0.6) });
 }
 /** A desert hut: adobe walls, a flat roof with a low parapet, small windows. */
 function adobeHut(x, z, g, face) { return buildHouse(x, z, 4 + Math.floor(rng() * 3), 4 + Math.floor(rng() * 2), g, { wall: V.ADOBE, roof: 'flat', roofSlab: V.ADOBE, face }); }
@@ -382,46 +303,17 @@ function buildLayout(sites, placed, freeSpot, P, ns) {
 }
 
 // ---- The sites, rebuilt ---------------------------------------------------------------------------------------
-/** A friendly outpost: a wall of sandbags and metal panels with posts and striped gates, corner watchtowers, barracks, a fuel tank, the garage. */
+/** A friendly outpost: three ruined houses in the corners no road crosses, doors to the yard, barrels and crates. */
 function buildOutpost(s, home) {
-  const g = s.g, R = 13, N = world.N;
-  if (!home) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) { // the start has no wall (M9)
-    if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-    const along = Math.abs(dx) === R ? Math.abs(dz) : Math.abs(dx);
-    if (along <= 4) continue; // four gates 9 wide
-    let road = false; // and a gap wherever a road runs through the wall
-    for (let a = -2; a <= 2 && !road; a++) for (let b = -2; b <= 2; b++) if (inMap(s.x + dx + a, s.z + dz + b) && world.road[s.x + dx + a + N * (s.z + dz + b)]) { road = true; break; }
-    if (road) continue;
-    const post = along % 4 === 1, h = post ? 3 : 2;
-    for (let y = 0; y < h; y++) put(s.x + dx, g + y, s.z + dz, along === 5 ? V.STRIPE : post ? V.CONC : (y === 1 ? V.METAL : V.BAG));
-  }
-  if (!home) for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { // corner towers
-    const x0 = s.x + ax * R - (ax > 0 ? 2 : 0), z0 = s.z + az * R - (az > 0 ? 2 : 0);
-    let road = false; for (let b = -1; b <= 3 && !road; b++) for (let a = -1; a <= 3; a++) if (inMap(x0 + a, z0 + b) && world.road[x0 + a + N * (z0 + b)]) { road = true; break; }
-    if (road) continue;
-    for (const [a, b] of [[0, 0], [2, 0], [0, 2], [2, 2]]) for (let y = 0; y < 4; y++) put(x0 + a, g + y, z0 + b, V.WOOD);
-    fillBox(x0, g + 4, z0, 3, 1, 3, V.WOOD);
-    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) if (a !== 1 || b !== 1) put(x0 + a, g + 5, z0 + b, V.BAG);
-  }
-  // barracks in the corners no road crosses, doors toward the yard; the fuel tank in a free corner left over
+  const g = s.g, N = world.N;
   const corners = [[-9, -9], [5, -9], [-9, 5], [5, 5]].filter(([a, b]) => {
     for (let dz = -1; dz <= 4; dz++) for (let dx = -1; dx <= 5; dx++) if (inMap(s.x + a + dx, s.z + b + dz) && world.road[s.x + a + dx + N * (s.z + b + dz)]) return false;
     return true;
   });
-  corners.slice(0, 3).forEach(([a, b], k) => {
-    buildHouse(s.x + a, s.z + b, 5, 4, g, { wall: k === 1 ? V.PLAST : V.METAL, corner: V.RUST, roof: 'gable', roofT: k === 1 ? V.TILE : V.METAL, face: [0, b < 0 ? 1 : -1] });
-    if (k === 0) { // the flag on a pole beside the first barracks, a radio mast on its roof
-      const fx = s.x + a + (a < 0 ? 5 : -1), fz = s.z + b + 1;
-      for (let y = 0; y < 8; y++) put(fx, g + y, fz, V.METAL);
-      for (let y = 6; y < 8; y++) for (let q = 1; q <= 3; q++) put(fx, g + y, fz + q, (y === 7 && q === 3) ? V.YEL : V.GREEN);
-      addProp('antenna', s.x + a + 2.5, g + 5, s.z + b + 2.5, { ay: g + 3, ax: s.x + a + 2, az: s.z + b + 1 });
-    }
-  });
-  const ft = corners[3];
-  if (ft) { const fx = s.x + ft[0] + 2, fz = s.z + ft[1] + 2; fillBox(fx - 2, g, fz - 2, 5, 1, 5, V.CONC); cylinder(fx, fz, 1.7, g + 1, 3, V.METAL, V.STRIPE, V.RUST); }
+  corners.slice(0, 3).forEach(([a, b], k) => buildHouse(s.x + a, s.z + b, 5, 4, g, { wall: k === 1 ? V.PLAST : V.CONC, corner: V.CONC, face: [0, b < 0 ? 1 : -1], ruin: 0.3 + rng() * 0.3 }));
   for (let k = 0; k < 4; k++) addProp('barrel', s.x - 3 + k * 0.9, g, s.z + 3.5 + (k % 2) * 0.8, { ay: g - 1, crush: true, col: k % 2 ? 0x56693a : 0x8e4b27 });
   addProp('crate', s.x + 3.5, g, s.z - 3.5, { ay: g - 1, crush: true }); addProp('crate', s.x + 4.4, g, s.z - 3.3, { ay: g - 1, crush: true });
-  s.home = home; // (no garage any more: the tank is fitted out between sectors)
+  s.home = home;
 }
 /**
  * The garage: a workshop hall open at the front, metal walls, a flat roof with a hazard-striped edge and the
@@ -469,42 +361,17 @@ function buildGarage(s, R) {
   addProp('barrel', bx + 0.5 + (alongX ? 0 : 4), g, bz + 0.5 + (alongX ? 4 : 0), { ay: g - 1, crush: true, col: 0xa62f28 });
   s.shed = { x: cx + 0.5, z: cz + 0.5 };
 }
-/** A raider camp: a palisade of stakes with spikes, a concrete bunker with gun slits and sandbags on top, tents, a watchtower, a skull banner. */
+/** A raider camp: a ruined concrete house in the middle (its garrison), the raiders' places round it, two fires. */
 function buildCamp(c) {
-  const g = c.g, tier = c.tier;
+  const g = c.g;
   c.spots = [];
   for (let a = 0; a < 64; a++) {
     const ang = a / 64 * Math.PI * 2;
     if ((a % 16) < 3) continue; // four ways in
-    const x = Math.round(c.x + Math.cos(ang) * 6.5), z = Math.round(c.z + Math.sin(ang) * 6.5);
-    put(x, g, z, tier >= 3 ? V.BAG : V.JUNK); put(x, g + 1, z, a % 3 ? V.WOOD : V.RUST);
-    if (a % 3 === 0 || tier >= 2) put(x, g + 2, z, a % 2 ? V.WOOD : V.RAID); // the stakes' points
     if (a % 5 === 0) c.spots.push({ x: c.x + 0.5 + Math.cos(ang) * 5.2, z: c.z + 0.5 + Math.sin(ang) * 5.2 });
   }
-  // the bunker: concrete, a red band, gun slits on every side, a door, sandbags round the roof
-  for (let dz = 0; dz < 5; dz++) for (let dx = 0; dx < 5; dx++) {
-    const edge = dx === 0 || dz === 0 || dx === 4 || dz === 4, x = c.x - 2 + dx, z = c.z - 2 + dz;
-    if (edge) for (let y = 0; y < 3; y++) {
-      if (dz === 4 && dx === 2 && y < 2) continue; // the door
-      if (y === 1 && (dx === 2 || dz === 2)) continue; // slits
-      put(x, g + y, z, y === 2 ? V.RAID : V.CONC);
-    }
-    put(x, g + 3, z, V.CONC);
-    if (edge && (dx + dz) % 4 !== 1) put(x, g + 4, z, V.BAG);
-  }
-  registerBuilding(c.x - 2, c.z - 2, 5, 5, g, 3, 2, 4);
-  for (const [tx, tz] of [[-5, -1], [3, -1]]) // two tents, A-frames of canvas
-    for (let l = 0; l < 3; l++) { put(c.x + tx, g, c.z + tz + l, V.CLOTH); put(c.x + tx + 2, g, c.z + tz + l, V.CLOTH); put(c.x + tx + 1, g + 1, c.z + tz + l, V.CLOTH); }
-  // the watchtower, 3 cells clear of the bunker (M9): legs, a platform, sandbags, a tin roof on posts
-  const tx = c.x + 2, tz = c.z - 8;
-  for (const [a, b] of [[0, 0], [2, 0], [0, 2], [2, 2]]) for (let y = 0; y < 7; y++) put(tx + a, g + y, tz + b, V.WOOD);
-  fillBox(tx, g + 4, tz, 3, 1, 3, V.WOOD);
-  for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) { if ((a !== 1 || b !== 1) && !(a === 1 && b === 2)) put(tx + a, g + 5, tz + b, V.BAG); put(tx + a, g + 7, tz + b, V.RAID); }
-  c.tower = { x: tx + 1.5, z: tz + 1.5 };
-  // the banner on its pole, junk heaps, burning barrels
-  for (let y = 0; y < 7; y++) put(c.x - 6, g + y, c.z + 6, V.WOOD);
-  addProp('sign', c.x - 6 + 0.5, g + 5.6, c.z + 6 + 0.5, { yaw: Math.PI / 4, tex: 'raid', w: 2.4, h: 2.4, ax: c.x - 6, ay: g + 6, az: c.z + 6 });
-  for (let k = 0; k < 4; k++) { const x = c.x - 4 + k * 2, z = c.z + 8; put(x, g, z, V.JUNK); if (k % 2) put(x, g + 1, z, V.RUST); }
+  buildHouse(c.x - 2, c.z - 2, 5, 5, g, { wall: V.CONC, corner: V.CONC, face: [0, 1], ruin: 0.35 + rng() * 0.3 });
+  c.tower = { x: c.x + 3.5, z: c.z - 6.5 }; // the lookout's place (its tower comes back on the fine grid later)
   addProp('fire', c.x + 4.5, g, c.z + 3.5, { ay: g - 1 }); addProp('fire', c.x - 3.5, g, c.z + 3.5, { ay: g - 1 });
 }
 /** A sector's exit: a dashed yellow ring on the ground and striped beacon posts with green lights. */

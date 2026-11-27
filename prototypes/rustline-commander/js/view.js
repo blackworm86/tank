@@ -161,7 +161,7 @@ function pushGround(x, z, gh, quad) {
   const base = VH * (x + world.N * z), top = world.vox[base + g - 1];
   const c = [cornerOf(gh, x, z, g, 0, 0), cornerOf(gh, x, z, g, 1, 0), cornerOf(gh, x, z, g, 0, 1), cornerOf(gh, x, z, g, 1, 1)];
   const cov = world.vox[base + g]; // a built voxel on the ground hides its top
-  if (!cov || cov === V.TREE) {
+  if (!cov || cov === V.TREE || world.fmark[base + g] === 1) { // (a structure's cell: its fine cells stand on the drawn ground)
     const dx = ((c[1] - c[0]) + (c[3] - c[2])) / 2, dz = ((c[2] - c[0]) + (c[3] - c[1])) / 2, L = Math.hypot(dx, 1, dz);
     quad(top, g - 1, [-dx / L, 1 / L, -dz / L], [[0, c[2], 1], [1, c[3], 1], [1, c[1], 0], [0, c[0], 0]], true);
   }
@@ -206,7 +206,7 @@ function buildChunkGeo(cx, cz) {
     vcount += 4;
   };
   // smooth look: a neighbour that is ground below the drawn surface, or a tree, counts as open
-  const solidN = (x, y, z) => { const t = getV(x, y, z); if (!t || t === V.TREE) return false; if (!sm || !GROUNDV.has(t) || !inMap(x, z)) return true; return y >= TER.ground[x + N * z]; };
+  const solidN = (x, y, z) => { const t = getV(x, y, z); if (!t || t === V.TREE) return false; if (inMap(x, z) && y >= 0 && y < VH && world.fmark[vi(x, y, z)] === 1) return false; if (!sm || !GROUNDV.has(t) || !inMap(x, z)) return true; return y >= TER.ground[x + N * z]; };
   for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
     if (!inMap(x, z)) continue;
     const top = world.hmap[x + N * z], base = VH * (x + N * z), gtop = sm ? TER.ground[x + N * z] : 0;
@@ -215,7 +215,7 @@ function buildChunkGeo(cx, cz) {
     if (!sm) { qx = x; qz = z; g0 = gh(x, z); const m = pushGround(x, z, gh, quad); low = m === undefined ? g0 : g0 - m; } // the ground drawn as a surface; built voxels from its top
     if (sm && top > gtop) { let lo = gtop; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, z + dz)) lo = Math.min(lo, TER.gs[x + dx + N * (z + dz)]); skirt = gtop - lo + 0.6; }
     for (let y = sm ? gtop : g0; y < top; y++) {
-      const t = world.vox[base + y]; if (!t || t === V.TREE) continue;
+      const t = world.vox[base + y]; if (!t || t === V.TREE || world.fmark[base + y] === 1) continue; // a structure draws its own fine cells (js/structs.js)
       const bc = R3.vlin[t], snowTop = snowy && y === top - 1 && !GROUNDV.has(t); // snow on the roofs in the ice lands
       const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
       // voxel look: the lowest built voxel's sides reach down to the column's lowest ground corner, so no gap shows
@@ -270,6 +270,7 @@ function rebuildWorldView() {
   for (let cz = 0; cz < n; cz++) for (let cx = 0; cx < n; cx++) setChunk(cx + cz * 64);
   world.dirty.clear();
   applyBiomeView(); rebuildDecor(); buildPropsView();
+  rebuildStructsView(); // js/structs.js: one mesh a structure
   const WS = world.N;
   R3.terTex.wn.repeat.set(WS / 9, WS / 9);
   R3.water.scale.set(WS, WS, 1); R3.water.position.set(world.N / 2, world.WL - 0.2, world.N / 2);
@@ -699,6 +700,7 @@ function renderWorld() {
   if (typeof scene !== 'undefined' && scene === 'shop' && shopTab().preview) previewCam(); else restoreCam();
   if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
+  rebuildStructsDirty(4);
   if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();
   R3.terTex.wn.offset.set((state.t || 0) * 0.011, (state.t || 0) * 0.006);
   updateCamera();

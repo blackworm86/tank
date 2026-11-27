@@ -78,7 +78,14 @@ function setV(x, y, z, t) {
   if (y < 0 || y >= VH || !inMap(x, z)) return;
   world.vox[vi(x, y, z)] = t; markDirty(x, z);
 }
-function solidF(x, y, z) { return getV(Math.floor(x), Math.floor(y), Math.floor(z)) !== V.AIR; }
+/** True when (x, y, z) is solid. In a structure (js/structs.js) its fine cells answer: windows and breaches let sight through. */
+function solidF(x, y, z) {
+  const s = structSolidAt(x, y, z);
+  if (s === 1) return true;
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  if (s === 0) { const k = vi(ix, iy, iz); return world.vox[k] !== 0 && !world.fmark[k]; }
+  return getV(ix, iy, iz) !== V.AIR;
+}
 /** Surface height of the column under (x, z): the top of the highest voxel. Off the map: a wall. */
 function hAt(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z);
@@ -154,6 +161,7 @@ function wgFrame(G) {
   world.scorch = new Uint8Array(N * N);
   world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N); world.cor = new Float32Array(N * N * 4);
   world.buildings = []; world.bld = new Int16Array(N * N); world.props = []; world.keep = new Uint8Array(N * N);
+  structsReset(N); // js/structs.js: the structures on their fine grid
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
   // The frame: the map is laid out in a canonical space where the start and the exit sit on the diagonal,
@@ -471,7 +479,7 @@ function wgStructures(G) {
   for (const o of sites.outposts) buildOutpost(o, false);
   for (const c of sites.camps) buildCamp(c);
   world.sitesStart = sites.start;
-  if (sites.fortress.kind === 'fortress') { buildFortress(sites.fortress); dressFortress(sites.fortress); } else buildExit(sites.fortress);
+  if (sites.fortress.kind === 'fortress') buildFortress(sites.fortress); else buildExit(sites.fortress);
   // friendly outposts keep their roads open: nothing of theirs stands on a road or beside it
   for (const o of [sites.start, ...sites.outposts]) {
     for (let dz = -13; dz <= 13; dz++) for (let dx = -13; dx <= 13; dx++) {
@@ -835,65 +843,34 @@ function buildingAt(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return null;
   const k = world.bld[ix + world.N * iz]; return k ? world.buildings[k - 1] : null;
 }
+/**
+ * The Horde's fortress: four ruined blocks of flats round its yard, their doors to the yard, the gate side the
+ * one toward the start (f.gateDir). The old walls and towers went with the fine-grid structures (iteration 38).
+ */
 function buildFortress(f) {
-  const g = f.g, R = 15;
+  const g = f.g;
   const st = world.sitesStart || { x: 22, z: 22 };
   const sdx = Math.abs(st.x - f.x) >= Math.abs(st.z - f.z) ? Math.sign(st.x - f.x) : 0;
   const sdz = sdx ? 0 : Math.sign(st.z - f.z);
-  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
-    const ring = Math.max(Math.abs(dx), Math.abs(dz));
-    if (ring !== R && ring !== R - 1) continue;
-    const onGate = (sdx && Math.abs(dx) >= R - 1 && Math.sign(dx) === sdx && Math.abs(dz) <= 2) || (sdz && Math.abs(dz) >= R - 1 && Math.sign(dz) === sdz && Math.abs(dx) <= 2);
-    for (let y = 0; y < 5; y++) {
-      let t;
-      if (onGate) t = y < 4 ? V.RUST : V.AIR;
-      else if (y === 4 && (dx + dz) % 2) t = V.AIR;
-      else t = (y === 2 && (dx * 3 + dz) % 7 === 0) ? V.RAID : V.CONC;
-      if (t) put(f.x + dx, g + y, f.z + dz, t);
-    }
-  }
   f.towers = [];
   for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const x0 = f.x + ax * R - (ax > 0 ? 3 : 0), z0 = f.z + az * R - (az > 0 ? 3 : 0);
-    for (let dz = 0; dz < 4; dz++) for (let dx = 0; dx < 4; dx++) {
-      for (let y = 0; y < 7; y++) put(x0 + dx, g + y, z0 + dz, y === 6 ? V.RAID : V.CONC);
-      if (dx === 0 || dz === 0 || dx === 3 || dz === 3) put(x0 + dx, g + 7, z0 + dz, V.CONC);
-    }
-    f.towers.push({ x: x0 + 2, z: z0 + 2 });
+    const w = 7, d = 7, x0 = ax < 0 ? f.x - 13 : f.x + 6, z0 = az < 0 ? f.z - 13 : f.z + 6;
+    levelGround(x0, z0, w, d, g, 1); recomputeArea(x0 - 2, z0 - 2, w + 4, d + 4);
+    buildHouse(x0, z0, w, d, g, { wall: V.CONC, corner: V.CONC, floors: 3, face: [-ax, -az], ruin: 0.35 + rng() * 0.25 });
+    f.towers.push({ x: x0 + w / 2, z: z0 + d / 2 });
   }
-  // inner sheds and the chief's banner
-  boxShell(f.x - 9, f.z - 9, 5, 4, g, 3, V.RUST, V.RAID, (dx, dz, y) => dz === 3 && dx === 2 && y < 2);
-  boxShell(f.x + 5, f.z - 9, 4, 5, g, 3, V.RUST, V.JUNK, (dx, dz, y) => dz === 4 && dx === 1 && y < 2);
-  for (let y = 0; y < 9; y++) put(f.x - 8, g + y, f.z + 8, V.RUST);
-  for (let k = 0; k < 3; k++) for (let y = 6; y < 9; y++) put(f.x - 7 + k, g + y, f.z + 8, (k + y) % 2 ? V.RAID : V.YEL);
   f.gateDir = { x: sdx, z: sdz };
 }
 function buildRuin(s) {
   const kind = rng();
   const t = rng() < 0.55 ? V.CONC : V.RUST, ns = Math.floor(rng() * 9999);
-  if (kind < 0.65) {
-    const w = 4 + Math.floor(rng() * 5), d = 4 + Math.floor(rng() * 5), h = 3 + Math.floor(rng() * 4);
-    const roof = rng() < 0.45;
-    for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) {
-      const edge = dx === 0 || dz === 0 || dx === w - 1 || dz === d - 1;
-      const x = s.x + dx, z = s.z + dz, g = colTop(x, z);
-      if (edge) {
-        const top = h - Math.floor(vnoise(dx * 0.6, dz * 0.6, ns) * 3);
-        for (let y = 0; y < top; y++) {
-          if (vnoise(x * 0.8 + y * 0.5, z * 0.8 - y * 0.4, ns + 1) > 0.66) continue; // holes
-          if (y === 1 && (dx + dz) % 3 === 0) continue; // windows
-          put(x, g + y, z, (y === 0 && rng() < 0.3) ? V.JUNK : t);
-        }
-      } else if (roof && vnoise(x * 0.5, z * 0.5, ns + 2) < 0.6) put(x, s.h + h - 1, z, t);
-    }
-    // a door 2 high in the middle of the side facing the flattest ground outside: the house is enterable
-    const sides = [[Math.floor(w / 2), 0, 0, -1], [Math.floor(w / 2), d - 1, 0, 1], [0, Math.floor(d / 2), -1, 0], [w - 1, Math.floor(d / 2), 1, 0]];
-    let bs = null, bd = 1e9;
-    for (const sd of sides) { const ox = s.x + sd[0] + sd[2], oz = s.z + sd[1] + sd[3]; if (!inMap(ox, oz)) continue; const dh = Math.abs(colTop(ox, oz) - s.h) + rng() * 0.5; if (dh < bd) { bd = dh; bs = sd; } }
-    if (bs) {
-      for (let y = 0; y < 2; y++) put(s.x + bs[0], s.h + y, s.z + bs[1], V.AIR);
-      registerBuilding(s.x, s.z, w, d, s.h, h, bs[0], bs[1]);
-    }
+  if (kind < 0.65) { // a ruined house on the fine grid (js/structs.js), its door on the side facing the flattest ground
+    const w = 4 + Math.floor(rng() * 4), d = 4 + Math.floor(rng() * 4);
+    const sides = [[0, -1, Math.floor(w / 2), -1], [0, 1, Math.floor(w / 2), d], [-1, 0, -1, Math.floor(d / 2)], [1, 0, w, Math.floor(d / 2)]];
+    let face = [0, 1], bd = 1e9;
+    for (const [fx, fz, ox, oz] of sides) { if (!inMap(s.x + ox, s.z + oz)) continue; const dh = Math.abs(colTop(s.x + ox, s.z + oz) - s.h) + rng() * 0.5; if (dh < bd) { bd = dh; face = [fx, fz]; } }
+    levelGround(s.x, s.z, w, d, s.h, 0); recomputeArea(s.x - 1, s.z - 1, w + 2, d + 2);
+    buildHouse(s.x, s.z, w, d, s.h, { wall: t === V.CONC ? V.CONC : V.BRICK, floors: rng() < 0.3 ? 2 : 1, face, ruin: 0.7 + rng() * 0.3 });
   } else {
     const len = 5 + Math.floor(rng() * 7), h = 2 + Math.floor(rng() * 2), ax = rng() < 0.5;
     for (let k = 0; k < len; k++) {
@@ -1064,11 +1041,12 @@ function blastVoxels(cx, cy, cz, r) {
   for (let y = Math.max(1, Math.floor(cy) - R); y <= Math.min(VH - 1, Math.floor(cy) + R); y++)
     for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
       if (!inMap(x, z)) continue;
-      const k = vi(x, y, z), t = world.vox[k]; if (!t || t === V.BED) continue;
+      const k = vi(x, y, z), t = world.vox[k]; if (!t || t === V.BED || world.fmark[k] === 1) continue; // a structure's cells: structBlast below
       const ddx = x + 0.5 - cx, ddy = y + 0.5 - cy, ddz = z + 0.5 - cz;
       const rr = r * VHARD[t] * (0.85 + rng() * 0.3);
       if (ddx * ddx + ddy * ddy + ddz * ddz <= rr * rr) { world.vox[k] = 0; removed.push(x, y, z, t); markDirty(x, z); }
     }
+  for (const v of structBlast(cx, cy, cz, r)) removed.push(v); // the structures on their fine grid (js/structs.js)
   // scorched ground around the blast (drawn darker, the grass burnt off)
   if (world.scorch) for (let z = z0 - 1; z <= z1 + 1; z++) for (let x = x0 - 1; x <= x1 + 1; x++) {
     if (!inMap(x, z)) continue;
@@ -1106,7 +1084,7 @@ function collapse(cx, cz, rad, removed) {
   }
   for (let y = 1; y < VH; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     const k = vi(x, y, z);
-    if (world.vox[k] && !seen[li(x, y, z)]) { removed.push(x, y, z, world.vox[k]); world.vox[k] = 0; markDirty(x, z); }
+    if (world.vox[k] && !seen[li(x, y, z)] && world.fmark[k] !== 1) { removed.push(x, y, z, world.vox[k]); world.vox[k] = 0; markDirty(x, z); }
   }
 }
 

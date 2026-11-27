@@ -31,6 +31,10 @@ window.CONFIG = {
   camp_count: { value: 5, min: 2, max: 8, step: 1 },            // raider camps per run
   patrol_count: { value: 8, min: 0, max: 14, step: 1 },         // roaming raider patrols
   ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
+  struct_res: { value: 4, min: 2, max: 4, step: 2 },           // fine cells a metre in houses and blocks of flats (4 = 25 cm), read when a map is built (js/structs.js)
+  struct_fill: { value: 0.375, min: 0.1, max: 0.9, step: 0.025 }, // share of a 1 m cell's fine cells that makes it solid for paths, cover and garrisons
+  struct_ruin: { value: 0.55, min: 0, max: 1, step: 0.05 },     // how ruined the buildings stand at the start (0 whole, 1 stumps)
+  struct_rubble: { value: 1, min: 0, max: 2, step: 0.1 },       // how high the rubble heaps under the ruins' holes
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
   map_cliff: { value: 3, min: 2, max: 6, step: 1 },              // a ground step at least this high is a cliff wall: never a slope, never driven (M1)
