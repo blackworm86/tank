@@ -25,7 +25,7 @@ function structRes() { return Math.max(2, Math.min(4, Math.round(tune.struct_res
 
 // ---- Storage ---------------------------------------------------------------------------------------------
 /** Clears the structures for a new map of N x N columns. */
-function structsReset(N) { world.structs = []; world.sown = new Int16Array(N * N); world.fmark = new Uint8Array(N * N * VH); world.sdirty = new Set(); }
+function structsReset(N) { world.structs = []; world.sown = new Int16Array(N * N); world.fmark = new Uint8Array(N * N * VH); world.sdirty = new Set(); world.schip = new Set(); world.settleT = 0; }
 /**
  * A new structure over the 1 m box from (x0, z0), w x d columns, its ground floor at height g, h metres tall
  * above it and `below` metres of foundation under it. Columns another structure already holds stay out of it.
@@ -171,6 +171,85 @@ function structBlast(x, y, z, r) {
     world.sdirty.add(S.id);
   }
   return out;
+}
+
+// ---- Rounds: the fine surface along a line, chips ----------------------------------------------------------------
+/**
+ * The first fine cell of any structure on the segment a-b (skip: a building whose own walls do not count, the
+ * shooter's garrison): {x, y, z (a point inside the struck cell), t (0..1 along the segment), S, m} or null.
+ */
+function structRay(ax, ay, az, bx, by, bz, skip) {
+  if (!world.structs || !world.structs.length) return null;
+  const d = [bx - ax, by - ay, bz - az], a = [ax, ay, az];
+  let best = null;
+  for (const S of world.structs) {
+    if (skip && S.bld === skip) continue;
+    const lo = [S.x0, S.yb, S.z0], hi = [S.x0 + S.w, S.yb + S.hgt, S.z0 + S.d];
+    let t0 = 0, t1 = best ? best.t : 1, ok = true;
+    for (let k = 0; k < 3 && ok; k++) {
+      if (Math.abs(d[k]) < 1e-9) { if (a[k] < lo[k] || a[k] > hi[k]) ok = false; continue; }
+      let ta = (lo[k] - a[k]) / d[k], tb = (hi[k] - a[k]) / d[k]; if (ta > tb) { const q = ta; ta = tb; tb = q; }
+      if (ta > t0) t0 = ta; if (tb < t1) t1 = tb; if (t0 > t1) ok = false;
+    }
+    if (!ok) continue;
+    const F = S.F, n = Math.ceil(Math.hypot(d[0], d[1], d[2]) * (t1 - t0) * F * 2) + 1;
+    for (let i = 0; i <= n; i++) {
+      const t = t0 + (t1 - t0) * i / n, x = ax + d[0] * t, y = ay + d[1] * t, z = az + d[2] * t;
+      const m = sget(S, Math.floor((x - S.x0) * F), Math.floor((y - S.yb) * F), Math.floor((z - S.z0) * F));
+      if (m) { best = { x, y, z, t, S, m }; break; }
+    }
+  }
+  return best;
+}
+/**
+ * A round strikes a structure: with a chance of struct_chip_p times the material's softness (FMH) the fine cells
+ * within struct_chip metres of the point chip off (heavy rounds: 1.8 times as far, 2.5 times as likely); dust puffs.
+ * The 1 m projection and the mesh follow at the next settle (struct_settle).
+ */
+function structChip(h, heavy) {
+  const S = h.S, F = S.F;
+  if (state.fx) state.fx.push({ kind: 'smoke', x: h.x, y: h.y, z: h.z, t: 0, life: 0.5, s: heavy ? 0.45 : 0.28, rise: 0.4, col: FMCOL[h.m] });
+  if (rng() >= Math.min(1, tune.struct_chip_p * FMH[h.m] * (heavy ? 2.5 : 1))) return 0;
+  const r = tune.struct_chip * (heavy ? 1.8 : 1) * F, cx = (h.x - S.x0) * F, cy = (h.y - S.yb) * F, cz = (h.z - S.z0) * F, R = Math.ceil(r) + 1;
+  let n = 0;
+  for (let fy = Math.floor(cy) - R; fy <= cy + R; fy++) for (let fz = Math.floor(cz) - R; fz <= cz + R; fz++) for (let fx = Math.floor(cx) - R; fx <= cx + R; fx++) {
+    if (!sget(S, fx, fy, fz)) continue;
+    const inCell = fx === Math.floor(cx) && fy === Math.floor(cy) && fz === Math.floor(cz);
+    if (!inCell && (fx + 0.5 - cx) ** 2 + (fy + 0.5 - cy) ** 2 + (fz + 0.5 - cz) ** 2 > r * r) continue;
+    S.cells[fx + S.sx * (fz + S.sz * fy)] = 0; n++;
+  }
+  if (n) {
+    world.schip.add(S.id);
+    if (state.debris && rng() < 0.6) state.debris.push({ x: h.x, y: h.y, z: h.z, vx: (rng() - 0.5) * 3, vy: 1.5 + rng() * 2.5, vz: (rng() - 0.5) * 3, rx: rng() * 3, ry: rng() * 3, vr: (rng() - 0.5) * 12, life: tune.debris_life * 0.5, s: 0.1 + rng() * 0.1, t: FMV[h.m], rest: false }); // a chip, not a block
+  }
+  return n;
+}
+/**
+ * A round from a toward b: where it ends, {x, y, z, hit}: the first structure cell it strikes (chipped) or b.
+ * ext metres past b count too (a miss flies on into the wall behind); skip: the shooter's own building.
+ */
+function structShot(ax, ay, az, bx, by, bz, heavy, ext, skip) {
+  let ex = bx, ey = by, ez = bz;
+  if (ext) { const L = Math.hypot(bx - ax, by - ay, bz - az) || 1, k = 1 + ext / L; ex = ax + (bx - ax) * k; ey = ay + (by - ay) * k; ez = az + (bz - az) * k; }
+  const h = structRay(ax, ay, az, ex, ey, ez, skip);
+  if (!h) return { x: bx, y: by, z: bz, hit: false };
+  structChip(h, heavy);
+  return { x: h.x, y: h.y, z: h.z, hit: true };
+}
+/** Every struct_settle seconds the chipped structures drop what no longer stands and project again (cover, paths, garrisons). */
+function structSettle(dt) {
+  if (!world.schip || !world.schip.size) return;
+  world.settleT -= dt; if (world.settleT > 0) return;
+  world.settleT = tune.struct_settle;
+  for (const id of world.schip) { const S = world.structs[id]; if (!S) continue; dropLoose(S); projectStruct(S); world.sdirty.add(id); }
+  world.schip.clear();
+}
+on('playStep', dt => structSettle(dt));
+/** The first fine cell on the ray from o along d (t in d's units) between t0 and t1, or -1: rayVoxel's look inside a structure's 1 m cell. */
+function structRayT(ox, oy, oz, dx, dy, dz, t0, t1) {
+  const L = Math.hypot(dx, dy, dz) || 1, st = 0.1 / L;
+  for (let t = t0 + st * 0.5; t < t1; t += st) if (structSolidAt(ox + dx * t, oy + dy * t, oz + dz * t) === 1) return t;
+  return -1;
 }
 
 // ---- Generation: ruined houses and blocks of flats ------------------------------------------------------------

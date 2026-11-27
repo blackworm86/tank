@@ -1018,7 +1018,11 @@ function rayVoxel(ox, oy, oz, dx, dy, dz, maxT) {
   let t = 0;
   for (let i = 0; i < 3000 && t <= maxT; i++) {
     if (y < 0) return { x, y: 0, z, t };
-    if (y < VH && inMap(x, z) && world.vox[vi(x, y, z)]) return { x, y, z, t };
+    if (y < VH && inMap(x, z)) {
+      const k = vi(x, y, z);
+      if (world.fmark && world.fmark[k]) { const f = structRayT(ox, oy, oz, dx, dy, dz, t, Math.min(tx, ty, tz, maxT)); if (f >= 0) return { x, y, z, t: f }; } // a structure: its fine cells (windows, breaches)
+      else if (world.vox[k]) return { x, y, z, t };
+    }
     if (tx < ty && tx < tz) { x += sx; t = tx; tx += tdx; }
     else if (ty < tz) { y += sy; t = ty; ty += tdy; }
     else { z += sz; t = tz; tz += tdz; }

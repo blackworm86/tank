@@ -435,8 +435,9 @@ function fire(e, t, w) {
       tracer(mx, my, mz, t.x, t.y + chestH(t) - 0.2, t.z, col);
       dmgTo(t, w.dmg, w.heavy ? 'heavy' : 'bullet', e);
     } else {
-      tracer(mx, my, mz, t.x + (rng() - 0.5) * 3, t.y + 0.4 + rng(), t.z + (rng() - 0.5) * 3, col);
-      if (cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
+      const sh = structShot(mx, my, mz, t.x + (rng() - 0.5) * 3, t.y + 0.4 + rng(), t.z + (rng() - 0.5) * 3, w.heavy, 2, e.garrison); // js/structs.js: a wall in the way, or behind, is struck and chipped
+      tracer(mx, my, mz, sh.x, sh.y, sh.z, col);
+      if (!sh.hit && cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
     }
     // machine guns pin infantry down: slower, worse aim for a while; so does every round of a suppression order
     if ((w.chip || (suppressing(e) && t === e.pref)) && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup; }

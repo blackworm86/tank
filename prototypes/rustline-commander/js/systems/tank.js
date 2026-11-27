@@ -225,7 +225,8 @@ function fireTankMG(tk, S, sec) {
     const ix = Math.floor(ex), iz = Math.floor(ez), g = hAt(ex, ez), v = getV(ix, g - 1, iz);
     if (SOFTV.has(v)) { setV(ix, g - 1, iz, 0); recomputeColumn(ix, iz); spawnDebris([ix, g - 1, iz, v], ix + 0.5, g - 0.5, iz + 0.5, 1); }
   }
-  tracer(mx, my, mz, hx, hy, hz, [1, 0.9, 0.5]);
+  const sh = structShot(mx, my, mz, hx, hy, hz, W.heavy, best ? 0 : 1, null); // js/structs.js: a miss strikes the wall where it lands and chips it
+  tracer(mx, my, mz, sh.x, sh.y, sh.z, [1, 0.9, 0.5]);
   if (sec) tk.spread += tune.spread_fire * 0.03; else { tk.reload = S.reload; tk.recoil = 0.25; tk.spread += S.fireSpread; }
   state.lastShot = state.t;
   sfx('mg', tk.x, tk.z);

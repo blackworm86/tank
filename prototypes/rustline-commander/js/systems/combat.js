@@ -105,7 +105,7 @@ function updateProjectiles(dt) {
   const N = world.N;
   for (let i = state.proj.length - 1; i >= 0; i--) {
     const p = state.proj[i];
-    const sp = Math.hypot(p.vx, p.vy, p.vz), n = Math.max(1, Math.ceil(sp * dt / 0.35)), h = dt / n;
+    const sp = Math.hypot(p.vx, p.vy, p.vz), n = Math.max(1, Math.ceil(sp * dt / 0.2)), h = dt / n;
     let done = false;
     for (let k = 0; k < n && !done; k++) {
       p.vy -= p.g * h; p.x += p.vx * h; p.y += p.vy * h; p.z += p.vz * h;
