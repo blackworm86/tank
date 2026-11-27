@@ -126,7 +126,7 @@ function carWreck(x, z, g, ax) { fineCar(x, z, g, ax, [V.RUST, V.JUNK, V.METAL, 
 
 // ---- Rural, village and city buildings ------------------------------------------------------------------------
 /** A farmhouse: plastered walls, a tiled pitched roof with a chimney. */
-function farmhouse(x, z, g, face) { return buildHouse(x, z, 6, 5, g, { wall: rng() < 0.6 ? V.PLAST : V.BRICK, corner: V.BRICK, roof: 'gable', roofT: V.TILE, chimney: true, face }); }
+function farmhouse(x, z, g, face) { return buildHouse(x, z, 6, 5, g, { wall: rng() < 0.6 ? V.PLAST : V.BRICK, corner: V.BRICK, roof: 'gable', roofT: V.TILE, chimney: true, floors: rng() < 0.5 ? 2 : 1, face }); }
 /** A barn: red planks, a big door 3 wide on a short side, a metal pitched roof, hay bales by it. */
 function barn(x, z, g, face) {
   const b = buildHouse(x, z, 7, 9, g, { wall: V.PLANK, corner: V.WOOD, roof: 'gable', roofT: V.METAL, extra: 1, win: false, doorW: 2, doorH: 3, face });
@@ -154,16 +154,17 @@ function waterTower(x, z, g) {
   projectStruct(S); world.sdirty.add(S.id);
 }
 /** A church: a plastered nave with a tiled roof and a bell tower with open arches and a cross. */
-function church(x, z, g, face) { return buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, floors: 2, face: [0, 1] }); }
+function church(x, z, g, face) { return buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, floors: 2, roof: 'gable', roofT: V.TILE, doorW: 2, doorH: 3, face: [0, 1] }); }
 /** A city block: two to four storeys of concrete or brick, window rows, maybe a shop front, a flat roof, half shot away. */
 function cityBlock(x, z, w, d, g, face) {
-  const floors = 2 + Math.floor(rng() * 3), brick = rng() < 0.45;
-  return buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : V.CONC, corner: V.CONC, floors, face, ruin: tune.struct_ruin * (0.8 + rng() * 0.6) });
+  const frame = rng() < 0.45, floors = frame ? 3 + Math.floor(rng() * 4) : 2 + Math.floor(rng() * 3), brick = !frame && rng() < 0.55;
+  const shape = w >= 7 && d >= 7 ? ['rect', 'L', 'U', 'court'][Math.floor(rng() * (w >= 10 && d >= 10 ? 4 : 3))] : 'rect';
+  return buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : frame ? (rng() < 0.5 ? V.PLAST : V.BRICK) : V.CONC, corner: V.CONC, floors, face, shape, system: frame ? 'frame' : 'masonry', shop: frame && rng() < 0.7, balcony: frame && rng() < 0.6, ruin: tune.struct_ruin * (0.8 + rng() * 0.6) });
 }
 /** A desert hut: adobe walls, a flat roof with a low parapet, small windows. */
 function adobeHut(x, z, g, face) { return buildHouse(x, z, 4 + Math.floor(rng() * 3), 4 + Math.floor(rng() * 2), g, { wall: V.ADOBE, roof: 'flat', roofSlab: V.ADOBE, face }); }
 /** A tin shack: corrugated walls and roof. */
-function shack(x, z, g, face) { return buildHouse(x, z, 5, 4, g, { wall: V.METAL, corner: V.RUST, roof: 'gable', roofT: V.RUST, face }); }
+function shack(x, z, g, face) { return buildHouse(x, z, 5, 4, g, { wall: V.METAL, corner: V.RUST, roof: 'shed', roofT: V.RUST, face }); }
 /** A petrol station: a canopy on four posts over two pumps, a little shop, a sign. */
 function petrolStation(x, z, g) {
   const S = objStruct(x, z, 6, 4, g, 5), top = g + 3; // the canopy, one structure on the fine grid: four posts, a slab with a striped rim
@@ -246,7 +247,7 @@ function village(sites) {
     const hx = Math.round(cx + Math.cos(a) * rr - w / 2), hz = Math.round(cz + Math.sin(a) * rr - d / 2);
     if (hx < 5 || hz < 5 || hx + w > world.N - 5 || hz + d > world.N - 5 || !areaOK(hx, hz, w, d, 1, 3, 2, sites)) continue;
     const face = [cx - (hx + w / 2), cz - (hz + d / 2)];
-    onArea({ x: hx, z: hz, g: areaG(hx, hz, w, d) }, w, d, (x, z, gg) => buildHouse(x, z, w, d, gg, { wall: [V.PLAST, V.BRICK, V.PLAST, V.ADOBE][Math.floor(rng() * 4)], corner: V.BRICK, roof: 'gable', roofT: rng() < 0.75 ? V.TILE : V.METAL, chimney: rng() < 0.5, floors: rng() < 0.25 ? 2 : 1, face }));
+    onArea({ x: hx, z: hz, g: areaG(hx, hz, w, d) }, w, d, (x, z, gg) => buildHouse(x, z, w, d, gg, { wall: [V.PLAST, V.BRICK, V.PLAST, V.ADOBE][Math.floor(rng() * 4)], corner: V.BRICK, roof: rng() < 0.8 ? 'gable' : 'flat', roofT: rng() < 0.75 ? V.TILE : V.METAL, chimney: rng() < 0.5, floors: rng() < 0.3 ? 2 : 1, shape: rng() < 0.3 ? 'L' : 'rect', face }));
     n++;
   }
   return true;

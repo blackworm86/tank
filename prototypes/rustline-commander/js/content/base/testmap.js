@@ -65,7 +65,7 @@ function wgTestYard(G) {
   waterTower(x + 2, z + 2, g);
   petrolStation(x + 10, z + 1, g);
   silo(x + 24, z + 4, g);
-  buildHouse(x + 2, z + 15, 6, 5, g, { wall: V.BRICK, corner: V.CONC, face: [0, -1], ruin: 0 });
+  buildHouse(x + 2, z + 15, 6, 5, g, { wall: V.BRICK, corner: V.CONC, roof: 'gable', roofT: V.TILE, chimney: true, face: [0, -1], ruin: 0 });
   buildHouse(x + 12, z + 15, 8, 8, g, { wall: V.CONC, corner: V.CONC, floors: 4, face: [0, -1], ruin: 0 });
   carWreck(x + 24, z + 16, g, true);
   for (let k = 0; k < 11; k++) if (k !== 5) put(x + 24 + k, g, z + 22, V.WOOD); // a fence with a gap

@@ -644,57 +644,128 @@ function structRayT(ox, oy, oz, dx, dy, dz, t0, t1) {
 
 // ---- Generation: ruined houses and blocks of flats ------------------------------------------------------------
 /**
- * A house or block of flats on the fine grid, footprint w x d metres from (x0, z0), ground floor at g: walls half
- * a metre thick with windows, a door on the side facing o.face, a concrete slab over each storey and a low
- * parapet on the flat roof; then ruined (o.ruin, 0..1, else struct_ruin): broken wall tops, holes in the slabs,
- * shell holes, a fallen corner, the rubble heaped round it. Registered as a building soldiers can enter.
- * o: wall, corner (1 m kinds), floors, face, doorW, ruin.
+ * A building on the fine grid (houses, barns, churches, blocks of flats), footprint w x d metres from (x0, z0),
+ * ground floor at g. o:
+ *  - shape: 'rect', 'L' (the back corner left out), 'U' (a notch in the back), 'court' (a courtyard in the middle);
+ *    the front, where the door is, always runs full. Small footprints stay rectangles.
+ *  - system: 'masonry' (load-bearing walls half a metre thick, a slab half a metre thick over each storey) or
+ *    'frame' (concrete pillars a metre square every 4 m, thin slabs, infill walls with ribbon windows; with shop a
+ *    ground floor open between its pillars, with balcony balconies on the front).
+ *  - roof: 'flat' (a low parapet with gaps), 'gable' (two slopes, the ridge along the long side, the gable walls
+ *    built up under it) or 'shed' (one slope, high at the back); pitched roofs only on rectangles, built in steps
+ *    two cells thick so each rests on the one below it down to the eaves (staticsFail); roofT their material.
+ *  - wall, corner (1 m kinds), floors, face (the door's side), doorW, doorH (metres), win (false: no windows),
+ *    chimney, ruin (0..1, else struct_ruin x 0.6..1.4).
+ * Then ruined (ruinHouse) and what cannot stand goes at structSync (the statics). Registered as a building soldiers
+ * can enter, its slots inside the footprint.
  */
 function structHouse(x0, z0, w, d, g, o) {
-  const fl = o.floors || 1, F = structRes(), M = 1, below = 1;
-  const SH = 3 * F, T = Math.max(1, F >> 1), SL = Math.max(1, F >> 1), PR = Math.max(1, F >> 1);
-  const wallM = fmOf(o.wall, FM.PLAST), cornM = fmOf(o.corner, wallM);
-  const S = newStruct(x0 - M, z0 - M, w + 2 * M, d + 2 * M, g, fl * 3 + 1, below);
-  const gy = below * F, fx0 = M * F, fz0 = M * F, W = w * F, D = d * F;
-  // the door side: the one facing o.face, else the south side; dX, dZ the door's column in the footprint
+  const fl = o.floors || 1, F = structRes(), M = 1, below = 1, SH = 3 * F, frame = o.system === 'frame';
+  const T = Math.max(1, F >> 1), SL = frame ? 1 : Math.max(1, F >> 1), PR = Math.max(1, F >> 1);
+  const wallM = fmOf(o.wall, FM.PLAST), cornM = fmOf(o.corner, wallM), roofM = fmOf(o.roofT, FM.TILE);
+  // the door side and the footprint, in the door's frame: u along the front, v back from it
   const f = o.face || [0, 1];
   const side = Math.abs(f[0]) > Math.abs(f[1]) ? (f[0] > 0 ? 'e' : 'w') : (f[1] > 0 ? 's' : 'n');
+  const U = side === 'n' || side === 's' ? w : d, VD = side === 'n' || side === 's' ? d : w;
+  const uv = (mx, mz) => side === 's' ? [mx, d - 1 - mz] : side === 'n' ? [mx, mz] : side === 'e' ? [mz, w - 1 - mx] : [mz, mx];
+  let shape = o.shape || 'rect';
+  if (shape === 'court' && (U < 10 || VD < 10)) shape = U >= 7 && VD >= 7 ? 'L' : 'rect';
+  if ((shape === 'L' || shape === 'U') && (U < 7 || VD < 7)) shape = 'rect';
+  const fp = new Uint8Array(w * d);
+  for (let mz = 0; mz < d; mz++) for (let mx = 0; mx < w; mx++) {
+    const [u, v] = uv(mx, mz); let inn = true;
+    if (shape === 'L') inn = !(u >= Math.ceil(U * 0.5) && v >= Math.ceil(VD * 0.5));
+    else if (shape === 'U') { const a = Math.floor(U / 3); inn = !(u >= a && u < U - a && v >= Math.ceil(VD * 0.45)); }
+    else if (shape === 'court') inn = !(u >= 3 && u < U - 3 && v >= 3 && v < VD - 3);
+    fp[mx + w * mz] = inn ? 1 : 0;
+  }
+  const IN = (mx, mz) => mx >= 0 && mz >= 0 && mx < w && mz < d && fp[mx + w * mz] === 1;
+  const roof = shape === 'rect' && (o.roof === 'gable' || o.roof === 'shed') ? o.roof : 'flat';
+  // the roof's height over the top slab, a fine column at a time (fine cells): ridge along the long side
+  const W = w * F, D = d * F, alongX = w >= d, run = alongX ? D : W, slope = roof === 'shed' ? 0.4 : 0.6;
+  const backHigh = roof === 'shed' ? (alongX ? (side === 'n' ? 1 : 0) : (side === 'w' ? 1 : 0)) : 0;
+  const RH = (fx, fz) => {
+    if (roof === 'flat') return 0;
+    const r = alongX ? fz : fx;
+    if (roof === 'gable') return Math.floor(Math.min(r + 0.5, run - r - 0.5) * slope);
+    return Math.floor((backHigh ? run - r - 0.5 : r + 0.5) * slope);
+  };
+  let maxRH = 0; for (let r = 0; r < run; r++) maxRH = Math.max(maxRH, RH(alongX ? 0 : r, alongX ? r : 0));
+  const chim = o.chimney && roof !== 'flat', roofTopM = Math.ceil((maxRH + 2) / F) + (chim ? 1 : 0) + 1;
+  const S = newStruct(x0 - M, z0 - M, w + 2 * M, d + 2 * M, g, fl * 3 + roofTopM, below);
+  const gy = below * F, fx0 = M * F, fz0 = M * F, base = gy + fl * SH; // base: the layer over the top slab
+  // the door: the middle of the front
   const dX = side === 'w' ? 0 : side === 'e' ? w - 1 : Math.floor(w / 2), dZ = side === 'n' ? 0 : side === 's' ? d - 1 : Math.floor(d / 2);
-  const dw = o.doorW || 1, doorH = Math.round(2.25 * F), sill = F, winH = Math.round(1.25 * F);
-  for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) for (let fy = 0; fy < gy; fy++) sset(S, fx0 + fx, fy, fz0 + fz, FM.CONC); // the foundation
-  for (let ly = 0; ly < fl * SH + PR; ly++) {
-    const st = Math.floor(ly / SH), sy = ly % SH, slab = st < fl && sy >= SH - SL;
-    for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) {
-      const wx = fx < T || fx >= W - T, wz = fz < T || fz >= D - T, wall = wx || wz;
-      if (!wall && !slab) continue;
-      if (st >= fl && !wall) continue;
-      const mx = Math.floor(fx / F), mz = Math.floor(fz / F), corner = (mx === 0 || mx === w - 1) && (mz === 0 || mz === d - 1);
-      let m = slab && !wall ? FM.CONC : corner ? cornM : wallM;
-      if (wall && st < fl && !corner) {
-        const along = wz ? mx : mz, inA = (wz ? fx : fz) % F;
-        const onDoor = (side === 'n' && fz < T) || (side === 's' && fz >= D - T) || (side === 'w' && fx < T) || (side === 'e' && fx >= W - T);
-        const dAt = wz ? dX : dZ;
-        if (onDoor && st === 0 && Math.abs(along - dAt) < dw && sy < doorH) continue; // the door
-        if (along % 2 === 1 && !(onDoor && st === 0 && Math.abs(along - dAt) <= dw) && sy >= sill && sy < sill + winH && inA < F - 1) continue; // a window
-        if (slab && fl > 1) m = FM.CONC; // the slab's edge shows as a band on the facade
+  const dw = o.doorW || 1, doorH = Math.round((o.doorH || 2.25) * F), sill = F, winH = Math.round((frame ? 1.5 : 1.25) * F);
+  const bay = 4, pillarAt = (mx, mz) => frame && (mx % bay === 0 || mx === w - 1) && (mz % bay === 0 || mz === d - 1);
+  for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) if (IN((fx / F) | 0, (fz / F) | 0)) for (let fy = 0; fy < gy; fy++) sset(S, fx0 + fx, fy, fz0 + fz, FM.CONC); // the foundation
+  for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) {
+    const mx = (fx / F) | 0, mz = (fz / F) | 0; if (!IN(mx, mz)) continue;
+    const ix = fx % F, iz = fz % F;
+    const xm = ix < T && !IN(mx - 1, mz), xp = ix >= F - T && !IN(mx + 1, mz), zm = iz < T && !IN(mx, mz - 1), zp = iz >= F - T && !IN(mx, mz + 1);
+    const ic = (ax, az) => IN(mx + ax, mz) && IN(mx, mz + az) && !IN(mx + ax, mz + az); // an inner corner: both sides in, the diagonal out
+    const inner = (ix < T && iz < T && ic(-1, -1)) || (ix >= F - T && iz < T && ic(1, -1)) || (ix < T && iz >= F - T && ic(-1, 1)) || (ix >= F - T && iz >= F - T && ic(1, 1));
+    const wall = xm || xp || zm || zp || inner, wx = xm || xp, wz = zm || zp;
+    const corner = ((!IN(mx - 1, mz) || !IN(mx + 1, mz)) && (!IN(mx, mz - 1) || !IN(mx, mz + 1))) || ic(-1, -1) || ic(1, -1) || ic(-1, 1) || ic(1, 1);
+    const front = (side === 'n' && zm && mz === 0) || (side === 's' && zp && mz === d - 1) || (side === 'w' && xm && mx === 0) || (side === 'e' && xp && mx === w - 1);
+    const along = wz ? mx : mz, dAt = wz ? dX : dZ, pil = pillarAt(mx, mz) && ix >= F / 2 - 2 && ix < F / 2 + 2 && iz >= F / 2 - 2 && iz < F / 2 + 2;
+    const pilWall = pillarAt(mx, mz) && wall; // a pillar's metre of wall stays whole
+    const rh = RH(fx, fz);
+    for (let ly = 0; ly < fl * SH + PR + rh + 2; ly++) {
+      const st = Math.floor(ly / SH), sy = ly % SH, slab = st < fl && sy >= SH - SL;
+      let m = 0;
+      if (ly < fl * SH) {
+        if (pil) m = FM.CONC;
+        else if (slab) m = wall && !frame ? (fl > 1 ? FM.CONC : corner ? cornM : wallM) : FM.CONC;
+        else if (wall) {
+          m = corner || pilWall ? (frame ? FM.CONC : cornM) : wallM;
+          if (!corner && !pilWall) {
+            const onDoor = front && st === 0 && Math.abs(along - dAt) < dw && sy < doorH;
+            const shopOpen = frame && o.shop && front && st === 0 && sy < doorH;
+            const winOK = o.win !== false && sy >= sill && sy < sill + winH && (frame ? true : along % 2 === 1 && (wz ? ix : iz) < F - 1);
+            if (onDoor || shopOpen || winOK) m = 0;
+          }
+        }
+      } else if (roof === 'flat') {
+        if (ly < fl * SH + PR && wall && along % 5 !== 2) m = corner ? cornM : wallM; // the parapet, with gaps
+      } else {
+        const ry = ly - fl * SH; // the pitched roof: two cells thick over the eaves, the gable walls up under it
+        if (ry === rh || ry === rh + 1) m = roofM;
+        else if (ry < rh && wall && (alongX ? wx : wz)) m = wallM;
       }
-      if (st >= fl && (Math.floor((wz ? fx : fz) / F) % 5 === 2)) continue; // gaps in the parapet
-      sset(S, fx0 + fx, gy + ly, fz0 + fz, m);
+      if (m) sset(S, fx0 + fx, gy + ly, fz0 + fz, m);
     }
+  }
+  // balconies on the front of a frame building's upper storeys: a slab a metre out, every other pair of metres, a railing
+  if (frame && o.balcony) for (let st = 1; st < fl; st++) for (let u = 1; u < U - 1; u++) {
+    if (Math.floor(u / 2) % 2 === 0) continue;
+    const mx = side === 'n' || side === 's' ? u : side === 'w' ? -1 : w, mz = side === 'e' || side === 'w' ? u : side === 'n' ? -1 : d;
+    for (let iz = 0; iz < F; iz++) for (let ix = 0; ix < F; ix++) {
+      const fx = fx0 + mx * F + ix, fz = fz0 + mz * F + iz, ly0 = gy + st * SH - SL;
+      for (let k = 0; k < SL; k++) sset(S, fx, ly0 + k, fz, FM.CONC);
+      const edge = (side === 'n' && iz === 0) || (side === 's' && iz === F - 1) || (side === 'w' && ix === 0) || (side === 'e' && ix === F - 1);
+      if (edge) for (let k = 0; k < F; k++) sset(S, fx, ly0 + SL + k, fz, FM.METAL);
+    }
+  }
+  // a chimney through a pitched roof
+  if (chim) {
+    const cmx = Math.min(w - 2, 1), cmz = Math.min(d - 2, 1);
+    for (let iz = 0; iz < F; iz++) for (let ix = 0; ix < F; ix++) for (let ly = base; ly < base + maxRH + 2 + F; ly++) sset(S, fx0 + cmx * F + ix, ly, fz0 + cmz * F + iz, FM.BRICK);
   }
   // the doorstep outside kept clear of 1 m stuff
   const ox = x0 + dX + (side === 'w' ? -1 : side === 'e' ? 1 : 0), oz = z0 + dZ + (side === 'n' ? -1 : side === 's' ? 1 : 0);
   if (inMap(ox, oz)) for (let y = g; y < g + 3; y++) if (!GROUNDV.has(getV(ox, y, oz))) world.vox[vi(ox, y, oz)] = 0;
-  ruinHouse(S, { w, d, fl, g, M, wallM, dX, dZ, ox, oz, ruin: o.ruin ?? tune.struct_ruin * (0.6 + rng() * 0.8) });
+  ruinHouse(S, { w, d, fl, g, M, wallM, dX, dZ, ox, oz, SL, top: base + maxRH + 2, ruin: o.ruin ?? tune.struct_ruin * (0.6 + rng() * 0.8) });
   projectStruct(S);
   const b = registerBuilding(x0, z0, w, d, g, fl * 3, dX, dZ);
-  S.bld = b; world.sdirty.add(S.id);
+  if (b && shape !== 'rect') { b.slots = b.slots.filter(p => IN(Math.floor(p.x) - x0, Math.floor(p.z) - z0)); b.cap = Math.min(tune.garrison_cap, b.slots.length); }
+  S.bld = b; S.shape = shape; S.system = frame ? 'frame' : 'masonry'; world.sdirty.add(S.id);
   return b;
 }
 /** Ruins a fresh house: dmg 0 leaves it whole, 1 leaves little more than the ground floor's stumps. */
 function ruinHouse(S, H) {
   const { F } = S, { w, d, fl, M } = H, dmg = Math.max(0, Math.min(1, H.ruin)), ns = Math.floor(rng() * 99999);
-  const SH = 3 * F, gy = (S.g - S.yb) * F, fx0 = M * F, fz0 = M * F, W = w * F, D = d * F, top = gy + fl * SH + Math.max(1, F >> 1);
+  const SH = 3 * F, gy = (S.g - S.yb) * F, fx0 = M * F, fz0 = M * F, W = w * F, D = d * F, top = H.top || gy + fl * SH + Math.max(1, F >> 1), SL = H.SL || Math.max(1, F >> 1);
   const holes = [];
   // broken wall tops: each wall column loses up to a storey and a half, more where the noise says
   for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) {
@@ -704,7 +775,7 @@ function ruinHouse(S, H) {
   // holes in the slabs, larger in the upper storeys
   for (let st = 0; st < fl; st++) {
     const lim = dmg * (0.35 + 0.45 * (st + 1) / fl);
-    for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) if (fbm(fx / (2.5 * F), fz / (2.5 * F), ns + 7 + st * 13, 2) < lim) for (let k = 1; k <= Math.max(1, F >> 1); k++) sset(S, fx0 + fx, gy + (st + 1) * SH - k, fz0 + fz, 0);
+    for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) if (fbm(fx / (2.5 * F), fz / (2.5 * F), ns + 7 + st * 13, 2) < lim) for (let k = 1; k <= SL; k++) sset(S, fx0 + fx, gy + (st + 1) * SH - k, fz0 + fz, 0);
   }
   // shell holes through the walls
   const nh = Math.round(dmg * (2 + fl) + rng() * 1.5);
