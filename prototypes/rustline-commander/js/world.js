@@ -109,7 +109,35 @@ function mapPreset() {
   if (tune.map_simple) return biomePreset({ size: 128, relief: 4, mountains: 0, mesa: false, lakes: false, camps: 3, ruins: 6, rocks: 5, forest: 0.3 });
   return biomePreset({ size: Math.round(tune.map_size / 16) * 16, relief: 11, mountains: tune.mountain_amount, mesa: true, lakes: true, camps: Math.round(tune.camp_count), ruins: Math.round(tune.ruin_count), rocks: Math.round(tune.rock_count), forest: tune.forest_amount });
 }
+/**
+ * The map is built by registered steps, in their order (low first). Each step reads and adds to G, the
+ * map being built: P (the preset), S (the campaign sector), N, WL, ns (the map's noise seed), the frame
+ * (C, real, canon, SC, EC), GS (the geography's shape), the water (river, mesa, canyon, lakes, wide, fords),
+ * the relief (wallK, Hf), the sites (sites, placed), hi (the heights after the roads). A content pack adds
+ * a step with registerWorldStep(id, { order, run(G) }); between two of these orders it sees all the
+ * steps before it. Steps that use rng() change every map after them, as any new random call does.
+ */
+const WORLD_STEPS = adopt('worldStep', {});
+/** Adds a map-building step. */
+function registerWorldStep(id, D) { return register('worldStep', id, D); }
+/** The steps' ids in their order. */
+function worldSteps() { return Object.keys(WORLD_STEPS).sort((a, b) => (WORLD_STEPS[a].order || 0) - (WORLD_STEPS[b].order || 0)); }
+/** Builds a whole new map for a run from rng(), step by step. Returns the sites (start, outposts, camps, fortress...). */
 function genWorld() {
+  const G = {};
+  for (const id of worldSteps()) WORLD_STEPS[id].run(G);
+  world.sites = G.sites;
+  return G.sites;
+}
+/** The distance from (x, z) to the nearest point of a polyline. */
+function distTo(pts, x, z) {
+  let best = 1e9;
+  for (let i = 0; i < pts.length; i++) { const dx = pts[i][0] - x, dz = pts[i][1] - z, d = dx * dx + dz * dz; if (d < best) best = d; }
+  return Math.sqrt(best);
+}
+
+/** The frame: the preset, the arrays, the noise seed, the turn of the map, the geography and its land. */
+function wgFrame(G) {
   const P = mapPreset(); world.preset = P;
   const S = world.spec || {}; // the campaign sector this map is for (camps, outposts, wrecks, patrols, tier)
   if (S.camps != null) P.camps = S.camps;
@@ -134,12 +162,15 @@ function genWorld() {
   world.frame = { C, ca, sa, SC, EC };
   world.geos = mapGeoIds(); world.geo = world.geos[0]; world.shape = mapShapeId();
   const GS = geoShape(world.geos, N, ns, SC, EC); world.geoShape = GS; // biomes.js
-  // the geography sets the land around it: flat ground makes the ridges and the plateaus read as walls
-  const has = g => world.geos.includes(g);
-  if (has('hills')) { P.mountains = Math.max(1, P.mountains) * tune.hills_k; P.relief += 4; }
-  else if (has('ridges') || has('plateau')) { P.mountains *= 0.2; P.mesa = false; P.relief = Math.min(P.relief, 6); }
-  else if (has('river')) { P.mountains *= 0.5; P.mesa = false; }
-
+  // the geography sets the land around it (the strongest one: hills, then ridges and plateaus, then a river)
+  const lands = world.geos.map(g => GEOS[g]).filter(D => D.land).sort((a, b) => (b.landRank || 0) - (a.landRank || 0));
+  if (lands.length) lands[0].land(P);
+  Object.assign(G, { P, S, N, WL, ns, C, real, canon, SC, EC, GS });
+}
+/** The water and the long lines: the river (wide in the river geography), the mesa and its canyon, the lakes, the fords. */
+function wgWater(G) {
+  const { P, N, ns, canon, SC, EC } = G;
+  const wideRiver = world.geos.some(g => GEOS[g].wideRiver);
   // Polylines in canonical space (start near 0,0; fortress near N,N).
   const poly = (ax, az, bx, bz, wig, freq, s, n) => {
     const pts = [], L = Math.hypot(bx - ax, bz - az), px = -(bz - az) / L, pz = (bx - ax) / L;
@@ -153,29 +184,23 @@ function genWorld() {
   // the river crosses the way somewhere between a third and two thirds of it, at a slant of its own (or there is none)
   const rt = 0.35 + rng() * 0.3, rb = (rng() - 0.5) * 1.3, rmx = SC[0] + (EC[0] - SC[0]) * rt, rmz = SC[1] + (EC[1] - SC[1]) * rt;
   const rdir = [Math.cos(-Math.PI / 4 + rb), Math.sin(-Math.PI / 4 + rb)], RL = N * 0.95;
-  const river = has('river') || rng() < tune.river_chance ? poly(rmx - rdir[0] * RL, rmz - rdir[1] * RL, rmx + rdir[0] * RL, rmz + rdir[1] * RL, 9, 8, ns + 3, 260) : [];
+  const river = wideRiver || rng() < tune.river_chance ? poly(rmx - rdir[0] * RL, rmz - rdir[1] * RL, rmx + rdir[0] * RL, rmz + rdir[1] * RL, 9, 8, ns + 3, 260) : [];
   const mesa = poly(N * 0.3, N * 1.1, N * 1.1, N * 0.3, 5, 4, ns + 4, 160);
   const canyon = poly(N * 0.5, N * 0.5, N * 0.9, N * 0.9, 7, 7, ns + 5, 120);
-  const distTo = (pts, x, z) => {
-    let best = 1e9;
-    for (let i = 0; i < pts.length; i++) { const dx = pts[i][0] - x, dz = pts[i][1] - z, d = dx * dx + dz * dz; if (d < best) best = d; }
-    return Math.sqrt(best);
-  };
   const lakes = [];
   if (P.lakes) for (let k = 0; k < 6 && lakes.length < 2 + (rng() < 0.4 ? 1 : 0); k++) { // anywhere off the start, the exit and the river
     const [x, z] = canon(16 + rng() * (N - 32), 16 + rng() * (N - 32));
     if (Math.hypot(x - SC[0], z - SC[1]) < 34 || Math.hypot(x - EC[0], z - EC[1]) < 34 || (river.length && distTo(river, x, z) < 22)) continue;
     lakes.push({ x, z, r: 6 + rng() * 6 });
   }
-  // the map's shape: open, a valley between rock walls along the way, or a basin ringed by mountains
-  const vAx = (cx, cz) => ((cx - C) - (cz - C)) * Math.SQRT1_2, uAx = (cx, cz) => ((cx - C) + (cz - C)) * Math.SQRT1_2;
-  const wallK = (cx, cz) => {
-    if (world.shape === 'valley') { const hw = N * tune.valley_width + (vnoise(uAx(cx, cz) / 30, 3.5, ns + 50) - 0.5) * 16; return smooth(hw, hw + 6, Math.abs(vAx(cx, cz))); }
-    if (world.shape === 'basin') { const a = Math.atan2(cz - C, cx - C), R = N * 0.47 * (1 + (vnoise(a * 2 + 9, 0.5, ns + 51) - 0.5) * 0.16); return smooth(R, R + 7, Math.hypot(cx - C, cz - C)); }
-    return 0;
-  };
-
-  const wide = has('river') && river.length > 0, fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
+  const wide = wideRiver && river.length > 0, fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
+  Object.assign(G, { river, mesa, canyon, lakes, wide, fords });
+}
+/** The relief: noise, mountains, the mesa, the geography, the river valley, the shape's walls, the lakes; then the soft blurs. */
+function wgRelief(G) {
+  const { P, N, WL, ns, C, canon, GS, river, mesa, canyon, lakes, wide, fords } = G;
+  // the map's shape: open, a valley between rock walls along the way, a basin ringed by mountains (biomes.js)
+  const SH = SHAPES[world.shape], wallK = SH && SH.wall ? (cx, cz) => SH.wall(cx, cz, N, ns, C) : () => 0;
   const Hf = new Float32Array(N * N);
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
     const [cx, cz] = canon(x, z);
@@ -216,7 +241,11 @@ function genWorld() {
     }
     Hf.set(B);
   }
-
+  Object.assign(G, { wallK, Hf });
+}
+/** The sites: the start, the exit or the fortress, the outposts, the camps; named, and the ground under them flattened. */
+function wgSites(G) {
+  const { P, S, N, WL, real, canon, SC, EC, GS, river, mesa, lakes, wide, wallK, Hf } = G;
   // Sites, in canonical space then mapped.
   const sites = { start: null, outposts: [], camps: [], fortress: null, wrecks: [], patrols: [], firstWall: null };
   const riverD = (cx, cz) => distTo(river, cx, cz);
@@ -278,7 +307,11 @@ function genWorld() {
   flatten(sites.start, 11); flatten(sites.fortress, 18);
   for (const o of sites.outposts) flatten(o, 11);
   for (const c of sites.camps) flatten(c, 9);
-
+  Object.assign(G, { sites, placed });
+}
+/** The roads: a chain from the start through every site to the exit, carved and bridged; the pads kept flat. */
+function wgRoads(G) {
+  const { N, WL, SC, Hf, sites, placed } = G;
   const hi = new Int16Array(N * N);
   for (let i = 0; i < N * N; i++) hi[i] = Math.max(1, Math.min(VH - 12, Math.round(Hf[i])));
 
@@ -302,7 +335,11 @@ function genWorld() {
     }
   }
   relaxRoads(hi, N, placed);
-
+  G.hi = hi;
+}
+/** The voxel columns: bedrock, strata, dirt and sand, roads and bridges. */
+function wgColumns(G) {
+  const { N, WL, ns, hi } = G;
   // Fill columns.
   const V_ = world.vox;
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
@@ -329,7 +366,10 @@ function genWorld() {
       V_[base + y] = t;
     }
   }
-
+}
+/** The sites' structures: the outposts, the camps, the fortress or the exit; the friendly roads kept open. */
+function wgStructures(G) {
+  const { N, S, hi, sites } = G;
   // Structures.
   if (S.startBase) buildOutpost(sites.start, false); // the army's walled camp in the last stand
   else if (!world.spec) buildOutpost(sites.start, true); // a sector starts on open ground: the tank comes alone
@@ -348,7 +388,10 @@ function genWorld() {
     }
   }
   recomputeAll();
-
+}
+/** The old raider wall across the road a short drive from the start, a rock beside it, the first patrol. */
+function wgFirstWall(G) {
+  const { S, sites } = G;
   // the old raider wall across the road, a short drive from the start
   const rm = sites.roadMain;
   if (rm.length > 30 && !S.final) { // (not in the army's camp)
@@ -368,7 +411,10 @@ function genWorld() {
     sites.patrols.push({ x: q[0] + px * 3, z: q[1] + pz * 3, n: 3, tier: 1, first: true });
     recomputeAll();
   }
-
+}
+/** The layout's buildings (biomes.js), the settlement, rocks, wrecks, trees, the map rules and the smoothed ground. */
+function wgScatter(G) {
+  const { P, S, N, WL, ns, sites, placed } = G;
   // Ruins, rocks and wrecks scattered where nothing else stands.
   const freeSpot = (minSite, flatMax) => {
     for (let tries = 0; tries < 80; tries++) {
@@ -404,6 +450,10 @@ function genWorld() {
   recomputeAll();
   applyMapRules(sites);
   updateGround(0, 0, N - 1, N - 1);
+}
+/** The roaming patrols, away from the start. */
+function wgPatrols(G) {
+  const { S, N, sites } = G;
   // roaming patrols, away from the start
   for (let k = 0; k < Math.round(tune.patrol_count * (S.patrolK ?? 1)); k++) {
     for (let tries = 0; tries < 40; tries++) {
@@ -415,9 +465,17 @@ function genWorld() {
       break;
     }
   }
-  world.sites = sites;
-  return sites;
 }
+registerWorldStep('frame', { order: 10, run: wgFrame });
+registerWorldStep('water', { order: 20, run: wgWater });
+registerWorldStep('relief', { order: 30, run: wgRelief });
+registerWorldStep('sites', { order: 40, run: wgSites });
+registerWorldStep('roads', { order: 50, run: wgRoads });
+registerWorldStep('columns', { order: 60, run: wgColumns });
+registerWorldStep('structures', { order: 70, run: wgStructures });
+registerWorldStep('firstWall', { order: 80, run: wgFirstWall });
+registerWorldStep('scatter', { order: 90, run: wgScatter });
+registerWorldStep('patrols', { order: 100, run: wgPatrols });
 
 /**
  * Woods and forests: trunks two voxels tall (TREE) on open grass and dirt, thick where the forest

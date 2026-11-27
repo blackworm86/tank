@@ -19,8 +19,8 @@ for (const k of [V.CLOTH, V.HAY, V.PLANK]) SOFTV.add(k);
  * trees (share of conifers, broadleaves, dead ones and their colours), the grass tufts and the map's
  * relief (mesa, lakes, forest share).
  */
-const BIOMES = {
-  desert: { name: 'Deserto', sky: 0xdcc6a0, hemi: [0xffeedd, 0x5e5238, 1.35], sun: [0xfff0d8, 2.5], water: [0x4a6a5a, 0.84],
+const BIOMES = adopt('biome', {
+  desert: { name: 'Deserto', hut: adobeHut, sky: 0xdcc6a0, hemi: [0xffeedd, 0x5e5238, 1.35], sun: [0xfff0d8, 2.5], water: [0x4a6a5a, 0.84],
     tint: { g: [0xd8b47a, 0.78], m: [0x8a6a4a, 0.45], r: [0xb27a58, 0.3], a: [0xb8a080, 0.12], d: [0xcfa26a, 0.55] },
     trees: [0.04, 0.42], conifer: [0x4a5232, 0x55593a], leaf: [0x7d7440, 0x8a7a44, 0x6c7140], dead: [0x7a6a58, 0x8a7864, 0x6a5a4a],
     tuft: [0xc8b070, 0xb7a467, 0xd4bc80, 0xa89458], tufts: 0.45, mud: 0.3, map: { mesa: true, lakes: false, forest: 0.12, mountains: 1 } },
@@ -36,72 +36,118 @@ const BIOMES = {
     tint: { g: [0x6a625a, 0.76], m: [0x2a2826, 0.5], r: [0x5a5450, 0.4], a: [0x4a4846, 0.1], d: [0x5c544c, 0.62] },
     trees: [0.08, 0.2], conifer: [0x2e3028, 0x3a3a30], leaf: [0x4e4a38, 0x5a5440], dead: [0x3a3430, 0x2e2a28, 0x4a423c],
     tuft: [0x6a645a, 0x5a564e, 0x7a7266], tufts: 0.55, mud: 0.7, map: { mesa: true, lakes: false, forest: 0.35, mountains: 1 } },
-};
-const BIOME_IDS = ['desert', 'forest', 'ice', 'ash'];
-/** What a zone is built of: its name, how much forest it keeps, and how many lone ruins. */
-const LAYOUTS = {
-  wild: { name: 'lande aperte', forestK: 1, ruins: 1 },
-  rural: { name: 'campagna', forestK: 0.7, ruins: 0.3 },
-  villages: { name: 'villaggi', forestK: 0.8, ruins: 0.3 },
-  city: { name: 'città distrutta', forestK: 0.2, ruins: 0 },
-};
-const LAYOUT_IDS = ['wild', 'rural', 'villages', 'city'];
+});
+/** Adds a biome (the fields above; hut is the lone hut of open lands, a shack when it says none). */
+function registerBiome(id, D) { return register('biome', id, D); }
+/** The biomes' ids in their order (biome_force counts from 1 in it). */
+function biomeIds() { return Object.keys(BIOMES); }
+/**
+ * What a zone is built of: its name, how much forest it keeps (forestK), how many lone ruins (ruins), how many
+ * rocks (rocksK); build(placed, ns) puts its buildings up before the faction's settlement, after(placed, ns) after it.
+ */
+const LAYOUTS = adopt('layout', {
+  wild: { name: 'lande aperte', forestK: 1, ruins: 1,
+    after(placed) { for (let k = 0; k < 4; k++) { const A = findArea(6, 6, { sites: placed }); onArea(A, 6, 6, (x, z, g) => (BIOME().hut || shack)(x, z, g, [rng() - 0.5, rng() - 0.5])); } } },
+  rural: { name: 'campagna', forestK: 0.7, ruins: 0.3,
+    build(placed) { for (let k = 0; k < 6; k++) farmstead(placed); } },
+  villages: { name: 'villaggi', forestK: 0.8, ruins: 0.3,
+    build(placed) { for (let k = 0; k < 3; k++) village(placed); for (let k = 0; k < 2; k++) farmstead(placed); } },
+  city: { name: 'città distrutta', forestK: 0.2, ruins: 0, rocksK: 0.4,
+    build(placed, ns) { cityGrid(placed, ns); } },
+});
+/** Adds a zone layout. */
+function registerLayout(id, D) { return register('layout', id, D); }
+/** The layouts' ids in their order (layout_force counts from 1 in it). */
+function layoutIds() { return Object.keys(LAYOUTS); }
 /** The biome and layout of the map being built or played (config biome_force / layout_force override, for testing). */
-function mapBiomeId() { const f = Math.round(tune.biome_force); return f ? BIOME_IDS[f - 1] : (world.spec && world.spec.biome) || 'desert'; }
-function mapLayoutId() { const f = Math.round(tune.layout_force); return f ? LAYOUT_IDS[f - 1] : (world.spec && world.spec.layout) || 'wild'; }
+function mapBiomeId() { const f = Math.round(tune.biome_force); return f ? biomeIds()[f - 1] : (world.spec && world.spec.biome) || 'desert'; }
+function mapLayoutId() { const f = Math.round(tune.layout_force); return f ? layoutIds()[f - 1] : (world.spec && world.spec.layout) || 'wild'; }
 function BIOME() { return BIOMES[world.biome] || BIOMES.desert; }
 // ---- Geography: what stands between the start and the exit -------------------------------------------------
-const GEOS = {
-  ridges: { name: 'creste e passi', brief: 'Creste di roccia tagliano il settore: si passa solo dai passi.' },
-  river: { name: 'fiume largo', brief: 'Un fiume largo e profondo: ponti e un guado, nient\'altro.' },
-  plateau: { name: 'altipiani', brief: 'Altipiani a strapiombo: chi sta sopra vede e spara per primo.' },
-  hills: { name: 'colline', brief: 'Colline alte e valli strette.' },
-};
-const GEO_IDS = Object.keys(GEOS);
+/** Flat land round the geography, so its ridges and plateaus read as walls. */
+function flatLand(P) { P.mountains *= 0.2; P.mesa = false; P.relief = Math.min(P.relief, 6); }
+/**
+ * The geographies. An entry: name, brief (the SITREP line); optional: land(P) (how it changes the preset;
+ * the one with the highest landRank in the sector wins), shape(N, ns, SC, EC) (its relief in canonical space:
+ * { raise(cx, cz) the height it adds, block(cx, cz) true where no site may sit }), wideRiver (the river is
+ * always there, wide, with fords), pairsOnly (the only geographies it can be combined with).
+ */
+const GEOS = adopt('geo', {
+  ridges: { name: 'creste e passi', brief: 'Creste di roccia tagliano il settore: si passa solo dai passi.', landRank: 2, land: flatLand,
+    // ridges across the whole map, so the passes (and the roads through them) are the only ways on
+    shape(N, ns, SC, EC) {
+      const S2 = Math.SQRT1_2, u0 = (SC[0] + SC[1]) * S2, u1 = (EC[0] + EC[1]) * S2, ridges = [];
+      const ts = N >= 176 ? [0.26, 0.78] : [0.28];
+      ts.forEach((t, r) => {
+        const passes = [(rng() - 0.5) * N * 0.6]; if (rng() < 0.55) passes.push(passes[0] + (rng() < 0.5 ? 1 : -1) * (30 + rng() * 30));
+        ridges.push({ u: u0 + (u1 - u0) * t, passes, s: ns + 40 + r * 7, h: tune.ridge_height * (0.85 + rng() * 0.3) });
+      });
+      return {
+        ridges,
+        raise(cx, cz) {
+          let h = 0;
+          const u = (cx + cz) * S2, v = (cx - cz) * S2;
+          for (const Rr of ridges) {
+            const uc = Rr.u + (vnoise(v / 28, 0.5, Rr.s) - 0.5) * 22, hw = 3 + vnoise(v / 12, 1.5, Rr.s) * 3, d = Math.abs(u - uc);
+            if (d > hw + 3) continue;
+            let gap = 1; for (const pv of Rr.passes) gap = Math.min(gap, smooth(4, 8, Math.abs(v - pv)));
+            h = Math.max(h, Rr.h * smooth(hw + 2.5, hw, d) * gap);
+          }
+          return h;
+        },
+        block(cx, cz) { const u = (cx + cz) * S2; return ridges.some(Rr => Math.abs(u - Rr.u) < 22); },
+      };
+    } },
+  river: { name: 'fiume largo', brief: 'Un fiume largo e profondo: ponti e un guado, nient\'altro.', wideRiver: true, landRank: 1,
+    land(P) { P.mountains *= 0.5; P.mesa = false; } },
+  plateau: { name: 'altipiani', brief: 'Altipiani a strapiombo: chi sta sopra vede e spara per primo.', landRank: 2, land: flatLand,
+    shape(N, ns) { return { raise: (cx, cz) => tune.plateau_height * smooth(0.5, 0.535, fbm(cx / 42, cz / 42, ns + 30, 3)) }; } },
+  hills: { name: 'colline', brief: 'Colline alte e valli strette.', pairsOnly: ['river'], landRank: 3,
+    land(P) { P.mountains = Math.max(1, P.mountains) * tune.hills_k; P.relief += 4; } },
+});
+/** Adds a geography. */
+function registerGeo(id, D) { return register('geo', id, D); }
+/** The geographies' ids in their order (geo_force counts from 1 in it). */
+function geoIds() { return Object.keys(GEOS); }
+/** Can two geographies share a sector? */
+function geoPairs(a, b) { const A = GEOS[a], B = GEOS[b]; return (!A.pairsOnly || A.pairsOnly.includes(b)) && (!B.pairsOnly || B.pairsOnly.includes(a)); }
 /** The sector's geographies, one or two (config geo_force overrides, for testing). */
 function mapGeoIds() {
   const f = Math.round(tune.geo_force), S = world.spec || {};
-  if (f) return [GEO_IDS[f - 1]];
+  if (f) return [geoIds()[f - 1]];
   if (S.geos && S.geos.length) return S.geos.slice();
-  return [GEO_IDS[Math.floor(rng() * GEO_IDS.length)]];
+  const ids = geoIds(); return [ids[Math.floor(rng() * ids.length)]];
 }
 function geoName(ids) { return ids.map(g => GEOS[g].name).join(' + '); }
-/** Map shapes: open, a valley between rock walls along the way, a basin ringed by mountains. */
-const SHAPES = { open: { name: 'aperta' }, valley: { name: 'valle tra pareti di roccia' }, basin: { name: 'conca tra le montagne' } };
-const SHAPE_IDS = Object.keys(SHAPES);
-function mapShapeId() { const f = Math.round(tune.shape_force); return f ? SHAPE_IDS[f - 1] : (world.spec && world.spec.shape) || 'open'; }
 /**
- * The geography's shape in canonical space (start near 0,0, exit near N,N), for genWorld: raise(cx,cz) is the
- * height it adds (ridges with a pass or two, plateaus with cliff edges), block(cx,cz) where no site may sit.
- * The ridges run across the whole map, so the passes (and the roads through them) are the only ways on.
+ * Map shapes: open, a valley between rock walls along the way, a basin ringed by mountains. wall(cx, cz, N, ns, C)
+ * is how much of the rock wall stands at a canonical point (0 none, 1 all of it); no wall, an open map.
+ */
+const SHAPES = adopt('shape', {
+  open: { name: 'aperta' },
+  valley: { name: 'valle tra pareti di roccia',
+    wall(cx, cz, N, ns, C) {
+      const vAx = ((cx - C) - (cz - C)) * Math.SQRT1_2, uAx = ((cx - C) + (cz - C)) * Math.SQRT1_2;
+      const hw = N * tune.valley_width + (vnoise(uAx / 30, 3.5, ns + 50) - 0.5) * 16; return smooth(hw, hw + 6, Math.abs(vAx));
+    } },
+  basin: { name: 'conca tra le montagne',
+    wall(cx, cz, N, ns, C) { const a = Math.atan2(cz - C, cx - C), R = N * 0.47 * (1 + (vnoise(a * 2 + 9, 0.5, ns + 51) - 0.5) * 0.16); return smooth(R, R + 7, Math.hypot(cx - C, cz - C)); } },
+});
+/** Adds a map shape. */
+function registerShape(id, D) { return register('shape', id, D); }
+/** The shapes' ids in their order (shape_force counts from 1 in it). */
+function shapeIds() { return Object.keys(SHAPES); }
+function mapShapeId() { const f = Math.round(tune.shape_force); return f ? shapeIds()[f - 1] : (world.spec && world.spec.shape) || 'open'; }
+/**
+ * The sector's geographies together, in canonical space (start near 0,0, exit near N,N), for genWorld: raise(cx,cz)
+ * is the height they add, block(cx,cz) where no site may sit. Each geography's own shape is in its entry.
  */
 function geoShape(G, N, ns, SC, EC) {
-  const S2 = Math.SQRT1_2, u0 = (SC[0] + SC[1]) * S2, u1 = (EC[0] + EC[1]) * S2, ridges = [];
-  if (G.includes('ridges')) {
-    const ts = N >= 176 ? [0.26, 0.78] : [0.28];
-    ts.forEach((t, r) => {
-      const passes = [(rng() - 0.5) * N * 0.6]; if (rng() < 0.55) passes.push(passes[0] + (rng() < 0.5 ? 1 : -1) * (30 + rng() * 30));
-      ridges.push({ u: u0 + (u1 - u0) * t, passes, s: ns + 40 + r * 7, h: tune.ridge_height * (0.85 + rng() * 0.3) });
-    });
-  }
-  const plateau = G.includes('plateau');
+  const parts = G.map(g => GEOS[g].shape ? GEOS[g].shape(N, ns, SC, EC) : null).filter(Boolean);
   return {
-    G, ridges,
-    raise(cx, cz) {
-      let h = 0;
-      if (ridges.length) {
-        const u = (cx + cz) * S2, v = (cx - cz) * S2;
-        for (const Rr of ridges) {
-          const uc = Rr.u + (vnoise(v / 28, 0.5, Rr.s) - 0.5) * 22, hw = 3 + vnoise(v / 12, 1.5, Rr.s) * 3, d = Math.abs(u - uc);
-          if (d > hw + 3) continue;
-          let gap = 1; for (const pv of Rr.passes) gap = Math.min(gap, smooth(4, 8, Math.abs(v - pv)));
-          h = Math.max(h, Rr.h * smooth(hw + 2.5, hw, d) * gap);
-        }
-      }
-      if (plateau) h += tune.plateau_height * smooth(0.5, 0.535, fbm(cx / 42, cz / 42, ns + 30, 3));
-      return h;
-    },
-    block(cx, cz) { const u = (cx + cz) * S2; return ridges.some(Rr => Math.abs(u - Rr.u) < 22); },
+    G, parts,
+    raise(cx, cz) { let h = 0; for (const p of parts) if (p.raise) h += p.raise(cx, cz); return h; },
+    block(cx, cz) { return parts.some(p => p.block && p.block(cx, cz)); },
   };
 }
 /** Fits the map preset to the biome and the layout (called by mapPreset). */
@@ -111,7 +157,7 @@ function biomePreset(P) {
   if (!tune.map_simple) { P.mesa = B.mesa; P.lakes = B.lakes; P.mountains *= B.mountains; }
   P.forest = Math.min(1, B.forest * L.forestK * (tune.map_simple ? 0.5 : 1));
   P.ruins = Math.round(P.ruins * L.ruins);
-  if (world.layout === 'city') P.rocks = Math.round(P.rocks * 0.4);
+  if (L.rocksK) P.rocks = Math.round(P.rocks * L.rocksK);
   return P;
 }
 
@@ -391,12 +437,10 @@ function cityGrid(sites, ns) {
  * stations, desert huts and lone ruins. freeSpot is genWorld's helper for the old ruins.
  */
 function buildLayout(sites, placed, freeSpot, P, ns) {
-  const L = world.layout, desert = world.biome === 'desert';
-  if (L === 'rural') for (let k = 0; k < 6; k++) farmstead(placed);
-  if (L === 'villages') { for (let k = 0; k < 3; k++) village(placed); for (let k = 0; k < 2; k++) farmstead(placed); }
-  if (L === 'city') cityGrid(placed, ns);
+  const L = LAYOUTS[world.layout];
+  if (L.build) L.build(placed, ns); // the layout's own buildings (the LAYOUTS entry)
   buildSettlement(sites, placed); // factions.js: the settlement of the faction holding the sector
-  if (L === 'wild') for (let k = 0; k < 4; k++) { const A = findArea(6, 6, { sites: placed }); onArea(A, 6, 6, (x, z, g) => (desert ? adobeHut : shack)(x, z, g, [rng() - 0.5, rng() - 0.5])); }
+  if (L.after) L.after(placed, ns);
   const rm = sites.roadMain; // a petrol station beside the main road
   if (rm && rm.length > 40 && rng() < 0.8) {
     const p = rm[Math.floor(rm.length * (0.4 + rng() * 0.3))];

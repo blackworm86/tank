@@ -58,7 +58,11 @@
    i tasti 1-9, la domanda di conferma e il registro delle tab. Ogni tab sta nel file del suo sistema
    (moduli in `modules.js`, arma e sistemi in `loadout.js`, caserma e riparazioni in `barracks.js`);
    `hud.js` non le conosce più e `state.shopTab` è il nome della tab, non più un numero.
-5. **La generazione del mondo a passi registrati:** forma, geografia, acqua, impianto, siti.
+5. **Fatto, iteration 23: la generazione del mondo a passi registrati.** `genWorld` esegue dieci passi
+   in ordine (cornice, acqua, rilievo, siti, strade, colonne, strutture, primo muro, sparsi, pattuglie).
+   Biomi, impianti, geografie e forme sono registri in `js/biomes.js`, con i loro comportamenti nella
+   voce: la terra intorno e il rilievo di una geografia, le pareti di una forma, gli edifici di un
+   impianto, la capanna di un bioma. `world.js` e `campaign.js` non nominano più nessuno di loro.
 6. **I contenuti in pacchetti** (`js/content/<pacchetto>/`): un'espansione è una cartella e una riga
    nell'elenco dei file.
 7. **La config divisa per sistema.** Le chiavi restano piatte, perché `tune` e il pannello le leggono
@@ -129,3 +133,34 @@ registerShopTab('intel', {
 `order` mette le tab in fila (10 moduli, 20 arma, 30 sistemi, 40 caserma, 50 riparazioni) e i tasti
 1-9 la seguono. `preview: true` fa girare il mezzo in 3D nella finestra centrale, come nella tab dei
 moduli. Il pulsante `button()` e il testo `text()` sono quelli dell'HUD (`js/hud.js`).
+
+## Come aggiungere al mondo (dall'iteration 23)
+
+**Un passo di generazione**, tra due di quelli esistenti (10 cornice, 20 acqua, 30 rilievo, 40 siti,
+50 strade, 60 colonne, 70 strutture, 80 primo muro, 90 sparsi, 100 pattuglie):
+
+```js
+registerWorldStep('craters', { order: 95, run(G) {          // dopo gli sparsi, prima delle pattuglie
+  for (let k = 0; k < 6; k++) { const x = 10 + Math.floor(rng() * (G.N - 20)), z = 10 + Math.floor(rng() * (G.N - 20)); blastVoxels(x, hAt(x, z), z, 3); }
+  recomputeAll(); updateGround(0, 0, G.N - 1, G.N - 1);
+} });
+```
+
+`G` ha tutto quello che i passi prima hanno fatto: `P`, `S`, `N`, `WL`, `ns`, `real`, `canon`, `SC`, `EC`,
+`GS`, `river`, `lakes`, `wallK`, `Hf`, `sites`, `placed`, `hi` (il commento in testa a `WORLD_STEPS` in
+`js/world.js`).
+
+**Una geografia, una forma, un impianto, un bioma**, in `js/biomes.js` o in un file di contenuti:
+
+```js
+registerGeo('craters', { name: 'crateri', brief: 'Una pianura butterata di crateri.', landRank: 1,
+  land(P) { P.mesa = false; },
+  shape(N, ns) { return { raise: (cx, cz) => -4 * smooth(0.6, 0.7, fbm(cx / 14, cz / 14, ns + 60, 2)) }; } });
+registerShape('gorge', { name: 'gola stretta', wall: (cx, cz, N, ns, C) => smooth(N * 0.12, N * 0.12 + 5, Math.abs((cx - cz) * Math.SQRT1_2)) });
+registerLayout('camps', { name: 'tendopoli', forestK: 0.5, ruins: 0.5, build(placed) { /* le tende */ } });
+registerBiome('swamp', { name: 'Palude', /* cielo, luce, acqua, tinte, alberi, ciuffi come gli altri */ map: { mesa: false, lakes: true, forest: 0.8, mountains: 0.5 } });
+```
+
+La campagna sceglie tra tutte le voci registrate, nell'ordine di registrazione. Attenzione: una voce in
+più cambia le campagne di tutti i semi (si tira su una lista più lunga), e un passo che chiama `rng()`
+cambia tutte le mappe che vengono dopo di lui. Il gioco resta giusto, ma non uguale a prima.

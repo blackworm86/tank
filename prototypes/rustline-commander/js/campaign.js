@@ -39,17 +39,17 @@ function newCampaign() {
   let id = 0, colBiome = 'desert';
   for (let c = 0; c < 8; c++) {
     const k = c === 0 || c === 7 ? 1 : 2 + Math.floor(rng() * 3), col = [];
-    if (c === 0 || rng() < 0.45) colBiome = BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)]; // the land changes every few sectors
+    if (c === 0 || rng() < 0.45) colBiome = biomeIds()[Math.floor(rng() * biomeIds().length)]; // the land changes every few sectors
     for (let r = 0; r < k; r++) {
       const n = { id: id++, col: c, row: r, y: (r + 0.5) / k + (k > 1 ? (rng() - 0.5) * 0.12 : 0), next: [] };
       n.enemy = Math.max(1, Math.min(3, 1 + Math.floor(c / 3) + (rng() < 0.4 ? 1 : 0) - (rng() < 0.25 ? 1 : 0)));
       n.scrap = 1 + Math.floor(rng() * 3);
       n.faction = rng() < 0.82 ? FACTION_IDS[Math.floor(rng() * FACTION_IDS.length)] : null; // who holds the sector
       n.outpost = rng() < 0.3;
-      n.biome = rng() < 0.6 ? colBiome : BIOME_IDS[Math.floor(rng() * BIOME_IDS.length)];
-      n.layout = LAYOUT_IDS[Math.floor(rng() * LAYOUT_IDS.length)];
-      n.geo = GEO_IDS[Math.floor(rng() * GEO_IDS.length)];
-      if (rng() < tune.geo_combo) { const o = GEO_IDS.filter(g => g !== n.geo && !(g === 'hills' && n.geo !== 'river') && !(n.geo === 'hills' && g !== 'river')); n.geo2 = o[Math.floor(rng() * o.length)]; }
+      n.biome = rng() < 0.6 ? colBiome : biomeIds()[Math.floor(rng() * biomeIds().length)];
+      n.layout = layoutIds()[Math.floor(rng() * layoutIds().length)];
+      n.geo = geoIds()[Math.floor(rng() * geoIds().length)];
+      if (rng() < tune.geo_combo) { const o = geoIds().filter(g => g !== n.geo && geoPairs(n.geo, g)); n.geo2 = o[Math.floor(rng() * o.length)]; }
       const sh = rng(); n.shape = sh < 0.45 ? 'open' : sh < 0.75 ? 'valley' : 'basin';
       n.size = n.shape === 'valley' ? 224 : [160, 192, 208][Math.floor(rng() * 3)];
       n.mission = pickMission(c); // the mission registry
