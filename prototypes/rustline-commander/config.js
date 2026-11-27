@@ -214,6 +214,8 @@ window.CONFIG = {
   cover_factor: { value: 0.35, min: 0, max: 1, step: 0.05 },    // hit chance multiplier when in cover
   cover_chip: { value: 0.15, min: 0, max: 1, step: 0.05 },      // chance a miss chips a soft cover voxel
   cover_light: { value: 0.65, min: 0, max: 1, step: 0.05 },     // hit chance multiplier behind light cover (sandbags, junk, a 1-voxel ledge)
+  cover_blast_light: { value: 0.8, min: 0, max: 1, step: 0.05 }, // blast damage multiplier behind light cover (sandbags, junk)
+  cover_show: { value: 6, min: 2, max: 12, step: 1 },            // metres around the mouse the cover map shows (command mode, infantry selected)
   cover_blast: { value: 0.55, min: 0, max: 1, step: 0.05 },     // blast damage multiplier for infantry in heavy cover from the blast side
   unstick_time: { value: 1.6, min: 0.5, max: 6, step: 0.1 },    // seconds without headway before a unit looks for another way
 

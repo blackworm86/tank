@@ -95,7 +95,8 @@ function explode(p, x, y, z, direct) {
       let a = p.dmg * (1 - dd / R) * (e.veh ? (p.kind === 'rpg' ? 0.6 : 0.35) : 1) * shellK(p, e);
       if (p.shell === 'frag' && e.team === 1 && !e.veh) e.supT = state.t + tune.suppress_time * 1.5; // splinters pin them down
       if (p.owner && e.team === p.owner.team) a *= 0.5;
-      if (!e.veh && coverFrom(e, x, z) === 2) a *= tune.cover_blast;
+      const cq = e.veh || e.rideOn ? 0 : coverFrom(e, x, z);
+      if (cq === 2) a *= tune.cover_blast; else if (cq === 1) a *= tune.cover_blast_light;
       dmgTo(e, a, 'blast', p.owner, { x, z, top: p.kind === 'mortar' });
     }
   }

@@ -510,6 +510,48 @@ function coverPip(x, z, q, alpha) {
   if (q === 2) { ctx.fillStyle = '#10140c'; ctx.fillRect(p.x - 1, p.y - 9, 2, 9); ctx.fillRect(p.x - 4, p.y - 6, 8, 2); }
   ctx.restore();
 }
+/**
+ * The cover map around (x,z), the way the command screen shows it: every cell a soldier can stand on within
+ * cover_show metres that gives cover against the threat (from any side when there is none), 1 light or 2 heavy.
+ */
+function coverMapAt(x, z, threat) {
+  const R = tune.cover_show, out = [], x0 = Math.floor(x), z0 = Math.floor(z);
+  for (let cz = z0 - R; cz <= z0 + R; cz++) for (let cx = x0 - R; cx <= x0 + R; cx++) {
+    const px = cx + 0.5, pz = cz + 0.5, d = Math.hypot(px - x, pz - z);
+    if (d > R || !inMap(cx, cz) || !walkable(cx, cz) || shallow(px, pz)) continue;
+    const q = coverOfPoint(px, pz, threat);
+    if (q) out.push({ cx, cz, q, d });
+  }
+  return out;
+}
+/** The cover a soldier standing at (x,z) would have against the threat (or the best from any side). */
+function coverOfPoint(x, z, threat) {
+  const p = { x, z };
+  if (threat) return coverFrom(p, x + threat.x * 10, z + threat.z * 10);
+  let q = 0; for (let k = 0; k < 4 && q < 2; k++) q = Math.max(q, coverFrom(p, x + Math.sin(k * 1.57) * 10, z + Math.cos(k * 1.57) * 10));
+  return q;
+}
+/** Tints the cells of a cover map on the ground: green heavy, yellow light, fading away from the mouse. */
+function drawCoverMap(map) {
+  ctx.save();
+  for (const c of map) {
+    const h = hAt(c.cx + 0.5, c.cz + 0.5) + 0.05, a = toScreen(c.cx + 0.08, h, c.cz + 0.08), b = toScreen(c.cx + 0.92, h, c.cz + 0.08), d = toScreen(c.cx + 0.92, h, c.cz + 0.92), e = toScreen(c.cx + 0.08, h, c.cz + 0.92);
+    if (!a.on || !d.on) continue;
+    ctx.globalAlpha = 0.3 + 0.4 * (1 - c.d / tune.cover_show);
+    ctx.fillStyle = c.q === 2 ? '#7fe35a' : '#f2d04a';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(d.x, d.y); ctx.lineTo(e.x, e.y); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+/** A shield on the screen at (x,y): green heavy cover, yellow light, red in the open (a slash across it). */
+function shieldIcon(x, y, q) {
+  const col = q === 2 ? '#7fe35a' : q === 1 ? '#f2d04a' : '#ff5a4a';
+  ctx.save(); ctx.fillStyle = col; ctx.strokeStyle = '#10140c'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x - 7, y - 8); ctx.lineTo(x + 7, y - 8); ctx.lineTo(x + 7, y - 1); ctx.quadraticCurveTo(x + 6, y + 6, x, y + 9); ctx.quadraticCurveTo(x - 6, y + 6, x - 7, y - 1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#10140c';
+  if (q === 2) { ctx.fillRect(x - 1, y - 6, 2, 11); ctx.fillRect(x - 5, y - 2, 10, 2); } else if (q === 1) ctx.fillRect(x - 5, y - 2, 10, 2); else { ctx.strokeStyle = '#10140c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y + 5); ctx.stroke(); }
+  ctx.restore();
+}
 /** The cover the selected infantry would take where the mouse is (or where the order arrow starts), and the arrow itself. */
 function drawOrderAids() {
   const g = state.gest, at = g ? g.p : state.mouse3;
@@ -525,22 +567,28 @@ function drawOrderAids() {
   } else if (at && sel.length && !(g ? g.tgt && g.face == null : enemyUnderMouse())) {
     const nInf = sel.reduce((a, sq) => a + alive(sq).filter(m => !m.veh).length, 0);
     const face = g ? g.face : null, kind = g ? g.kind : state.arm;
-    if (nInf && kind !== 'move' && kind !== 'attack') {
-      const key = Math.floor(at.x) + ',' + Math.floor(at.z) + ',' + (face == null ? '-' : face.toFixed(2)) + ',' + nInf + ',' + state.stepN;
-      if (UI.coverKey !== key) {
-        UI.coverKey = key;
-        let threat = face != null ? { x: Math.sin(face), z: Math.cos(face) } : null;
-        if (!threat) { const en = nearestEnemyTo(at.x, at.z, 0, 45); if (en) { const dx = en.x - at.x, dz = en.z - at.z, L = Math.hypot(dx, dz) || 1; threat = { x: dx / L, z: dz / L }; } }
-        UI.coverSpots = coverSpotsAt(at.x, at.z, nInf, threat);
+    if (nInf) {
+      // where the threat is: the dragged bearing, or the nearest enemy
+      const cell = Math.floor(at.x) + ',' + Math.floor(at.z) + ',' + (face == null ? '-' : face.toFixed(2));
+      const threatAt = () => { let th = face != null ? { x: Math.sin(face), z: Math.cos(face) } : null; if (!th) { const en = nearestEnemyTo(at.x, at.z, 0, 45); if (en) { const dx = en.x - at.x, dz = en.z - at.z, L = Math.hypot(dx, dz) || 1; th = { x: dx / L, z: dz / L }; } } return th; };
+      // the cover map around the mouse (Company of Heroes style): refreshed when the mouse changes cell, or twice a second
+      const mkey = cell + ',' + Math.floor(state.t * 2);
+      if (UI.coverMapKey !== mkey) { UI.coverMapKey = mkey; const th = threatAt(); UI.coverMap = coverMapAt(at.x, at.z, th); UI.coverHere = coverOfPoint(at.x, at.z, th); UI.coverTh = !!th; }
+      drawCoverMap(UI.coverMap || []);
+      // where the soldiers would go on a cover order
+      const key = cell + ',' + nInf + ',' + state.stepN;
+      if (kind !== 'move' && kind !== 'attack') {
+        if (UI.coverKey !== key) { UI.coverKey = key; UI.coverSpots = coverSpotsAt(at.x, at.z, nInf, threatAt()); }
+        for (const c of UI.coverSpots || []) coverPip(c.x, c.z, c.q, 0.95);
       }
-      const sp = UI.coverSpots || [];
-      for (const c of sp) coverPip(c.x, c.z, c.q, 0.95);
-      if (sp.length && !g) {
-        const heavy = sp.some(c => c.q === 2), veh = sp.some(c => c.veh);
-        const lab = veh ? 'Al riparo del mezzo' : heavy ? 'Copertura pesante' : 'Copertura leggera';
-        ctx.font = `bold 12px ${FONT}`; const w = ctx.measureText(lab).width + 16;
-        rrect(MS.x + 16, MS.y - 30, w, 20, 4, 'rgba(10,14,12,0.85)', heavy ? '#7fe35a' : '#f2d04a');
-        text(lab, MS.x + 24, MS.y - 20, 12, heavy ? '#b9f59a' : '#f7e39a', 'left');
+      if (!g) { // the badge by the mouse: the cover of the very point under it
+        const q = UI.coverHere || 0, veh = q === 2 && (UI.coverSpots || []).some(c => c.veh && Math.hypot(c.x - at.x, c.z - at.z) < 1.5);
+        const lab = (veh ? 'Al riparo del mezzo' : q === 2 ? 'Copertura pesante' : q === 1 ? 'Copertura leggera' : 'Allo scoperto') + (UI.coverTh ? '' : ' (da qualche lato)');
+        const col = q === 2 ? '#7fe35a' : q === 1 ? '#f2d04a' : '#ff5a4a';
+        ctx.font = `bold 12px ${FONT}`; const w = ctx.measureText(lab).width + 36;
+        rrect(MS.x + 16, MS.y - 32, w, 24, 4, 'rgba(10,14,12,0.88)', col);
+        shieldIcon(MS.x + 29, MS.y - 20, q);
+        text(lab, MS.x + 42, MS.y - 20, 12, q === 2 ? '#b9f59a' : q === 1 ? '#f7e39a' : '#ffb0a0', 'left');
       }
     }
   }
