@@ -46,22 +46,23 @@ const SHELLS = {
   he: { name: 'Esplosivo', short: 'HE', desc: 'Scoppio largo: fanteria e coperture. Debole sui mezzi.', veh: 0.6, inf: 1.2, blast: 1.35 },
   ap: { name: 'Perforante', short: 'AP', desc: 'Buca le corazze: molto danno ai mezzi, poco scoppio.', veh: 1.6, inf: 0.5, blast: 0.4 },
   frag: { name: 'Frammentazione', short: 'FRAG', desc: 'Pioggia di schegge: sopprime la fanteria su un\'area larga.', veh: 0.2, inf: 0.75, blast: 2.2 },
+  inc: { name: 'Incendiario', short: 'INC', dtype: 'fire', desc: 'Appicca il fuoco a legno, fieno, teli e sacchi; brucia e fa fuggire la fanteria. Quasi nulla sui mezzi.', veh: 0.15, inf: 1, blast: 1.1 },
 };
-const SHELL_IDS = ['he', 'ap', 'frag'];
+const SHELL_IDS = ['he', 'ap', 'frag', 'inc'];
 /** True while the weapon in use fires counted rounds. */
 function countedGun() { return weaponStats(state.weapon).kind === 'shell'; }
 /** How many rounds fit in the racks (all types together; 0 for a machine gun). */
 function ammoMax() { const W = weaponStats(state.weapon); return W.ammo ? Math.round(W.ammo * (modOn('rack') ? tune.mod_rack_ammo : 1)) : 0; }
 function ammoTotal() { return SHELL_IDS.reduce((a, k) => a + ((state.ammo && state.ammo[k]) || 0), 0); }
 /** Full racks: 60% explosive, 40% piercing. */
-function freshAmmo() { const m = ammoMax(); return { he: Math.round(m * 0.6), ap: m - Math.round(m * 0.6), frag: 0 }; }
+function freshAmmo() { const m = ammoMax(); return { he: Math.round(m * 0.6), ap: m - Math.round(m * 0.6), frag: 0, inc: 0 }; }
 /** X while driving: the next type of round that has any left. */
 function cycleShell() {
   if (!countedGun()) return;
   const i = SHELL_IDS.indexOf(state.shell);
-  for (let k = 1; k <= 3; k++) {
-    const s = SHELL_IDS[(i + k) % 3];
-    if (state.ammo[s] > 0 || k === 3) {
+  for (let k = 1; k <= SHELL_IDS.length; k++) {
+    const s = SHELL_IDS[(i + k) % SHELL_IDS.length];
+    if (state.ammo[s] > 0 || k === SHELL_IDS.length) {
       if (s !== state.shell) { state.shell = s; state.tank.reload = Math.max(state.tank.reload, 0.8); say('Equipaggio', 'Carico ' + SHELLS[s].name.toLowerCase() + ' (' + state.ammo[s] + ').', '#ffe08a'); }
       return;
     }
@@ -498,14 +499,14 @@ registerShopTab('weapon', {
     if (am) {
       bar(x0 + 24, cy + 164, 520, 20, tot / am, '#ffe08a'); text(tot + ' / ' + am + ' colpi nelle rastrelliere', x0 + 284, cy + 174, 13, '#10140c');
       SHELL_IDS.forEach((k, r) => {
-        const yy = cy + 200 + r * 58, S0 = SHELLS[k], c = shellCost(k);
-        rrect(x0 + 24, yy, 780, 52, 5, state.shell === k ? 'rgba(255,224,138,0.1)' : 'rgba(0,0,0,0.3)', state.shell === k ? '#ffe08a' : '#5a4030');
-        text(S0.short + '  ' + S0.name, x0 + 36, yy + 16, 15, HC.text, 'left'); text(S0.desc, x0 + 36, yy + 36, 12, HC.dim, 'left');
-        text(String(state.ammo[k]), x0 + 520, yy + 26, 20, '#ffe08a', 'right');
-        button(x0 + 540, yy + 8, 120, 36, '+5 (' + Math.min(5, Math.max(0, room)) * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
-        button(x0 + 670, yy + 8, 126, 36, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
+        const yy = cy + 196 + r * 50, S0 = SHELLS[k], c = shellCost(k);
+        rrect(x0 + 24, yy, 780, 46, 5, state.shell === k ? 'rgba(255,224,138,0.1)' : 'rgba(0,0,0,0.3)', state.shell === k ? '#ffe08a' : '#5a4030');
+        text(S0.short + '  ' + S0.name, x0 + 36, yy + 14, 15, HC.text, 'left'); text(S0.desc, x0 + 36, yy + 32, 11, HC.dim, 'left');
+        text(String(state.ammo[k] || 0), x0 + 520, yy + 23, 20, '#ffe08a', 'right');
+        button(x0 + 540, yy + 5, 120, 36, '+5 (' + Math.min(5, Math.max(0, room)) * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
+        button(x0 + 670, yy + 5, 126, 36, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
       });
-      text('In marcia X cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 384, 13, HC.dim, 'left');
+      text('In marcia X cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 400, 13, HC.dim, 'left');
     } else text('La mitragliatrice pesante non usa colpi contati.', x0 + 24, cy + 176, 14, HC.dim, 'left');
   },
 });

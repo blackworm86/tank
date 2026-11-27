@@ -459,6 +459,7 @@ function structHurt(S, cx, cy, cz, r, H) {
     }
     sphere(px, py, pz, Math.max(F * 0.6, r * tune.struct_he_r), I * (dt === 'heat' ? 0.6 : 0.3), false); // the burst where it stops
   } else if (dt === 'frag') sphere(cx, cy, cz, r, I, true);
+  else if (dt === 'fire') sphere(cx, cy, cz, r, I * 0.25, false); // an incendiary bursts weakly; its fire does the rest (js/fire.js)
   else sphere(cx, cy, cz, r * tune.struct_he_r, I, false);
   return { gone, hit };
 }

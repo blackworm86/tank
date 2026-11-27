@@ -89,7 +89,7 @@ function explode(p, x, y, z, direct) {
   const removed = blastVoxels(x, y, z, p.blast, { dtype: p.dtype, dmg: p.dmg, pen: p.pen, vx: p.vx, vy: p.vy, vz: p.vz });
   spawnDebris(removed, x, y, z, 40);
   blastFx(x, y, z, p.blast);
-  if (p.fire) fireSplash(x, y, z); // a molotov
+  if (p.fire || p.dtype === 'fire') { fireSplash(x, y, z); igniteArea(x, y, z, p.blast * tune.fire_inc_r, p.owner); } // a molotov, an incendiary round (js/fire.js)
   sfx(p.kind === 'rpg' ? 'boomS' : 'boom', x, z);
   const tk = state.tank, d = Math.hypot(x - tk.x, z - tk.z);
   cam.shake = Math.max(cam.shake, tune.shake * Math.max(0, 1 - d / 60) * (p.kind === 'shell' ? 1 : 0.6));

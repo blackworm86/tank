@@ -68,7 +68,7 @@ function flameFire(e, t, w) {
 /** A bottle of fuel lobbed from a bike: a small blast and a patch of fire. */
 function molotovFire(e, t, w) {
   const tx = t.x + (rng() - 0.5) * 3, tz = t.z + (rng() - 0.5) * 3, D = Math.hypot(tx - e.x, tz - e.z);
-  launch({ kind: 'mortar', team: e.team, owner: e, dmg: w.dmg, blast: w.blast, fire: true }, e.x, e.y + 1.6, e.z, tx, hAt(tx, tz), tz, D / (1.2 + D / 22), 14);
+  launch({ kind: 'mortar', team: e.team, owner: e, dmg: w.dmg, blast: w.blast, fire: true, dtype: 'fire' }, e.x, e.y + 1.6, e.z, tx, hAt(tx, tz), tz, D / (1.2 + D / 22), 14);
 }
 /** The self-propelled gun: a heavy round from far off; its landing spot is marked so it can be dodged. */
 function howitzerFire(e, t, w) {

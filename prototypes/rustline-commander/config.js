@@ -360,6 +360,17 @@ window.CONFIG = {
   dmg_numbers: { value: 1, min: 0, max: 1, step: 1 },             // 1: damage numbers over the units hit
   dmg_merge: { value: 0.35, min: 0, max: 2, step: 0.05 },         // seconds within which hits on a unit add up into one number
 
+  // ---- Fire (js/fire.js) ----
+  fire_burn: { value: 0.12, min: 0.01, max: 1, step: 0.01 },      // share of a burning cell's integrity gone a second (a plank lasts about 8 s)
+  fire_spread: { value: 0.08, min: 0, max: 1, step: 0.01 },       // chance a half second a fire catches a burnable neighbour, times how readily it burns (upward twice)
+  fire_max: { value: 400, min: 0, max: 2000, step: 50 },          // fires burning at once at most
+  fire_dps: { value: 14, min: 0, max: 100, step: 1 },             // damage a second to whoever stands within fire_r of a fire (fire type: dk_fire_*)
+  fire_r: { value: 1.3, min: 0.3, max: 4, step: 0.1 },
+  fire_ground_s: { value: 8, min: 0, max: 30, step: 0.5 },        // seconds a burning patch on the ground lasts
+  fire_ignite: { value: 0.35, min: 0.01, max: 1, step: 0.01 },    // chance a burnable cell in an incendiary's reach catches, times how readily it burns
+  fire_ignite_max: { value: 24, min: 1, max: 200, step: 1 },      // cells an incendiary sets alight at most (the fire spreads from them)
+  fire_inc_r: { value: 0.9, min: 0.5, max: 4, step: 0.1 },        // reach of an incendiary's flames, times its blast radius
+
   // ---- Directional armour, hull turning and arcs of fire (js/systems/combat.js, js/systems/entities.js, js/systems/units.js) ----
   armor_front: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
   armor_side: { value: 1, min: 0.1, max: 3, step: 0.05 },

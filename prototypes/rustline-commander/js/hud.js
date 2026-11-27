@@ -284,7 +284,8 @@ function drawHUD() {
   if (countedGun()) {
     let tx = 24; ctx.font = 'bold 12px ' + FONT;
     for (const k of SHELL_IDS) {
-      const s = SHELLS[k].short + ' ' + state.ammo[k], on = state.shell === k, tw = ctx.measureText(s).width;
+      if (k === 'inc' && !state.ammo.inc && state.shell !== 'inc') continue;
+      const s = SHELLS[k].short + ' ' + (state.ammo[k] || 0), on = state.shell === k, tw = ctx.measureText(s).width;
       if (on) rrect(tx - 3, 78, tw + 6, 16, 3, 'rgba(255,224,138,0.18)', '#ffe08a');
       text(s, tx, 86, 12, on ? '#ffe08a' : state.ammo[k] ? HC.text : '#7a6a58', 'left'); tx += tw + 10;
     }
