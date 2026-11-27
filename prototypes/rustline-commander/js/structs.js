@@ -33,6 +33,14 @@ const FMW = [0,   1,   0.9,  0.85, 0.8,  0.35, 0.15, 0.15, 0.8, 0.75, 0.4, 0.7, 
 const FMC = [0,   400, 250,  200,  120,  80,   300,  150,  20,  20,   120, 60,  40,  15,  5,    300,   200,  30,  10,   200];
 const FMM = [0,   150, 60,   50,   30,   130,  50,   30,   5,   5,    150, 10,  10,  5,   5,    50,    40,   15,  5,    100];
 const FMS = [0,   6,   1.5,  1.5,  1,    3,    4,    3,    0.5, 0.5,  4,   1,   0.5, 0.5, 2,    4,     3,    2,   0.5,  0.5];
+/**
+ * Damage (iteration 53): FMHP the integrity of a fine cell (the damage it takes before it goes; on the way it cracks,
+ * drawn darker, and bears less: struct_weak); FMARM the mm of penetration a piercing round or a shaped charge spends
+ * crossing it; FMSOFT how much bullets and splinters bite it (soft wood, glass and canvas; hardly concrete).
+ *              AIR CONC BRICK PLAST ADOBE WOOD METAL RUST RUBC RUBB BEAM TILE BAG  HAY  CLOTH STRIPE RAID JUNK GLASS TYRE */
+const FMHP   = [0,  60,  40,   30,   25,   30,  50,   35,  15,  15,  35,  15,  40,  15,  5,    50,    40,  20,  3,    40];
+const FMARM  = [0,  60,  40,   25,   25,   12,  25,   18,  20,  20,  15,  10,  30,  5,   1,    25,    25,  15,  2,    20];
+const FMSOFT = [0,  0.05, 0.1, 0.35, 0.3,  0.8, 0.15, 0.25, 0.5, 0.5, 0.6, 0.6, 0.2, 1,   1,    0.15,  0.15, 0.5, 1.5, 0.3];
 /** The fine material a 1 m kind becomes (d when it has none). */
 function fmOf(t, d) {
   const m = { [V.CONC]: FM.CONC, [V.BRICK]: FM.BRICK, [V.PLAST]: FM.PLAST, [V.ADOBE]: FM.ADOBE, [V.PLANK]: FM.WOOD, [V.WOOD]: FM.WOOD, [V.METAL]: FM.METAL, [V.RUST]: FM.RUST, [V.TILE]: FM.TILE,
@@ -67,7 +75,7 @@ function sget(S, x, y, z) { return x < 0 || y < 0 || z < 0 || x >= S.sx || y >= 
 function sset(S, x, y, z, m) {
   if (x < 0 || y < 0 || z < 0 || x >= S.sx || y >= S.sy || z >= S.sz) return;
   if (!S.own[((x / S.F) | 0) + S.w * ((z / S.F) | 0)]) return;
-  S.cells[x + S.sx * (z + S.sz * y)] = m;
+  const l = x + S.sx * (z + S.sz * y); S.cells[l] = m; if (S.dmg) S.dmg[l] = 0; // a new cell is whole
 }
 /** 0 or 1: the fine cell at world point (x, y, z), or -1 where no structure holds that point. */
 function structSolidAt(x, y, z) {
@@ -201,6 +209,7 @@ function dropLoose(S, fall) {
 function staticsFail(S) {
   const { sx, sy, sz, F } = S, A = sx * sz, n = A * sy, C = S.cells, kS = tune.statics_span * F, kL = tune.statics_load, kM = tune.statics_moment, tol = tune.statics_tip * F, D2 = Math.SQRT2;
   const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A), lc = new Int32Array(A), lean = leanMask(S);
+  const Dm = S.dmg, wk = tune.struct_weak / 255; // a cracked cell bears less (struct_weak at the point of giving way)
   const onGround = (i, fy) => {
     if (fy % F) return false;
     const y = S.yb + fy / F; if (y <= 0) return true;
@@ -267,7 +276,7 @@ function staticsFail(S) {
       q[qt++] = i; comp[i] = id;
       while (qh < qt) {
         const j = q[qh++], m = C[base + j], fx = j % sx, fz = (j / sx) | 0;
-        cap += FMC[m]; mc += FMM[m]; ld += L[j];
+        const sound = Dm ? 1 - Dm[base + j] * wk : 1; cap += FMC[m] * sound; mc += FMM[m] * sound; ld += L[j];
         if (fx > 0 && dist[j - 1] === 0 && comp[j - 1] < 0) { comp[j - 1] = id; q[qt++] = j - 1; }
         if (fx < sx - 1 && dist[j + 1] === 0 && comp[j + 1] < 0) { comp[j + 1] = id; q[qt++] = j + 1; }
         if (fz > 0 && dist[j - sx] === 0 && comp[j - sx] < 0) { comp[j - sx] = id; q[qt++] = j - sx; }
@@ -388,15 +397,70 @@ function carveSphere(S, cx, cy, cz, r, noisy) {
   return n;
 }
 /**
- * A blast of radius r metres at (x, y, z) carves every structure it reaches, drops what is left hanging and
- * projects again. Returns the 1 m cells it emptied as [x, y, z, kind, ...] (the debris thrown).
+ * Damages fine cell l of S by amt: its share of the material's integrity (FMHP) adds to S.dmg[l] (0..255); at 255
+ * the cell goes. Returns 1 when it went.
  */
-function structBlast(x, y, z, r) {
+function cellHurt(S, l, amt) {
+  const m = S.cells[l]; if (!m || amt <= 0) return 0;
+  const D = S.dmg || (S.dmg = new Uint8Array(S.cells.length)), v = D[l] + 255 * amt / FMHP[m];
+  if (v >= 255) { S.cells[l] = 0; D[l] = 0; return 1; }
+  D[l] = v; return 0;
+}
+/**
+ * A hit on structure S (fine units: point c, radius r; metres for dir), by its type (js/damage.js), each cell's
+ * damage taken off its integrity (cellHurt). The strength of a hit is struct_dmg times its damage to the
+ * struct_dmg_exp (a big gun hurts more, not in proportion).
+ *  - he, fire, heat's back blast: a sphere of r times struct_he_r, the damage falling off with the square of the distance:
+ *    the middle blown out, cracks round it (the shock that weakens a wall).
+ *  - ap, heat: a ray along the round's flight; each cell crossed takes struct_ap_k of the strength (and the cells round
+ *    it, within struct_ap_hole of the round's blast radius, part of it) and spends FMARM mm of the penetration: a narrow tunnel as deep as the round's bite, then its small burst.
+ *  - frag: the sphere at r, biting by FMSOFT: wood, glass and canvas go, concrete hardly marked.
+ * Returns { gone, hit }: cells removed, cells touched.
+ */
+function structHurt(S, cx, cy, cz, r, H) {
+  const F = S.F, C = S.cells, I = tune.struct_dmg * Math.pow(Math.max(1, H.dmg || 20), tune.struct_dmg_exp), dt = H.dtype || 'he';
+  let gone = 0, hit = 0;
+  const sphere = (px, py, pz, rad, k, soft) => {
+    const R = Math.ceil(rad);
+    for (let fy = Math.max(0, Math.floor(py - R)); fy <= Math.min(S.sy - 1, py + R); fy++)
+      for (let fz = Math.max(0, Math.floor(pz - R)); fz <= Math.min(S.sz - 1, pz + R); fz++)
+        for (let fx = Math.max(0, Math.floor(px - R)); fx <= Math.min(S.sx - 1, px + R); fx++) {
+          const l = fx + S.sx * (fz + S.sz * fy), m = C[l]; if (!m) continue;
+          const d = Math.hypot(fx + 0.5 - px, fy + 0.5 - py, fz + 0.5 - pz) / rad; if (d >= 1) continue;
+          const f = (1 - d) * (1 - d) * (0.85 + hash2(fx * 3 + fy * 7, fz * 5 - fy, 41) * 0.3); // rough edges
+          hit++; gone += cellHurt(S, l, k * f * (soft ? FMSOFT[m] : 1));
+        }
+  };
+  if (dt === 'ap' || dt === 'heat') {
+    const L = Math.hypot(H.vx || 0, H.vy || 0, H.vz || 0) || 1, ux = (H.vx || 0) / L, uy = (H.vy || 0) / L, uz = (H.vz || 0) / L;
+    let pen = H.pen || 0, px = cx - ux * F * 0.5, py = cy - uy * F * 0.5, pz = cz - uz * F * 0.5, last = -1;
+    for (let s = 0; s < 40 * F && pen > 0; s++) { // half a cell a step
+      px += ux * 0.5; py += uy * 0.5; pz += uz * 0.5;
+      const fx = Math.floor(px), fy = Math.floor(py), fz = Math.floor(pz); if (fx < 0 || fy < 0 || fz < 0 || fx >= S.sx || fy >= S.sy || fz >= S.sz) { if (s > 4) break; continue; }
+      const l = fx + S.sx * (fz + S.sz * fy); if (l === last) continue; last = l;
+      const m = C[l]; if (!m) continue;
+      const left = Math.min(1, pen / FMARM[m]); pen -= FMARM[m];
+      hit++; gone += cellHurt(S, l, I * tune.struct_ap_k * left);
+      sphere(fx + 0.5, fy + 0.5, fz + 0.5, Math.max(1.5, r * tune.struct_ap_hole), I * tune.struct_ap_k * left * 0.6, false); // the hole's rim: wider for a bigger round
+    }
+    sphere(px, py, pz, Math.max(F * 0.6, r * tune.struct_he_r), I * (dt === 'heat' ? 0.6 : 0.3), false); // the burst where it stops
+  } else if (dt === 'frag') sphere(cx, cy, cz, r, I, true);
+  else sphere(cx, cy, cz, r * tune.struct_he_r, I, false);
+  return { gone, hit };
+}
+/**
+ * A blast of radius r metres at (x, y, z) hurts every structure it reaches (structHurt, by the hit H's type; without
+ * H, a falling piece's blow: carved as a sphere), drops what is left hanging and projects again. Returns the 1 m
+ * cells it emptied as [x, y, z, kind, ...] (the debris thrown).
+ */
+function structBlast(x, y, z, r, H) {
   const out = []; if (!world.structs) return out;
   for (const S of world.structs) {
-    if (x + r < S.x0 || x - r > S.x0 + S.w || z + r < S.z0 || z - r > S.z0 + S.d || y + r < S.yb || y - r > S.yb + S.hgt) continue;
+    const rr = r * (H ? Math.max(tune.struct_he_r, H.dtype === 'ap' || H.dtype === 'heat' ? 4 : 1) : 1); // a piercing round goes on into it
+    if (x + rr < S.x0 || x - rr > S.x0 + S.w || z + rr < S.z0 || z - rr > S.z0 + S.d || y + rr < S.yb || y - rr > S.yb + S.hgt) continue;
     const F = S.F;
-    if (!carveSphere(S, (x - S.x0) * F, (y - S.yb) * F, (z - S.z0) * F, r * F, true)) continue;
+    if (H) { const o = structHurt(S, (x - S.x0) * F, (y - S.yb) * F, (z - S.z0) * F, r * F, H); if (!o.hit) continue; if (!o.gone) { world.schip.add(S.id); world.sdirty.add(S.id); continue; } } // only cracked: the statics at the next settle
+    else if (!carveSphere(S, (x - S.x0) * F, (y - S.yb) * F, (z - S.z0) * F, r * F, true)) continue;
     const before = [];
     for (let cz = 0; cz < S.d; cz++) for (let cx = 0; cx < S.w; cx++) for (let cy = S.g - S.yb; cy < S.hgt; cy++) {
       const k = vi(S.x0 + cx, S.yb + cy, S.z0 + cz); if (S.own[cx + S.w * cz] && world.fmark[k] === 1) before.push(cx, cy, cz, world.vox[k]);
@@ -610,22 +674,24 @@ function structRay(ax, ay, az, bx, by, bz, skip) {
   return best;
 }
 /**
- * A round strikes a structure: with a chance of struct_chip_p times the material's softness (FMH) the fine cells
+ * A round strikes a structure: the fine cells within struct_chip metres take struct_bullet times their softness (FMSOFT)
+ * off their integrity (cellHurt); The fine cells
  * within struct_chip metres of the point chip off (heavy rounds: 1.8 times as far, 2.5 times as likely); dust puffs.
  * The 1 m projection and the mesh follow at the next settle (struct_settle).
  */
 function structChip(h, heavy) {
   const S = h.S, F = S.F;
   if (state.fx) state.fx.push({ kind: 'smoke', x: h.x, y: h.y, z: h.z, t: 0, life: 0.5, s: heavy ? 0.45 : 0.28, rise: 0.4, col: FMCOL[h.m] });
-  if (rng() >= Math.min(1, tune.struct_chip_p * FMH[h.m] * (heavy ? 2.5 : 1))) return 0;
   const r = tune.struct_chip * (heavy ? 1.8 : 1) * F, cx = (h.x - S.x0) * F, cy = (h.y - S.yb) * F, cz = (h.z - S.z0) * F, R = Math.ceil(r) + 1;
-  let n = 0;
+  const amt = tune.struct_bullet * (heavy ? 3 : 1); // each round bites by how soft the cell is (FMSOFT): wood splinters, concrete hardly marks
+  let n = 0, any = 0;
   for (let fy = Math.floor(cy) - R; fy <= cy + R; fy++) for (let fz = Math.floor(cz) - R; fz <= cz + R; fz++) for (let fx = Math.floor(cx) - R; fx <= cx + R; fx++) {
-    if (!sget(S, fx, fy, fz)) continue;
+    const m = sget(S, fx, fy, fz); if (!m) continue;
     const inCell = fx === Math.floor(cx) && fy === Math.floor(cy) && fz === Math.floor(cz);
     if (!inCell && (fx + 0.5 - cx) ** 2 + (fy + 0.5 - cy) ** 2 + (fz + 0.5 - cz) ** 2 > r * r) continue;
-    S.cells[fx + S.sx * (fz + S.sz * fy)] = 0; n++;
+    any++; n += cellHurt(S, fx + S.sx * (fz + S.sz * fy), amt * FMSOFT[m] * (inCell ? 1 : 0.5));
   }
+  if (any) { world.schip.add(S.id); world.sdirty.add(S.id); }
   if (n) {
     world.schip.add(S.id);
     if (state.debris && rng() < 0.6) state.debris.push({ x: h.x, y: h.y, z: h.z, vx: (rng() - 0.5) * 3, vy: 1.5 + rng() * 2.5, vz: (rng() - 0.5) * 3, rx: rng() * 3, ry: rng() * 3, vr: (rng() - 0.5) * 12, life: tune.debris_life * 0.5, s: 0.1 + rng() * 0.1, t: FMV[h.m], rest: false }); // a chip, not a block
@@ -1034,7 +1100,7 @@ function structTex() {
  */
 function structGeo(S) {
   const dims = [S.sx, S.sy, S.sz], F = S.F, inv = 1 / F, pos = [], nor = [], col = [], uv = [], idx = [];
-  const get = (x, y, z) => sget(S, x, y, z);
+  const Dm = S.dmg, get = Dm ? (x, y, z) => { const m = sget(S, x, y, z); return m ? m | (Math.min(3, Dm[x + S.sx * (z + S.sz * y)] >> 6) << 5) : 0; } : (x, y, z) => sget(S, x, y, z); // material, and in bits 5-6 how cracked
   const cull = S.x0 !== undefined, GW = (S.w || 0) + 2, GH = cull ? new Int16Array(GW * (S.d + 2)) : null;
   if (cull) for (let b = 0; b < S.d + 2; b++) for (let a = 0; a < GW; a++) { const x = S.x0 - 1 + a, z = S.z0 - 1 + b; GH[a + GW * b] = inMap(x, z) ? groundOf(x, z) : 0; }
   const buried = (x, y, z) => S.yb + (y + 1) * inv <= GH[Math.floor(x / F) + 1 + GW * (Math.floor(z / F) + 1)] - 0.5; // (half a metre kept: the drawn ground dips on slopes)
@@ -1058,13 +1124,14 @@ function structGeo(S) {
         let hq = 1, done = false;
         for (; j + hq < dv; hq++) { for (let k = 0; k < wq; k++) if (mask[n + k + hq * du] !== c) { done = true; break; } if (done) break; }
         // one rectangle at slice p[d], from (i, j) wq x hq in (u, v)
-        const m = Math.abs(c), sgn = c > 0 ? 1 : -1, bc = R3.fmlin[m];
+        const m = Math.abs(c) & 31, crack = Math.abs(c) >> 5, sgn = c > 0 ? 1 : -1, bc = R3.fmlin[m];
         const o = [0, 0, 0]; o[d] = p[d]; o[u] = i; o[v] = j;
         const e1 = [0, 0, 0], e2 = [0, 0, 0]; e1[u] = wq; e2[v] = hq;
         const corners = sgn > 0 ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [[0, 0], [0, 1], [1, 1], [1, 0]];
         const yb = o[1] * inv + S.yb;
         let k = 0.96 + hash2(o[0] * 7 + o[1] * 3, o[2] * 13 + d, 77) * tune.vox_jitter;
         if (d !== 1) k *= 0.82 + 0.18 * Math.min(1, yb / 14); else if (sgn < 0) k *= 0.7;
+        if (crack) k *= 1 - tune.struct_crack_dark * crack / 3;
         for (const [a, bq] of corners) {
           const X = o[0] + e1[0] * a + e2[0] * bq, Y = o[1] + e1[1] * a + e2[1] * bq, Z = o[2] + e1[2] * a + e2[2] * bq;
           pos.push(X * inv, Y * inv, Z * inv);

@@ -36,7 +36,6 @@ window.CONFIG = {
   struct_ruin: { value: 0.55, min: 0, max: 1, step: 0.05 },     // how ruined the buildings stand at the start (0 whole, 1 stumps)
   struct_rubble: { value: 1, min: 0, max: 2, step: 0.1 },       // how high the rubble heaps under the ruins' holes
   struct_chip: { value: 0.2, min: 0.05, max: 0.6, step: 0.05 },  // metres a round chips off a wall where it strikes (heavy rounds 1.8 times)
-  struct_chip_p: { value: 0.5, min: 0, max: 1, step: 0.05 },     // chance a round chips, times the material's softness (heavy rounds 2.5 times)
   struct_settle: { value: 0.3, min: 0.1, max: 2, step: 0.1 },    // seconds between the chipped walls' updates (what falls, cover, paths, the drawn walls)
   industry_p: { value: 0.6, min: 0, max: 1, step: 0.05 },       // the chance a map holds an industrial zone (hangar, containers, steel water tower, walls, hedgehogs)
   pylon_gap: { value: 30, min: 0, max: 80, step: 5 },            // metres between the pylons of the power line across the map (0: none)
@@ -46,6 +45,14 @@ window.CONFIG = {
   statics_load: { value: 1, min: 0.2, max: 5, step: 0.1 },       // the load a post or a wall carries before it is crushed, times
   statics_moment: { value: 1, min: 0.2, max: 5, step: 0.1 },     // the overhang (weight times metres) a post or a wall holds before it snaps, times
   statics_tip: { value: 0.3, min: 0, max: 2, step: 0.05 },      // metres the centre of what stands on a floor may lie outside what bears it before it tips over
+  struct_dmg: { value: 8, min: 0.5, max: 40, step: 0.5 },         // a hit's strength on structures: this times its damage to struct_dmg_exp (cell integrity FMHP: concrete 60, brick 40, plaster 30, wood 30)
+  struct_dmg_exp: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // how a bigger gun's damage counts on walls (1: in proportion)
+  struct_he_r: { value: 1.2, min: 0.5, max: 3, step: 0.05 },      // a blast's reach on structures, times its radius (the damage falls off with the square of the distance)
+  struct_ap_k: { value: 1.6, min: 0.2, max: 5, step: 0.1 },       // a piercing round's or a shaped charge's strength on each cell it crosses, times
+  struct_ap_hole: { value: 0.6, min: 0.1, max: 2, step: 0.05 },   // the rim of a piercing round's hole, times its blast radius (a 105 makes a wider hole than a 25)
+  struct_bullet: { value: 6, min: 0, max: 40, step: 0.5 },        // a bullet's damage on a wall cell, times its softness (heavy machine gun: 3 times)
+  struct_weak: { value: 0.8, min: 0, max: 1, step: 0.05 },        // share of its load and moment a cell about to give way no longer bears
+  struct_crack_dark: { value: 0.5, min: 0, max: 0.8, step: 0.05 }, // how much darker the most cracked cells are drawn
   collapse_impact: { value: 0.5, min: 0, max: 2, step: 0.05 },   // how hard a falling piece strikes a roof or a wall it lands on: crater radius a cube root of m3, times its speed
   collapse_tip: { value: 3, min: 0, max: 8, step: 0.5 },         // metres a second (and a turn) a piece that tips over goes that way as it falls
   statics_iter: { value: 3, min: 1, max: 10, step: 1 },          // rounds of a collapse worked out a settle (the rest at the next one)

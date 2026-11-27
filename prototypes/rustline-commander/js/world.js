@@ -1033,7 +1033,7 @@ function lineClear(ax, ay, az, bx, by, bz) {
  * Removes voxels in a sphere (harder kinds resist), then drops what is left hanging.
  * Returns the removed voxels as a flat array [x,y,z,kind, ...].
  */
-function blastVoxels(cx, cy, cz, r) {
+function blastVoxels(cx, cy, cz, r, H) { // H: the hit (type, damage, penetration, flight) the structures take (structBlast)
   const removed = [], R = Math.ceil(r);
   const x0 = Math.floor(cx) - R, x1 = Math.floor(cx) + R, z0 = Math.floor(cz) - R, z1 = Math.floor(cz) + R;
   for (let y = Math.max(1, Math.floor(cy) - R); y <= Math.min(VH - 1, Math.floor(cy) + R); y++)
@@ -1044,7 +1044,7 @@ function blastVoxels(cx, cy, cz, r) {
       const rr = r * VHARD[t] * (0.85 + rng() * 0.3);
       if (ddx * ddx + ddy * ddy + ddz * ddz <= rr * rr) { world.vox[k] = 0; removed.push(x, y, z, t); markDirty(x, z); }
     }
-  for (const v of structBlast(cx, cy, cz, r)) removed.push(v); // the structures on their fine grid (js/structs.js)
+  for (const v of structBlast(cx, cy, cz, r, H)) removed.push(v); // the structures on their fine grid (js/structs.js)
   // scorched ground around the blast (drawn darker, the grass burnt off)
   if (world.scorch) for (let z = z0 - 1; z <= z1 + 1; z++) for (let x = x0 - 1; x <= x1 + 1; x++) {
     if (!inMap(x, z)) continue;

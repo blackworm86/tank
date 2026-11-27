@@ -86,7 +86,7 @@ function kill(e, src, kind) {
 }
 /** A shell, rocket or mortar round goes off: voxels fly, units in the radius are hurt. */
 function explode(p, x, y, z, direct) {
-  const removed = blastVoxels(x, y, z, p.blast);
+  const removed = blastVoxels(x, y, z, p.blast, { dtype: p.dtype, dmg: p.dmg, pen: p.pen, vx: p.vx, vy: p.vy, vz: p.vz });
   spawnDebris(removed, x, y, z, 40);
   blastFx(x, y, z, p.blast);
   if (p.fire) fireSplash(x, y, z); // a molotov
