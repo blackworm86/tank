@@ -25,7 +25,7 @@ function structRes() { return Math.max(2, Math.min(4, Math.round(tune.struct_res
 
 // ---- Storage ---------------------------------------------------------------------------------------------
 /** Clears the structures for a new map of N x N columns. */
-function structsReset(N) { world.structs = []; world.sown = new Int16Array(N * N); world.fmark = new Uint8Array(N * N * VH); world.sdirty = new Set(); world.schip = new Set(); world.settleT = 0; }
+function structsReset(N) { world.structs = []; world.sown = new Int16Array(N * N); world.fmark = new Uint8Array(N * N * VH); world.sdirty = new Set(); world.schip = new Set(); world.settleT = 0; world.pieces = []; }
 /**
  * A new structure over the 1 m box from (x0, z0), w x d columns, its ground floor at height g, h metres tall
  * above it and `below` metres of foundation under it. Columns another structure already holds stay out of it.
@@ -107,9 +107,10 @@ registerWorldStep('structSync', { order: 95, run: () => structsSync() });
 // ---- Damage ------------------------------------------------------------------------------------------------
 /**
  * Removes what no longer stands: a fine cell joins the ground when it rests on the foundation's bottom or on
- * 1 m ground below the box, and through its six neighbours. Returns how many fine cells fell.
+ * 1 m ground below the box, and through its six neighbours. Returns how many fine cells fell. With fall (in play)
+ * the loose cells come away as falling pieces (spawnPieces); without (building the map) they just go.
  */
-function dropLoose(S) {
+function dropLoose(S, fall) {
   const { sx, sy, sz, F } = S, n = sx * sy * sz, seen = new Uint8Array(n), q = new Int32Array(n), C = S.cells;
   let qh = 0, qt = 0;
   for (let fz = 0; fz < sz; fz++) for (let fx = 0; fx < sx; fx++) {
@@ -130,6 +131,7 @@ function dropLoose(S) {
     if (fy > 0 && C[l - sxz] && !seen[l - sxz]) { seen[l - sxz] = 1; q[qt++] = l - sxz; }
     if (fy < sy - 1 && C[l + sxz] && !seen[l + sxz]) { seen[l + sxz] = 1; q[qt++] = l + sxz; }
   }
+  if (fall) return spawnPieces(S, seen);
   let fell = 0;
   for (let l = 0; l < n; l++) if (C[l] && !seen[l]) { C[l] = 0; fell++; }
   return fell;
@@ -162,7 +164,7 @@ function structBlast(x, y, z, r) {
     for (let cz = 0; cz < S.d; cz++) for (let cx = 0; cx < S.w; cx++) for (let cy = S.g - S.yb; cy < S.hgt; cy++) {
       const k = vi(S.x0 + cx, S.yb + cy, S.z0 + cz); if (S.own[cx + S.w * cz] && world.fmark[k] === 1) before.push(cx, cy, cz, world.vox[k]);
     }
-    dropLoose(S);
+    dropLoose(S, true);
     projectStruct(S);
     for (let i = 0; i < before.length; i += 4) {
       const X = S.x0 + before[i], Y = S.yb + before[i + 1], Z = S.z0 + before[i + 2];
@@ -171,6 +173,143 @@ function structBlast(x, y, z, r) {
     world.sdirty.add(S.id);
   }
   return out;
+}
+
+// ---- Collapse: loose parts fall as pieces, hurt what is under them, settle as rubble -------------------------------
+/**
+ * Breaks a structure's loose cells (those not in seen) into connected pieces that fall (world.pieces); a crumb
+ * smaller than collapse_min m3 goes as dust. Returns how many fine cells came away.
+ */
+function spawnPieces(S, seen) {
+  const { sx, sy, sz, F } = S, C = S.cells, sxz = sx * sz, n = sx * sy * sz, q = new Int32Array(n);
+  const minCells = Math.max(1, Math.round(tune.collapse_min * F * F * F)), fresh = [];
+  let fell = 0;
+  for (let l0 = 0; l0 < n; l0++) {
+    if (!C[l0] || seen[l0]) continue;
+    let qh = 0, qt = 0, x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1, y1 = -1, z1 = -1;
+    q[qt++] = l0; seen[l0] = 2;
+    while (qh < qt) {
+      const l = q[qh++], fx = l % sx, fz = ((l / sx) | 0) % sz, fy = (l / sxz) | 0;
+      if (fx < x0) x0 = fx; if (fx > x1) x1 = fx; if (fy < y0) y0 = fy; if (fy > y1) y1 = fy; if (fz < z0) z0 = fz; if (fz > z1) z1 = fz;
+      if (fx > 0 && C[l - 1] && !seen[l - 1]) { seen[l - 1] = 2; q[qt++] = l - 1; }
+      if (fx < sx - 1 && C[l + 1] && !seen[l + 1]) { seen[l + 1] = 2; q[qt++] = l + 1; }
+      if (fz > 0 && C[l - sx] && !seen[l - sx]) { seen[l - sx] = 2; q[qt++] = l - sx; }
+      if (fz < sz - 1 && C[l + sx] && !seen[l + sx]) { seen[l + sx] = 2; q[qt++] = l + sx; }
+      if (fy > 0 && C[l - sxz] && !seen[l - sxz]) { seen[l - sxz] = 2; q[qt++] = l - sxz; }
+      if (fy < sy - 1 && C[l + sxz] && !seen[l + sxz]) { seen[l + sxz] = 2; q[qt++] = l + sxz; }
+    }
+    fell += qt;
+    if (qt < minCells || !world.pieces) { for (let i = 0; i < qt; i++) C[q[i]] = 0; continue; } // dust
+    const P = { F, sx: x1 - x0 + 1, sy: y1 - y0 + 1, sz: z1 - z0 + 1, n: qt, x: S.x0 + x0 / F, y: S.yb + y0 / F, z: S.z0 + z0 / F,
+      vy: 0, drop: 0, fallen: 0, rx: 0, rz: 0, vrx: (rng() - 0.5) * 0.5, vrz: (rng() - 0.5) * 0.5, mesh: null };
+    P.yb = P.y; P.cells = new Uint8Array(P.sx * P.sy * P.sz);
+    for (let i = 0; i < qt; i++) {
+      const l = q[i], fx = l % sx, fz = ((l / sx) | 0) % sz, fy = (l / sxz) | 0;
+      P.cells[(fx - x0) + P.sx * ((fz - z0) + P.sz * (fy - y0))] = C[l]; C[l] = 0;
+    }
+    fresh.push(P); world.pieces.push(P);
+  }
+  for (const P of fresh) pieceDrop(P); // once all of them are out: none rests on another's old place
+  return fell;
+}
+/** How far a piece falls: the least gap, over its columns, between its lowest cell and whatever is solid below. */
+function pieceDrop(P) {
+  const F = P.F, st = 1 / F;
+  let drop = 1e9;
+  for (let pz = 0; pz < P.sz; pz++) for (let px = 0; px < P.sx; px++) {
+    let low = -1;
+    for (let py = 0; py < P.sy; py++) if (P.cells[px + P.sx * (pz + P.sz * py)]) { low = py; break; }
+    if (low < 0) continue;
+    const X = P.x + (px + 0.5) / F, Z = P.z + (pz + 0.5) / F, y = P.y + low / F;
+    let d = 0;
+    while (d < drop && y - d > 0 && !solidF(X, y - d - st * 0.5, Z)) d += st;
+    if (d < drop) drop = d;
+  }
+  P.drop = drop === 1e9 ? 0 : drop;
+}
+/** The falling pieces: gravity (collapse_g), a slow tumble drawn on the mesh; on the ground, landPiece. */
+function updatePieces(dt) {
+  const L = world.pieces; if (!L || !L.length) return;
+  for (let i = L.length - 1; i >= 0; i--) {
+    const P = L[i];
+    P.vy += tune.collapse_g * dt; P.fallen += P.vy * dt;
+    if (P.fallen >= P.drop) { P.fallen = P.drop; landPiece(P); L.splice(i, 1); continue; }
+    P.rx = Math.max(-0.35, Math.min(0.35, P.rx + P.vrx * dt)); P.rz = Math.max(-0.35, Math.min(0.35, P.rz + P.vrz * dt));
+    if (!P.mesh && typeof R3 !== 'undefined' && R3.structGroup) {
+      structTex();
+      const g = structGeo(P), hx = P.sx / P.F / 2, hy = P.sy / P.F / 2, hz = P.sz / P.F / 2;
+      g.translate(-hx, -hy, -hz);
+      P.mesh = new THREE.Mesh(g, R3.structMat); P.mesh.castShadow = !CHEAP; P.mesh.userData.h = [hx, hy, hz];
+      R3.structGroup.add(P.mesh);
+    }
+    if (P.mesh) { const h = P.mesh.userData.h; P.mesh.position.set(P.x + h[0], P.y - P.fallen + h[1], P.z + h[2]); P.mesh.rotation.set(P.rx, 0, P.rz); }
+  }
+}
+on('playStep', dt => updatePieces(dt));
+/** The rubble kind a falling piece's material breaks into. */
+function rubbleOf(m) { return m === FM.BRICK || m === FM.RUBB || m === FM.TILE ? FM.RUBB : m === FM.WOOD || m === FM.BEAM ? FM.BEAM : FM.RUBC; }
+/** The structure holding column (x, z); a free column gets a rubble structure (a 4 x 4 m tile from the ground up). */
+function rubbleStructAt(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z), N = world.N; if (!inMap(ix, iz)) return null;
+  const o = world.sown[ix + N * iz]; if (o) return world.structs[o - 1];
+  const tx = Math.floor(ix / 4) * 4, tz = Math.floor(iz / 4) * 4;
+  let g = VH; for (let b = 0; b < 4; b++) for (let a = 0; a < 4; a++) if (inMap(tx + a, tz + b) && !world.sown[tx + a + N * (tz + b)]) g = Math.min(g, world.hmap[tx + a + N * (tz + b)]);
+  const T = newStruct(tx, tz, 4, 4, g, Math.min(8, VH - g), 0); T.rubble = true;
+  return world.sown[ix + N * iz] === T.id + 1 ? T : null;
+}
+/**
+ * A piece hits the ground: whoever stands under it is hurt (collapse_dmg a m3, up to collapse_cap m3, by the speed
+ * it fell; vehicles collapse_veh, on the roof armour), then it breaks into a heap of rubble no steeper than a cell a
+ * cell, written into the structures that hold those columns: new obstacles and cover.
+ */
+function landPiece(P) {
+  const F = P.F, vol = P.n / (F * F * F), yb = P.y - P.drop, top = yb + P.sy / F, x0 = P.x, z0 = P.z, x1 = P.x + P.sx / F, z1 = P.z + P.sz / F;
+  if (P.mesh) { P.mesh.geometry.dispose(); if (P.mesh.parent) P.mesh.parent.remove(P.mesh); P.mesh = null; }
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  // who is under it
+  const k = Math.min(1.5, Math.max(0.4, P.vy / 7));
+  if (state.ents) for (const e of state.ents) {
+    if (!e.alive || e.inside) continue;
+    const r = e.veh ? e.rad * 0.7 : 0.3;
+    if (e.x + r < x0 || e.x - r > x1 || e.z + r < z0 || e.z - r > z1) continue;
+    if (e.y + (e.veh ? 2.4 : 1.8) < yb - 0.3 || e.y > P.y + P.sy / F) continue;
+    let a = tune.collapse_dmg * Math.min(vol, tune.collapse_cap) * k;
+    if (e.veh) a *= HEAVY.has(e.kind) ? tune.collapse_heavy : tune.collapse_veh; // soft targets suffer, tanks shrug it off
+    dmgTo(e, a, 'collapse', null, { x: e.x, z: e.z, top: true });
+    if (e.alive && !e.veh) e.supT = state.t + tune.suppress_time;
+    world.crushed = (world.crushed || 0) + 1;
+  }
+  // the heap: each column of the piece slumps outward until no column stands more than a cell over its neighbour
+  const R = Math.min(4 * F, Math.max(1, Math.round(F * 0.75 + 0.7 * P.n / (P.sx * P.sz)))), W = P.sx + 2 * R, D = P.sz + 2 * R, h = new Int16Array(W * D), mats = []; // a taller piece spreads wider
+  for (let pz = 0; pz < P.sz; pz++) for (let px = 0; px < P.sx; px++) for (let py = 0; py < P.sy; py++) {
+    const m = P.cells[px + P.sx * (pz + P.sz * py)]; if (!m) continue;
+    h[px + R + W * (pz + R)]++; if (mats.length < 64) mats.push(rubbleOf(m));
+  }
+  const ns = Math.floor(rng() * 9999);
+  for (let pass = 0; pass < 2 * R + 8; pass++) for (let c = 0; c < W * D; c++) {
+    const cxi = c % W, czi = (c / W) | 0, lim = 1 + (hash2(cxi, czi, ns) < 0.3 ? 1 : 0); // rough slopes: some columns hold a cell more
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cxi + a, nz = czi + b; if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
+      const nc = nx + W * nz; if (h[c] - h[nc] > lim) { const mv = (h[c] - h[nc]) >> 1; h[c] -= mv; h[nc] += mv; }
+    }
+  }
+  for (let c = 0; c < W * D; c++) if (h[c] > 1) h[c] += Math.round((hash2(c, 7, ns) - 0.5) * 3); // a lumpy top
+  const touched = new Set(), st = 1 / F;
+  for (let czi = 0; czi < D; czi++) for (let cxi = 0; cxi < W; cxi++) {
+    const hh = h[cxi + W * czi]; if (!hh) continue;
+    const X = P.x + (cxi - R + 0.5) / F, Z = P.z + (czi - R + 0.5) / F;
+    if (!inMap(Math.floor(X), Math.floor(Z)) || solidF(X, top - st * 0.5, Z)) continue; // a wall stands there: that share is lost
+    let y = top; while (y > 0 && !solidF(X, y - st * 0.5, Z)) y -= st;
+    const T = rubbleStructAt(X, Z); if (!T) continue;
+    const fx = Math.floor((X - T.x0) * F), fz = Math.floor((Z - T.z0) * F), fy0 = Math.round((y - T.yb) * F);
+    for (let j = 0; j < hh; j++) if (!sget(T, fx, fy0 + j, fz)) sset(T, fx, fy0 + j, fz, mats.length ? mats[Math.floor(rng() * mats.length)] : FM.RUBC);
+    touched.add(T);
+  }
+  for (const T of touched) { projectStruct(T); world.sdirty.add(T.id); }
+  // dust, a thud, a few chips
+  if (state.fx) for (let i = 0; i < Math.min(6, 1 + vol * 2); i++) state.fx.push({ kind: 'smoke', x: cx + (rng() - 0.5) * (x1 - x0), y: yb + 0.3, z: cz + (rng() - 0.5) * (z1 - z0), t: -i * 0.05, life: 1.4 + rng(), s: 0.5 + Math.min(2, vol) * 0.5, rise: 1.2, col: 0x9a8e80 });
+  if (vol > 0.4 && typeof sfx === 'function') sfx('boomS', cx, cz);
+  if (vol > 1 && state.tank) cam.shake = Math.max(cam.shake, tune.shake * 0.4 * Math.max(0, 1 - Math.hypot(cx - state.tank.x, cz - state.tank.z) / 40));
 }
 
 // ---- Rounds: the fine surface along a line, chips ----------------------------------------------------------------
@@ -241,7 +380,7 @@ function structSettle(dt) {
   if (!world.schip || !world.schip.size) return;
   world.settleT -= dt; if (world.settleT > 0) return;
   world.settleT = tune.struct_settle;
-  for (const id of world.schip) { const S = world.structs[id]; if (!S) continue; dropLoose(S); projectStruct(S); world.sdirty.add(id); }
+  for (const id of world.schip) { const S = world.structs[id]; if (!S) continue; dropLoose(S, true); projectStruct(S); world.sdirty.add(id); }
   world.schip.clear();
 }
 on('playStep', dt => structSettle(dt));
@@ -430,6 +569,7 @@ function rebuildStructsView() {
   if (!R3.structGroup) { R3.structGroup = new THREE.Group(); R3.scene.add(R3.structGroup); }
   for (const m of R3.structGroup.children.slice()) { m.geometry.dispose(); R3.structGroup.remove(m); }
   for (const S of world.structs || []) { S.mesh = null; setStructMesh(S); }
+  for (const P of world.pieces || []) P.mesh = null; // (falling pieces make their own again)
   if (world.sdirty) world.sdirty.clear();
 }
 /** Rebuilds up to max damaged structures' meshes. */
