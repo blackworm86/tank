@@ -1025,38 +1025,8 @@ function structTex() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.colorSpace = THREE.SRGBColorSpace;
   R3.structTex = t;
   R3.structMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: t });
-  // the cutaway (updateStructCut): a capsule along the line of sight, from the tank toward the
-  // camera (a: the point, its cut height, the radius; b: the far end, the slope of the line of sight); what rises
-  // above that line inside them is not drawn
-  R3.cutU = { uCutA0: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB0: { value: new THREE.Vector4() }, uCutA1: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB1: { value: new THREE.Vector4() } };
-  R3.structMat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, R3.cutU);
-    sh.vertexShader = 'varying vec3 vCutW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCutW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = `varying vec3 vCutW;
-uniform vec4 uCutA0; uniform vec4 uCutB0; uniform vec4 uCutA1; uniform vec4 uCutB1;
-bool cutAway(vec4 A, vec4 B) {
-  vec2 pa = vCutW.xz - A.xz, ba = B.xy - A.xz; float L2 = max(dot(ba, ba), 1e-4), h = clamp(dot(pa, ba) / L2, 0.0, 1.0);
-  float d = h * sqrt(L2); // over the line of sight to the tank's foot, cut_h over it next to the tank only
-  return length(pa - ba * h) < A.w && vCutW.y > A.y + d * B.z + B.w * max(0.0, 1.0 - d / 4.0);
-}
-` + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (cutAway(uCutA0, uCutB0) || cutAway(uCutA1, uCutB1)) discard;');
-  };
   R3.fmlin = FMCOL.map(h => new THREE.Color(h || 0));
   return t;
-}
-/**
- * The cutaway, each frame: what of a structure rises between the camera and the tank is not drawn. A capsule cut_r
- * metres wide runs from the tank toward the camera; inside it, everything over the line of sight to the tank's foot
- * goes (cut_h metres over it right by the tank, so the tank's own cover stays), so a tall building never hides the tank and
- * its rooms show from above.
- */
-function updateStructCut() {
-  if (!R3.cutU || typeof state === 'undefined' || !state.tank) return;
-  const tk = state.tank, r = tune.cut_r, on = r > 0 && (typeof scene === 'undefined' || scene === 'play');
-  const sl = Math.tan(camPitch()), L = 70, dx = Math.sin(cam.yaw) * L, dz = Math.cos(cam.yaw) * L;
-  const put = (A, B, x, y, z, rr) => { A.value.set(x, on ? y : 1e9, z, rr); B.value.set(x + dx, z + dz, sl, tune.cut_h); };
-  put(R3.cutU.uCutA0, R3.cutU.uCutB0, tk.x, tk.y || hAt(Math.floor(tk.x), Math.floor(tk.z)), tk.z, r);
-  R3.cutU.uCutA1.value.set(0, 1e9, 0, 0); // only around the tank: nothing is cut around the cursor
 }
 /**
  * The structure's surface: for each axis and side, the faces between a cell and air merged greedily into rectangles.

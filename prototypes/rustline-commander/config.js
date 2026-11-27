@@ -42,8 +42,6 @@ window.CONFIG = {
   pylon_gap: { value: 30, min: 0, max: 80, step: 5 },            // metres between the pylons of the power line across the map (0: none)
   trap_clusters: { value: 3, min: 0, max: 10, step: 1 },          // clusters of hedgehogs beside the roads a map
   city_tower: { value: 0.2, min: 0, max: 1, step: 0.05 },       // the chance a wide city lot holds a tower of 8 to 15 storeys (40% of them shot to a skeleton)
-  cut_h: { value: 3, min: 1, max: 12, step: 0.5 },               // metres over the tank's ground (and the cursor's) where the cutaway starts, rising toward the camera with the line of sight
-  cut_r: { value: 7, min: 0, max: 30, step: 1 },                 // metres wide the cutaway runs from the tank toward the camera (0: off); from the cursor two thirds of it
   statics_span: { value: 1, min: 0.3, max: 3, step: 0.1 },      // how far each material may reach out from what bears it (concrete 6 m, metal 4, wood 3, brick 1.5), times
   statics_load: { value: 1, min: 0.2, max: 5, step: 0.1 },       // the load a post or a wall carries before it is crushed, times
   statics_moment: { value: 1, min: 0.2, max: 5, step: 0.1 },     // the overhang (weight times metres) a post or a wall holds before it snaps, times
