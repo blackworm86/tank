@@ -19,7 +19,7 @@ function rideH(x, z) {
 /** The tank flattens what is soft in a column it drives into (trees, sandbags, junk, planks). */
 function crushColumn(ix, iz, g, px, pz, tk) {
   const rem = [];
-  for (let y = world.hmap[ix + world.N * iz] - 1; y >= g; y--) { const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } else break; }
+  for (let y = world.hmap[ix + world.N * iz] - 1; y >= g; y--) { if (world.fmark[vi(ix, y, iz)]) continue; const t = getV(ix, y, iz); if (SOFTV.has(t)) { setV(ix, y, iz, 0); rem.push(ix, y, iz, t); } else break; } // (a structure's soft cells: vehCrush, js/structs.js)
   if (rem.length) { recomputeColumn(ix, iz); spawnDebris(rem, px, tk.y + 1, pz, 3); sfx('crunch', px, pz); }
 }
 /**
@@ -223,7 +223,7 @@ function fireTankMG(tk, S, sec) {
     else if (rng() < tune.cover_chip) chipCover(best, tk);
   } else if (rng() < 0.25) { // a burst chews soft cover where it lands
     const ix = Math.floor(ex), iz = Math.floor(ez), g = hAt(ex, ez), v = getV(ix, g - 1, iz);
-    if (SOFTV.has(v)) { setV(ix, g - 1, iz, 0); recomputeColumn(ix, iz); spawnDebris([ix, g - 1, iz, v], ix + 0.5, g - 0.5, iz + 0.5, 1); }
+    if (SOFTV.has(v) && !world.fmark[vi(ix, g - 1, iz)]) { setV(ix, g - 1, iz, 0); recomputeColumn(ix, iz); spawnDebris([ix, g - 1, iz, v], ix + 0.5, g - 0.5, iz + 0.5, 1); }
   }
   const sh = structShot(mx, my, mz, hx, hy, hz, W.heavy, best ? 0 : 1, null); // js/structs.js: a miss strikes the wall where it lands and chips it
   tracer(mx, my, mz, sh.x, sh.y, sh.z, [1, 0.9, 0.5]);

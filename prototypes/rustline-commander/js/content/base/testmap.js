@@ -63,7 +63,7 @@ function placeTargets() {
     const x = tk.x + s * ahead - c * right, z = tk.z + c * ahead + s * right, p = spotNear(x, z, i);
     if (bags) for (let k = -1; k <= 1; k++) { // a low sandbag wall between the target and the tank
       const bx = Math.floor(p.x - s * 1.5 - c * k), bz = Math.floor(p.z - c * 1.5 + s * k);
-      if (inMap(bx, bz) && !world.road[bx + world.N * bz]) { setV(bx, world.hmap[bx + world.N * bz], bz, V.BAG); recomputeColumn(bx, bz); }
+      if (inMap(bx, bz) && !world.road[bx + world.N * bz]) placeFine(bx, world.hmap[bx + world.N * bz], bz, V.BAG); // on the fine grid (js/structs.js)
     }
     addTarget(kind, p.x, p.z);
   });

@@ -468,6 +468,6 @@ function chipCover(t, from) {
   const x = Math.floor(t.x + dx / L * 1.1), z = Math.floor(t.z + dz / L * 1.1);
   for (let y = h + 1; y >= h; y--) {
     const v = getV(x, y, z);
-    if (SOFTV.has(v)) { setV(x, y, z, 0); recomputeColumn(x, z); spawnDebris([x, y, z, v], x + 0.5, y + 0.5, z + 0.5, 1); return; }
+    if (SOFTV.has(v) && !world.fmark[vi(x, y, z)]) { setV(x, y, z, 0); recomputeColumn(x, z); spawnDebris([x, y, z, v], x + 0.5, y + 0.5, z + 0.5, 1); return; }
   }
 }

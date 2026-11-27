@@ -119,28 +119,10 @@ function signboard(x, z, g, yaw, tex, wide) {
  * facing o.face and o.floors storeys of 3 m. Registered as a building soldiers can enter.
  */
 function buildHouse(x0, z0, w, d, g, o) { return structHouse(x0, z0, w, d, g, o); }
-/** An upright cylinder shell of voxels (silos, fuel and water tanks), a cone cap on top. */
-function cylinder(cx, cz, r, g, h, t, band, cap) {
-  const R = Math.ceil(r);
-  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
-    const d = Math.hypot(dx, dz); if (d > r + 0.35) continue;
-    const shell = d > r - 1.1;
-    for (let y = 0; y < h; y++) if (shell || y === 0) put(Math.round(cx + dx), g + y, Math.round(cz + dz), band && y % 4 === 3 ? band : t);
-  }
-  if (cap) for (let k = 0; k < Math.ceil(r); k++) {
-    const rr = r - k - 0.5;
-    for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) if (Math.hypot(dx, dz) <= rr + 0.35) put(Math.round(cx + dx), g + h + k, Math.round(cz + dz), cap);
-  }
-}
-/** A wrecked car: rusty or painted body, broken glass. Cover for infantry. */
-function carWreck(x, z, g, ax) {
-  const body = [V.RUST, V.JUNK, V.METAL, V.RAID, V.PLAST][Math.floor(rng() * 5)];
-  for (let a = 0; a < 4; a++) for (let b = 0; b < 2; b++) {
-    const xx = x + (ax ? a : b), zz = z + (ax ? b : a);
-    put(xx, g, zz, body);
-    if (a === 1 || a === 2) put(xx, g + 1, zz, rng() < 0.6 ? V.GLASS : body);
-  }
-}
+/** An upright cylinder (silos, fuel and water tanks, wells): built round on the fine grid by fineCylinder (js/structs.js). */
+function cylinder(cx, cz, r, g, h, t, band, cap) { fineCylinder(cx, cz, r, g, h, t, band, cap); }
+/** A wrecked car: rusty or painted body, the glass gone; built on the fine grid by fineCar (js/structs.js). Cover for infantry. */
+function carWreck(x, z, g, ax) { fineCar(x, z, g, ax, [V.RUST, V.JUNK, V.METAL, V.RAID, V.PLAST][Math.floor(rng() * 5)]); }
 
 // ---- Rural, village and city buildings ------------------------------------------------------------------------
 /** A farmhouse: plastered walls, a tiled pitched roof with a chimney. */

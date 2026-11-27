@@ -998,13 +998,7 @@ function rockArch(x0, z0) {
     const x = x0 + (ax ? k : w), z = z0 + (ax ? w : k); put(x, g + h + y - (k === -1 || k === span + 1 ? 1 : 0), z, (y + k) % 3 ? V.RED : V.ROCK);
   }
 }
-function buildWreck(s) {
-  const ax = rng() < 0.5, g = s.h;
-  for (let a = 0; a < 4; a++) for (let b = 0; b < 2; b++) {
-    const x = s.x + (ax ? a : b), z = s.z + (ax ? b : a);
-    put(x, g, z, V.RUST); if (a > 0 && a < 3) put(x, g + 1, z, a === 1 ? V.RUST : V.JUNK);
-  }
-}
+function buildWreck(s) { fineCar(s.x, s.z, s.h, rng() < 0.5, V.RUST); } // a rusted car hulk on the fine grid (js/structs.js): scrap to pick up
 
 // ---- Rays, sight and blasts -------------------------------------------------------------------
 /** Steps a ray through the voxels. Returns {x,y,z,t} of the first solid voxel, or null. */

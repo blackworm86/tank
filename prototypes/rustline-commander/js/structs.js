@@ -8,16 +8,25 @@
 'use strict';
 
 /** Fine materials (0 is air). */
-const FM = { AIR: 0, CONC: 1, BRICK: 2, PLAST: 3, ADOBE: 4, WOOD: 5, METAL: 6, RUST: 7, RUBC: 8, RUBB: 9, BEAM: 10, TILE: 11 };
-/** The 1 m kind each fine material projects to (never a soft kind: bullets and tracks chip soft 1 m voxels only). */
-const FMV = [0, V.CONC, V.BRICK, V.PLAST, V.ADOBE, V.ADOBE, V.METAL, V.RUST, V.CONC, V.BRICK, V.CONC, V.TILE];
+const FM = { AIR: 0, CONC: 1, BRICK: 2, PLAST: 3, ADOBE: 4, WOOD: 5, METAL: 6, RUST: 7, RUBC: 8, RUBB: 9, BEAM: 10, TILE: 11,
+  BAG: 12, HAY: 13, CLOTH: 14, STRIPE: 15, RAID: 16, JUNK: 17, GLASS: 18, TYRE: 19 };
+/**
+ * The 1 m kind each fine material projects to. Sandbags, hay, canvas and junk stay soft (light cover, crushed by
+ * tracks: vehCrush); a structure's wood (barns, fences, platforms) projects hard.
+ */
+const FMV = [0, V.CONC, V.BRICK, V.PLAST, V.ADOBE, V.ADOBE, V.METAL, V.RUST, V.CONC, V.BRICK, V.CONC, V.TILE,
+  V.BAG, V.HAY, V.CLOTH, V.STRIPE, V.RAID, V.JUNK, V.GLASS, V.JUNK];
 /** How hard each fine material is to blow away (multiplies the blast radius). */
-const FMH = [0, 0.62, 0.72, 0.8, 0.9, 1.1, 0.75, 0.8, 1.05, 1.05, 0.55, 1];
+const FMH = [0, 0.62, 0.72, 0.8, 0.9, 1.1, 0.75, 0.8, 1.05, 1.05, 0.55, 1, 1.15, 1.3, 1.4, 0.78, 0.78, 1.15, 1.5, 1.1];
 /** Fine material colours (sRGB hex). */
-const FMCOL = [0, 0x9e968b, 0x9c5038, 0xd2c3a2, 0xbba57c, 0x7c5535, 0x7d8b92, 0x8e4b27, 0x8a8279, 0x86513c, 0x5c4a3a, 0xa04428];
-/** The fine material a builder's 1 m wall kind becomes. */
+const FMCOL = [0, 0x9e968b, 0x9c5038, 0xd2c3a2, 0xbba57c, 0x7c5535, 0x7d8b92, 0x8e4b27, 0x8a8279, 0x86513c, 0x5c4a3a, 0xa04428,
+  VCOL[V.BAG], VCOL[V.HAY], VCOL[V.CLOTH], VCOL[V.STRIPE], VCOL[V.RAID], VCOL[V.JUNK], VCOL[V.GLASS], 0x2b2724];
+/** Fine materials tracks crush (vehCrush). */
+const FSOFT = new Set([FM.WOOD, FM.BAG, FM.HAY, FM.CLOTH, FM.JUNK]);
+/** The fine material a 1 m kind becomes (d when it has none). */
 function fmOf(t, d) {
-  const m = { [V.CONC]: FM.CONC, [V.BRICK]: FM.BRICK, [V.PLAST]: FM.PLAST, [V.ADOBE]: FM.ADOBE, [V.PLANK]: FM.WOOD, [V.WOOD]: FM.WOOD, [V.METAL]: FM.METAL, [V.RUST]: FM.RUST, [V.TILE]: FM.TILE }[t];
+  const m = { [V.CONC]: FM.CONC, [V.BRICK]: FM.BRICK, [V.PLAST]: FM.PLAST, [V.ADOBE]: FM.ADOBE, [V.PLANK]: FM.WOOD, [V.WOOD]: FM.WOOD, [V.METAL]: FM.METAL, [V.RUST]: FM.RUST, [V.TILE]: FM.TILE,
+    [V.BAG]: FM.BAG, [V.HAY]: FM.HAY, [V.CLOTH]: FM.CLOTH, [V.STRIPE]: FM.STRIPE, [V.RAID]: FM.RAID, [V.JUNK]: FM.JUNK, [V.GLASS]: FM.GLASS, [V.GREEN]: FM.CLOTH }[t];
   return m || d;
 }
 /** Fine cells a metre. */
@@ -65,7 +74,7 @@ function structSolidAt(x, y, z) {
  * is solid (its kind the material most of its fine cells are), one less full is open.
  */
 function projectStruct(S) {
-  const F = S.F, thr = Math.max(1, Math.round(tune.struct_fill * F * F * F)), N = world.N, cnt = new Uint16Array(16);
+  const F = S.F, thr = Math.max(1, Math.round(tune.struct_fill * F * F * F)), N = world.N, cnt = new Uint16Array(32);
   for (let cz = 0; cz < S.d; cz++) for (let cx = 0; cx < S.w; cx++) {
     if (!S.own[cx + S.w * cz]) continue;
     const X = S.x0 + cx, Z = S.z0 + cz;
@@ -77,7 +86,7 @@ function projectStruct(S) {
         for (let fx = cx * F; fx < cx * F + F; fx++) { const m = S.cells[fx + row]; if (m) { cnt[m]++; n++; } }
       }
       const k = vi(X, y, Z);
-      if (n >= thr) { let best = 1; for (let m = 2; m < 16; m++) if (cnt[m] > cnt[best]) best = m; world.vox[k] = FMV[best]; world.fmark[k] = 1; }
+      if (n >= thr) { let best = 1; for (let m = 2; m < 32; m++) if (cnt[m] > cnt[best]) best = m; world.vox[k] = FMV[best]; world.fmark[k] = 1; }
       else { if (world.fmark[k] === 1) world.vox[k] = 0; world.fmark[k] = n ? 2 : 0; }
     }
     recomputeColumn(X, Z); markDirty(X, Z);
@@ -97,7 +106,7 @@ function structsSync() {
         for (let fy = cy * F; fy < cy * F + F; fy++) for (let fz = cz * F; fz < cz * F + F; fz++) for (let fx = cx * F; fx < cx * F + F; fx++) S.cells[fx + S.sx * (fz + S.sz * fy)] = 0;
       }
     }
-    dropLoose(S);
+    if (!S.port) dropLoose(S); // (ported 1 m decor keeps its odd joins, a tent's ridge on its sides, till it is hit)
     projectStruct(S);
     world.sdirty.add(S.id);
   }
@@ -248,13 +257,16 @@ function updatePieces(dt) {
 on('playStep', dt => updatePieces(dt));
 /** The rubble kind a falling piece's material breaks into. */
 function rubbleOf(m) { return m === FM.BRICK || m === FM.RUBB || m === FM.TILE ? FM.RUBB : m === FM.WOOD || m === FM.BEAM ? FM.BEAM : FM.RUBC; }
-/** The structure holding column (x, z); a free column gets a rubble structure (a 4 x 4 m tile from the ground up). */
+/**
+ * The structure holding column (x, z); a free column gets a new one, a 4 x 4 m tile of the free columns round it
+ * from the lowest natural ground there, 12 m tall (rubble, ported 1 m things, sandbags laid in play).
+ */
 function rubbleStructAt(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z), N = world.N; if (!inMap(ix, iz)) return null;
   const o = world.sown[ix + N * iz]; if (o) return world.structs[o - 1];
   const tx = Math.floor(ix / 4) * 4, tz = Math.floor(iz / 4) * 4;
-  let g = VH; for (let b = 0; b < 4; b++) for (let a = 0; a < 4; a++) if (inMap(tx + a, tz + b) && !world.sown[tx + a + N * (tz + b)]) g = Math.min(g, world.hmap[tx + a + N * (tz + b)]);
-  const T = newStruct(tx, tz, 4, 4, g, Math.min(8, VH - g), 0); T.rubble = true;
+  let g = VH; for (let b = 0; b < 4; b++) for (let a = 0; a < 4; a++) if (inMap(tx + a, tz + b) && !world.sown[tx + a + N * (tz + b)]) g = Math.min(g, groundOf(tx + a, tz + b));
+  const T = newStruct(tx, tz, 4, 4, g, Math.min(12, VH - g), 0); T.rubble = true;
   return world.sown[ix + N * iz] === T.id + 1 ? T : null;
 }
 /**
@@ -485,6 +497,143 @@ function ruinHouse(S, H) {
     }
   }
 }
+
+// ---- Everything else built: objects on the fine grid, and the 1 m things ported to it -----------------------------
+/** Writes fine material m at world point (x, y, z) into the structure holding that column (inside its box). Returns it, or null. */
+function fput(x, y, z, m) {
+  const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return null;
+  const o = world.sown[ix + world.N * iz]; if (!o) return null;
+  const S = world.structs[o - 1], F = S.F;
+  sset(S, Math.floor((x - S.x0) * F + 1e-6), Math.floor((y - S.yb) * F + 1e-6), Math.floor((z - S.z0) * F + 1e-6), m);
+  return S;
+}
+/**
+ * An upright cylinder on the fine grid (silos, water tanks, wells): a round shell half a metre thick on a solid
+ * floor, a band of `band` every 4 m, a cone cap of `cap`. Centred where the old voxel cylinder was, (cx + 0.5, cz + 0.5).
+ */
+function fineCylinder(cx, cz, r, g, h, t, band, cap) {
+  const F = structRes(), R = Math.ceil(r) + 1, capH = cap ? Math.ceil(r) : 0;
+  const S = newStruct(Math.floor(cx) - R, Math.floor(cz) - R, 2 * R + 2, 2 * R + 2, g, h + capH + 1, 0);
+  const m = fmOf(t, FM.METAL), mb = band ? fmOf(band, m) : m, mc = cap ? fmOf(cap, m) : m, ox = cx + 0.5, oz = cz + 0.5, rr = r + 0.35, th = 0.5, touched = new Set([S]);
+  for (let fy = 0; fy < (h + capH) * F; fy++) for (let fz = 0; fz < S.sz; fz++) for (let fx = 0; fx < S.sx; fx++) {
+    const X = S.x0 + (fx + 0.5) / F, Z = S.z0 + (fz + 0.5) / F, d = Math.hypot(X - ox, Z - oz);
+    let mm = 0;
+    if (fy < h * F) { if (d <= rr && (fy < th * F || d > rr - th)) mm = band && Math.floor(fy / F) % 4 === 3 ? mb : m; }
+    else { const rc = rr * (1 - (fy - h * F) / (capH * F)); if (d <= rc && d > rc - th * 1.6) mm = mc; }
+    if (mm) { const T = fput(X, g + (fy + 0.5) / F, Z, mm); if (T) touched.add(T); }
+  }
+  for (const T of touched) { projectStruct(T); world.sdirty.add(T.id); }
+}
+/**
+ * A wrecked car on the fine grid, 4 x 2 m from (x, z) (along x when ax): a body of bodyK rusted through in places,
+ * four tyres, a cab of pillars and a roof with the glass gone. Cover for infantry.
+ */
+function fineCar(x, z, g, ax, bodyK) {
+  const F = structRes(), S = newStruct(x, z, ax ? 4 : 2, ax ? 2 : 4, g, 3, 0), bm = fmOf(bodyK, FM.RUST), L = 4 * F, Wd = 2 * F, ns = Math.floor(rng() * 9999), touched = new Set([S]);
+  const c0 = Math.round(L * 0.3), c1 = Math.round(L * 0.72), cabH = Math.round(F * 0.75), wb = [Math.round(L * 0.12), Math.round(L * 0.25)], wf = [Math.round(L * 0.72), Math.round(L * 0.85)];
+  for (let l = 0; l < L; l++) for (let w = 0; w < Wd; w++) for (let y = 0; y <= F + cabH; y++) {
+    let m = 0;
+    if (((l >= wb[0] && l <= wb[1]) || (l >= wf[0] && l <= wf[1])) && (w === 0 || w === Wd - 1) && y < 2) m = FM.TYRE;
+    else if (y >= 1 && y <= F) { // the body
+      const surf = w === 0 || w === Wd - 1 || y === F || l === 0 || l === L - 1;
+      if ((l === 0 || l === L - 1) && y === F) m = 0; // rounded ends
+      else if (surf && hash2(l * 3 + y, w * 7 + y, ns) < 0.14) m = 0; // rusted through
+      else m = bm;
+    } else if (y > F && l >= c0 && l < c1 && w >= 1 && w < Wd - 1 && (y === F + cabH || l === c0 || l === c1 - 1 || l === ((c0 + c1) >> 1))) m = bm; // the cab
+    if (m) { const T = fput(x + ((ax ? l : w) + 0.5) / F, g + (y + 0.5) / F, z + ((ax ? w : l) + 0.5) / F, m); if (T) touched.add(T); }
+  }
+  for (const T of touched) { projectStruct(T); world.sdirty.add(T.id); }
+}
+/**
+ * One 1 m voxel of kind t at (x, y, z) on the fine grid, in the structure holding its column (a new tile when none);
+ * nb: its six neighbours' kinds [+x, -x, +z, -z, +y, -y]. Its shape follows what it is and what it touches: a post
+ * (nothing beside it, something above or below), a fence (wood with one or two wooden neighbours: a post and two
+ * rails toward them), a thin slab (a canopy, a platform: nothing under it), a sandbag or a bale (rounded), a lone
+ * lump (a little mound), else a block with its open top edges worn. Returns the structure, or null.
+ */
+function portVoxel(x, y, z, t, nb) {
+  const m = fmOf(t, 0); if (!m) return null;
+  const S = rubbleStructAt(x + 0.5, z + 0.5); if (!S) return null;
+  const F = S.F, fy0 = (y - S.yb) * F; if (fy0 < 0 || fy0 + F > S.sy) return null;
+  const built = k => !!k && !GROUNDV.has(k) && k !== V.TREE, wood = k => k === V.WOOD || k === V.PLANK;
+  const hx = (built(nb[0]) ? 1 : 0) + (built(nb[1]) ? 1 : 0) + (built(nb[2]) ? 1 : 0) + (built(nb[3]) ? 1 : 0), up = built(nb[4]), down = built(nb[5]);
+  const pa = Math.max(0, (F >> 1) - 1), pb = Math.min(F - 1, F >> 1), postK = m === FM.WOOD || m === FM.METAL || m === FM.STRIPE || m === FM.RUST || m === FM.RAID;
+  const fx0 = (x - S.x0) * F, fz0 = (z - S.z0) * F;
+  for (let k = 0; k < F; k++) for (let j = 0; j < F; j++) for (let i = 0; i < F; i++) {
+    const post = i >= pa && i <= pb && j >= pa && j <= pb, h = hash2(x * F + i + k * 31, z * F + j + y * 17, 23);
+    let on;
+    if (postK && !hx && (up || down || m === FM.WOOD)) on = post;
+    else if (m === FM.WOOD && hx <= 2) {
+      const rail = (k === 1 || k === F - 1) && ((j >= pa && j <= pb && ((i > pb && wood(nb[0])) || (i < pa && wood(nb[1])))) || (i >= pa && i <= pb && ((j > pb && wood(nb[2])) || (j < pa && wood(nb[3])))));
+      on = post || rail;
+    } else if (postK && !down && hx >= 2) on = k >= F - Math.max(1, F >> 1);
+    else if (m === FM.BAG || m === FM.HAY) { const edge = (i === 0 || i === F - 1 ? 1 : 0) + (j === 0 || j === F - 1 ? 1 : 0); on = !(k === F - 1 && edge && !up) && !(edge === 2 && h < 0.5); }
+    else if (!hx && !up && !down) { const dx = (i + 0.5) / F - 0.5, dz = (j + 0.5) / F - 0.5; on = (k + 0.5) / F < 0.9 - 2.2 * (dx * dx + dz * dz) - h * 0.25; }
+    else {
+      const open = !up && k === F - 1 && ((i === F - 1 && !built(nb[0])) || (i === 0 && !built(nb[1])) || (j === F - 1 && !built(nb[2])) || (j === 0 && !built(nb[3])));
+      on = !(open && h < 0.45);
+    }
+    if (on && m === FM.JUNK && h > 0.8) on = false;
+    if (on) sset(S, fx0 + i, fy0 + k, fz0 + j, m);
+  }
+  if (S.rubble) S.port = true;
+  return S;
+}
+/** After the map rules (before structSync): every built 1 m voxel still left (fences, hay, posts, canopies, walls, tents, junk) goes onto the fine grid. */
+function structPort() {
+  const N = world.N, list = [];
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const base = VH * (x + N * z);
+    for (let y = 1; y < VH; y++) {
+      const k = base + y, t = world.vox[k];
+      if (!t || GROUNDV.has(t) || t === V.TREE || t === V.YEL || world.fmark[k] || !fmOf(t, 0)) continue;
+      list.push([x, y, z, t, [getV(x + 1, y, z), getV(x - 1, y, z), getV(x, y, z + 1), getV(x, y, z - 1), getV(x, y + 1, z), getV(x, y - 1, z)]]);
+    }
+  }
+  world.ported = 0;
+  for (const [x, y, z, t, nb] of list) if (portVoxel(x, y, z, t, nb)) { world.vox[vi(x, y, z)] = 0; world.ported++; }
+}
+registerWorldStep('structPort', { order: 94, run: () => structPort() });
+/** Lays a 1 m voxel of kind t at (x, y, z) on the fine grid in play (sandbags), projected at once; the old 1 m voxel when it cannot. */
+function placeFine(x, y, z, t) {
+  const S = portVoxel(x, y, z, t, [getV(x + 1, y, z), getV(x - 1, y, z), getV(x, y, z + 1), getV(x, y, z - 1), getV(x, y + 1, z), getV(x, y - 1, z)]);
+  if (!S) { setV(x, y, z, t); recomputeColumn(x, z); return; }
+  projectStruct(S); world.sdirty.add(S.id);
+}
+/**
+ * Every 0.1 s each vehicle that moved crushes the soft fine cells (FSOFT: fences, planks, sandbags, hay, canvas,
+ * junk) inside its hull (rad, 2.2 m up); what that leaves hanging falls at the next settle.
+ */
+function vehCrush(dt) {
+  world.crushT = (world.crushT || 0) - dt;
+  if (world.crushT > 0 || !world.structs || !world.structs.length || !state.ents) return;
+  world.crushT = 0.1;
+  const N = world.N;
+  for (const e of state.ents) {
+    if (!e.alive || e.gone || !(e.veh || e.kind === 'tank')) continue;
+    const mv = e._crx === undefined ? 1 : Math.hypot(e.x - e._crx, e.z - e._crz); e._crx = e.x; e._crz = e.z;
+    if (mv < 0.05) continue;
+    const r = (e.rad || 1.7) * 0.85, y0 = (e.vy ?? e.y) + 0.15, y1 = y0 + 2.05;
+    let n = 0, last = 0;
+    for (let iz = Math.floor(e.z - r); iz <= Math.floor(e.z + r); iz++) for (let ix = Math.floor(e.x - r); ix <= Math.floor(e.x + r); ix++) {
+      if (!inMap(ix, iz)) continue;
+      const o = world.sown[ix + N * iz]; if (!o) continue;
+      const S = world.structs[o - 1], F = S.F, a = Math.max(0, Math.floor((y0 - S.yb) * F)), b = Math.min(S.sy - 1, Math.floor((y1 - S.yb) * F));
+      let hit = 0;
+      for (let fz = (iz - S.z0) * F; fz < (iz - S.z0 + 1) * F; fz++) for (let fx = (ix - S.x0) * F; fx < (ix - S.x0 + 1) * F; fx++) {
+        if (Math.hypot(S.x0 + (fx + 0.5) / F - e.x, S.z0 + (fz + 0.5) / F - e.z) > r) continue;
+        for (let fy = a; fy <= b; fy++) { const l = fx + S.sx * (fz + S.sz * fy), m = S.cells[l]; if (m && FSOFT.has(m)) { S.cells[l] = 0; hit++; last = m; } }
+      }
+      if (hit) { n += hit; world.schip.add(S.id); }
+    }
+    if (n) {
+      if (state.debris) for (let i = 0; i < Math.min(4, 1 + n / 16); i++) state.debris.push({ x: e.x + (rng() - 0.5) * r, y: y0 + 0.5, z: e.z + (rng() - 0.5) * r, vx: (rng() - 0.5) * 4, vy: 2 + rng() * 2, vz: (rng() - 0.5) * 4, rx: rng() * 3, ry: rng() * 3, vr: (rng() - 0.5) * 12, life: tune.debris_life * 0.5, s: 0.15 + rng() * 0.15, t: FMV[last], rest: false });
+      if (n > 6 && typeof sfx === 'function') sfx('crunch', e.x, e.z);
+      if (world.settleT > 0.1) world.settleT = 0.1; // the crushed thing updates soon
+    }
+  }
+}
+on('playStep', dt => vehCrush(dt));
 
 // ---- The view: one mesh a structure, faces merged into rectangles --------------------------------------------
 /** The fine cells' look: a 4 x 4 tile of cells, each a little lighter or darker with a thin dark rim. */

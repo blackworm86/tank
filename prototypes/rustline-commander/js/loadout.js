@@ -476,7 +476,7 @@ function engSkill(e, dt) {
     const x = Math.floor(e.x + fx * 1.4 + fz * s), z = Math.floor(e.z + fz * 1.4 - fx * s); if (!inMap(x, z)) continue;
     const g = hAt(x + 0.5, z + 0.5); if (Math.abs(g - g0) > 1 || getV(x, g, z) !== V.AIR) continue;
     if (state.ents.some(o => o.alive && Math.floor(o.x) === x && Math.floor(o.z) === z)) continue;
-    setV(x, g, z, V.BAG); recomputeColumn(x, z); n++;
+    placeFine(x, g, z, V.BAG); n++; // on the fine grid (js/structs.js)
   }
   if (n) { floatText(e.x, e.y + 2.2, e.z, 'sacchi di sabbia', '#e0c890'); sfx('crunch', e.x, e.z); }
 }
