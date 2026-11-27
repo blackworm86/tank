@@ -9,13 +9,29 @@
 // ---- The campaign map ---------------------------------------------------------------------------------
 // FACTIONS: js/factions.js
 const LEVEL = ['', 'bassa', 'media', 'alta'], PLENTY = ['', 'pochi', 'discreti', 'molti'];
-const MISSIONS = {
-  exit: { name: 'Raggiungi l\'uscita', brief: 'Nessun obiettivo: trova l\'uscita del settore.' },
-  camp: { name: 'Distruggi il campo', brief: 'Un campo dell\'Orda controlla la zona: raderlo al suolo apre la via.' },
-  rescue: { name: 'Libera i prigionieri', brief: 'Prigionieri in un campo dell\'Orda: ripuliscilo e si uniranno a te.' },
-  cache: { name: 'Recupera i rifornimenti', brief: 'Un deposito militare nascosto: portaci il carro.' },
-  defend: { name: 'Ultima difesa', brief: '' },
-};
+/**
+ * The mission registry (missions.js fills it; this file runs whatever is there). An entry:
+ *   name, brief (the SITREP), tag (the label over its target), sign (the hint on the campaign map),
+ *   w (its chance in pickMission, in registration order; minCol + instead: before that column it is
+ *   another), fallback (picked when the chances run out), startsDone, exitOnly (only the exit lets you go);
+ * and its steps, all optional: prepare(M, n) right after the map is built, setup(M, n) after the factions,
+ *   update(M, dt) each step while not done, exitShut(M) (true keeps the exit shut), leave(M) on leaving,
+ *   line(M) (the line under the minimap, or null), tags(M, tag) (marks on the map), minimap(M, ring).
+ */
+const MISSIONS = adopt('mission', {});
+function registerMission(id, D) { return register('mission', id, D); }
+/** The entry of the sector's mission (its kind can change in prepare: a camp mission with no camp). */
+function missionOf(M) { return MISSIONS[M.kind]; }
+/** A sector's mission (not in the first sector: that one is set by hand): one roll over the chances. */
+function pickMission(col) {
+  const m = rng(); let acc = 0;
+  for (const id in MISSIONS) {
+    const D = MISSIONS[id]; if (!D.w) continue;
+    acc += D.w; if (m < acc) return col < (D.minCol || 0) ? D.instead : id;
+  }
+  for (const id in MISSIONS) if (MISSIONS[id].fallback) return id;
+  return 'exit';
+}
 
 /** A new campaign: 8 columns, one start, one last stand, 2-4 sectors between, each linked forward. */
 function newCampaign() {
@@ -36,7 +52,7 @@ function newCampaign() {
       if (rng() < tune.geo_combo) { const o = GEO_IDS.filter(g => g !== n.geo && !(g === 'hills' && n.geo !== 'river') && !(n.geo === 'hills' && g !== 'river')); n.geo2 = o[Math.floor(rng() * o.length)]; }
       const sh = rng(); n.shape = sh < 0.45 ? 'open' : sh < 0.75 ? 'valley' : 'basin';
       n.size = n.shape === 'valley' ? 224 : [160, 192, 208][Math.floor(rng() * 3)];
-      n.mission = pickMission(c); // missions.js
+      n.mission = pickMission(c); // the mission registry
       col.push(n);
     }
     cols.push(col);
@@ -115,15 +131,10 @@ function restoreSquads(list, x, z) {
 /** After newRun built the map: the mission, the people met on the way, the Horde's clock. */
 function setupMap() {
   const n = state.node, s = world.sites;
-  state.mission = { kind: n.mission, done: n.mission === 'exit', target: null, cache: null };
+  state.mission = { kind: n.mission, done: !!MISSIONS[n.mission].startsDone, target: null, cache: null };
   state.npcs = []; state.quests = []; state.waveN = 0; state.hordeT = n.final ? tune.final_prep : tune.horde_time; state.waveT = 0; state.leaveOK = false;
   const M = state.mission;
-  if ((M.kind === 'camp' || M.kind === 'rescue') && s.camps.length) M.target = s.camps[Math.floor(rng() * s.camps.length)];
-  else if (M.kind === 'camp' || M.kind === 'rescue') { M.kind = 'exit'; M.done = true; }
-  if (M.kind === 'cache') {
-    const rm = s.roadMain, p = rm.length > 20 ? rm[Math.floor(rm.length * (0.45 + rng() * 0.25))] : [s.start.x + 30, s.start.z + 30];
-    const q = spotNear(p[0] + 6, p[1] + 6, 0); M.cache = { x: q.x, z: q.z }; M.target = M.cache;
-  }
+  if (missionOf(M).prepare) missionOf(M).prepare(M, n); // right after the map: its target
   // the people met on the way: by the road, away from the camps
   const rm = s.roadMain, want = n.final ? 0 : 1 + (rng() < 0.5 ? 1 : 0);
   const used = new Set();
@@ -139,7 +150,9 @@ function setupMap() {
       break;
     }
   }
-  emit('sectorSetup', M, n); // the settlement and its faction (factions.js), the mission and the trail's step (missions.js)
+  emit('sectorSetup', M, n); // the settlement and its faction (factions.js)
+  if (missionOf(M).setup) missionOf(M).setup(M, n); // the mission's own people and places
+  emit('sectorSideSetup', M, n); // the trail's step (missions.js)
   if (n.final) setupFinal();
   else {
     say('SITREP', 'Settore ' + (n.col + 1) + '/8 · ' + BIOME().name + ', ' + LAYOUTS[world.layout].name + ' · ' + MISSIONS[M.kind].brief + ' L\'Orda ci darà la caccia tra ' + fmtT(state.hordeT) + '. (Campagna ' + campSeed + ': ?seed=' + campSeed + ' la rigioca.)', '#ffd9a0');
@@ -167,24 +180,9 @@ function fmtT(t) { t = Math.max(0, Math.ceil(t)); return Math.floor(t / 60) + ':
 // ---- Each step on a sector's map ---------------------------------------------------------------------
 function campaignUpdate(dt) {
   const tk = state.tank, M = state.mission; if (!M || !tk.alive) return;
-  // the mission
-  if (!M.done) {
-    if ((M.kind === 'camp' || M.kind === 'rescue') && M.target.cleared) {
-      M.done = true;
-      if (M.kind === 'rescue') {
-        joinSquad(['rifle', 'rifle', rng() < 0.5 ? 'mg' : 'medic'], 'Ex prigionieri', M.target.x + 0.5, M.target.z + 0.5);
-        say('Ex prigionieri', 'Grazie, comandante! Siamo con te.', '#9fe3a0');
-      } else { state.scrap += tune.mission_scrap; say('Radio', 'Campo distrutto: +' + tune.mission_scrap + ' rottami.', '#ffd36a'); }
-    }
-    if (M.kind === 'cache' && Math.hypot(M.cache.x - tk.x, M.cache.z - tk.z) < 4.5) {
-      M.done = true; const v = tune.mission_scrap + tune.cache_bonus; state.scrap += v; sfx('coin');
-      floatText(M.cache.x, hAt(M.cache.x, M.cache.z) + 2, M.cache.z, '+' + v + ' rottami', '#ffd36a');
-      if (rng() < 0.5) { const sl = freeUpgrade(); say('Radio', 'Deposito aperto: ' + v + ' rottami' + (sl ? ' e un pezzo nuovo (' + sl + ')' : '') + '.', '#ffd36a'); }
-      else { tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); say('Radio', 'Deposito aperto: ' + v + ' rottami e materiale per le riparazioni.', '#ffd36a'); }
-    }
-    if (M.done && !state.final) say('Radio', 'Missione compiuta! Invio per lasciare il settore subito, o prosegui verso l\'uscita.', '#9fe3a0');
-  }
-  emit('sectorStep', M, dt); // missions.js: the mission, the trail
+  // the mission, then the trail
+  if (!M.done && missionOf(M).update) missionOf(M).update(M, dt);
+  emit('sectorStep', M, dt); // missions.js: the trail
   // side jobs
   for (const q of state.quests) {
     if (q.done) continue;
@@ -218,9 +216,11 @@ function campaignUpdate(dt) {
   const ex = world.sites.fortress;
   state.atExitRaw = !state.final && Math.hypot(ex.x - tk.x, ex.z - tk.z) < tune.exit_radius;
   state.atExit = state.atExitRaw && exitOpen(M); // a spot still to hold keeps the exit shut
-  state.leaveOK = !state.final && (state.atExit || (M.done && M.kind !== 'exit'));
+  state.leaveOK = !state.final && (state.atExit || (M.done && !missionOf(M).exitOnly));
   if (state.leaveOK && pressed('Enter') && !state.goScene) leaveSector();
 }
+/** Can the tank leave by the exit? (a mission can keep it shut: a spot still to hold) */
+function exitOpen(M) { const D = M && MISSIONS[M.kind]; return !(D && D.exitShut && D.exitShut(M)); }
 /** At the exit: the field workshop opens first (upgrades, rounds, repairs, men); closing it leaves the map. */
 function leaveSector() {
   const n = state.node;
@@ -232,7 +232,8 @@ function leaveSector() {
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
 function departSector() {
   state.leaving = false;
-  emit('sectorLeave', state.mission); // missions.js: what the mission and the trail leave behind
+  const M = state.mission; if (M && missionOf(M).leave) missionOf(M).leave(M); // what the mission leaves behind
+  emit('sectorLeave', M); // missions.js: the trail follows
   const c = carryOut();
   if (!c.lost && c.squads.length >= 3) grantAch('allhome');
   state.carry = c; state.carryT = c.time; state.camp.lost = c.lost;
@@ -402,8 +403,9 @@ function drawMapHUD() {
   const tag = (x, z, lab, c, lift) => { const p = toScreen(x, hAt(x, z) + (lift || 4), z); if (!p.on) return; ctx.font = `bold 12px ${FONT}`; const w = ctx.measureText(lab).width + 14; rrect(p.x - w / 2, p.y - 10, w, 20, 5, 'rgba(14,10,8,0.82)', c); text(lab, p.x, p.y, 12, c); };
   if (!state.final) tag(s.fortress.x, s.fortress.z, 'USCITA', '#ffd36a', 6);
   const M = state.mission;
-  if (M.target && !M.done) tag(M.target.x, M.target.z, M.kind === 'cache' ? 'DEPOSITO' : M.kind === 'rescue' ? 'PRIGIONIERI' : (MISSIONS[M.kind].tag || 'OBIETTIVO'), '#ff8a6a', 7);
-  missionTags(tag); // missions.js: the boss, the refugees, the ring to hold, the trail
+  if (M.target && !M.done) tag(M.target.x, M.target.z, missionOf(M).tag || 'OBIETTIVO', '#ff8a6a', 7);
+  if (missionOf(M).tags) missionOf(M).tags(M, tag); // the boss, the refugees, the ring to hold
+  emit('mapTags', tag); // missions.js: the trail
   for (const p of state.npcs) if (p.seen && !p.done) tag(p.x, p.z, p.fac ? FACTIONS[p.fac].short : '?', p.fac ? FACTIONS[p.fac].col : '#b9f59a', 3.4);
   if (state.leaveOK) {
     const c = exitCount(), msg = (state.atExit ? 'USCITA' : 'MISSIONE COMPIUTA') + ' · Invio: lascia il settore · con te ' + c.go + (c.stay ? ', ' + c.stay + ' restano indietro (fuori radio)' : '');
@@ -415,7 +417,7 @@ function drawMapHUD() {
 function missionLine() {
   const M = state.mission, tk = state.tank, s = world.sites; if (!M) return '';
   if (state.final) return 'Difendi il campo dell\'esercito';
-  const ex = missionLineExtra(M); if (ex) return ex; // missions.js
+  const ex = missionOf(M).line && missionOf(M).line(M); if (ex) return ex; // the mission's own line
   if (!M.done && M.target) return MISSIONS[M.kind].name + ' · ' + Math.round(Math.hypot(M.target.x - tk.x, M.target.z - tk.z)) + ' m';
   return 'Uscita · ' + Math.round(Math.hypot(s.fortress.x - tk.x, s.fortress.z - tk.z)) + ' m';
 }
@@ -424,7 +426,8 @@ function minimapMarks(k) {
   const M = state.mission; if (!M) return;
   const ring = (x, z, r, c) => { ctx.strokeStyle = c; ctx.lineWidth = 2 / k; ctx.beginPath(); ctx.arc(x, z, r, 0, 6.3); ctx.stroke(); };
   if (M.target && !M.done) ring(M.target.x, M.target.z, 7, '#ff8a6a');
-  missionMinimap(ring); // missions.js
+  if (missionOf(M).minimap) missionOf(M).minimap(M, ring);
+  emit('minimapMarks', ring); // missions.js: the trail
   for (const p of state.npcs) if (p.seen && !p.done) { ctx.fillStyle = '#b9f59a'; ctx.beginPath(); ctx.arc(p.x, p.z, 2.6, 0, 6.3); ctx.fill(); }
   for (const q of state.quests) if (!q.done && q.site) ring(q.site.x, q.site.z, 9, '#ffd36a');
   if (state.campsKnown) for (const c of world.sites.camps) if (!c.cleared) ring(c.x, c.z, 11, '#ff5a40');
@@ -475,7 +478,6 @@ function drawCampaign() {
       text('Rottami: ' + PLENTY[sel.scrap], bx + 240, by + 54, 13, HC.gold, 'left');
       const signs = [];
       if (sel.faction) signs.push(FACTIONS[sel.faction].sign + ' (' + repLabel(sel.faction) + ')');
-      if (sel.mission === 'rescue') signs.push('segnale di soccorso');
       if (MISSIONS[sel.mission] && MISSIONS[sel.mission].sign) signs.push(MISSIONS[sel.mission].sign);
       if (sel.chain && !state.camp.chains[sel.chain.id].done) signs.push('pista: ' + CHAINS[sel.chain.id].name);
       wrap((MISSIONS[sel.mission] ? 'Missione: ' + MISSIONS[sel.mission].name.toLowerCase() + '. ' : '') + 'Segnali: ' + (signs.length ? signs.join(', ') : 'nessuno'), 412, 12).slice(0, 2).forEach((l, i) => text(l, bx + 16, by + 73 + i * 16, 12, HC.text, 'left'));
