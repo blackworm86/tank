@@ -226,7 +226,7 @@ function leaveSector() {
   const n = state.node;
   n.ws = n.ws || { name: 'Officina da campo', field: true };
   Object.assign(n.ws, { x: state.tank.x - 4, z: state.tank.z - 4 }); // recruits and reinforcements gather by the tank
-  state.shopSite = n.ws; state.leaving = true; state.shopTab = workshopOffers(n.ws).length ? 0 : 4; state.shopMsg = ''; state.confirm = null; state.tank.speed = 0;
+  state.shopSite = n.ws; state.leaving = true; state.shopTab = workshopOffers(n.ws).length ? 'modules' : 'repair'; state.shopMsg = ''; state.confirm = null; state.tank.speed = 0;
   state.goScene = 'shop'; sfx('radio');
 }
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */

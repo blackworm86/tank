@@ -502,3 +502,63 @@ function engSkill(e, dt) {
   }
   if (n) { floatText(e.x, e.y + 2.2, e.z, 'sacchi di sabbia', '#e0c890'); sfx('crunch', e.x, e.z); }
 }
+
+// ---- The workshop tabs (js/systems/workshop.js) ------------------------------------------------------------
+registerShopTab('weapon', {
+  name: 'Arma e colpi', order: 20,
+  draw(x0, y0, w, h, cy) {
+    // the main weapon: bought once, swapped free after
+    text('Arma principale (comprata una volta, poi si cambia gratis)', x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
+    const cw = Math.floor((w - 48 - 4 * 10) / 5);
+    WEAPON_IDS.forEach((id, i) => {
+      const W0 = WEAPONS[id], bx0 = x0 + 24 + i * (cw + 10), own = state.weaponsOwned.includes(id), eq = state.weapon === id, afford = own || state.scrap >= W0.cost;
+      button(bx0, cy + 24, cw, 92, '', () => equipWeapon(id), { active: eq, off: !afford });
+      text(W0.name, bx0 + 8, cy + 40, 14, eq ? '#eaf7d0' : afford ? HC.text : '#9a8a78', 'left');
+      wrap(W0.desc, cw - 16, 12).slice(0, 3).forEach((l, k) => text(l, bx0 + 8, cy + 58 + k * 14, 12, HC.dim, 'left'));
+      text(eq ? 'Montata' : own ? 'Tua: monta' : W0.cost + ' rottami', bx0 + cw - 8, cy + 104, 12, eq ? '#b6d77a' : own ? HC.text : HC.gold, 'right');
+    });
+    // the rounds: three types share the racks
+    const am = ammoMax(), tot = ammoTotal(), room = am - tot;
+    text('Colpi dell\'arma principale', x0 + 24, cy + 146, 17, '#ffd9a0', 'left');
+    if (am) {
+      bar(x0 + 24, cy + 164, 520, 20, tot / am, '#ffe08a'); text(tot + ' / ' + am + ' colpi nelle rastrelliere', x0 + 284, cy + 174, 13, '#10140c');
+      SHELL_IDS.forEach((k, r) => {
+        const yy = cy + 200 + r * 58, S0 = SHELLS[k], c = shellCost(k);
+        rrect(x0 + 24, yy, 780, 52, 5, state.shell === k ? 'rgba(255,224,138,0.1)' : 'rgba(0,0,0,0.3)', state.shell === k ? '#ffe08a' : '#5a4030');
+        text(S0.short + '  ' + S0.name, x0 + 36, yy + 16, 15, HC.text, 'left'); text(S0.desc, x0 + 36, yy + 36, 12, HC.dim, 'left');
+        text(String(state.ammo[k]), x0 + 520, yy + 26, 20, '#ffe08a', 'right');
+        button(x0 + 540, yy + 8, 120, 36, '+5 (' + Math.min(5, Math.max(0, room)) * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
+        button(x0 + 670, yy + 8, 126, 36, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
+      });
+      text('In marcia X cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 384, 13, HC.dim, 'left');
+    } else text('La mitragliatrice pesante non usa colpi contati.', x0 + 24, cy + 176, 14, HC.dim, 'left');
+  },
+});
+registerShopTab('systems', {
+  name: 'Sistemi avanzati', order: 30,
+  draw(x0, y0, w, h, cy) {
+    // advanced systems: the slots, the store, this garage's stock
+    const n = sysSlots(), cw = Math.floor((w - 48 - 4 * 10) / 5);
+    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti 1-5 usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
+    const card = (bx0, by, id, label, fn, opts) => {
+      button(bx0, by, cw, 78, '', fn, opts);
+      const S0 = SYSTEMS[id];
+      text(S0.name, bx0 + 8, by + 16, 13, HC.text, 'left');
+      wrap(S0.desc, cw - 16, 11).slice(0, 3).forEach((l, k) => text(l, bx0 + 8, by + 33 + k * 13, 11, S0.active ? '#9fd8ff' : HC.dim, 'left'));
+      if (label) text(label, bx0 + cw - 8, by + 68, 11, HC.gold, 'right');
+    };
+    for (let i = 0; i < 5; i++) {
+      const bx0 = x0 + 24 + i * (cw + 10), id = state.systems[i];
+      if (id) card(bx0, cy + 22, id, SYSTEMS[id].active ? 'tasto ' + (i + 1) : '', () => unmountSystem(id), { active: true });
+      else { rrect(bx0, cy + 22, cw, 78, 5, 'rgba(0,0,0,0.25)', i < n ? '#5a4030' : '#2e241c'); text(i < n ? 'Slot libero' : (state.hull === 'apc' ? 'Serve un telaio migliore' : 'Non su questo scafo'), bx0 + cw / 2, cy + 61, 12, i < n ? HC.dim : '#5a4a3a'); }
+    }
+    const store = state.owned.filter(id => !modOn(id));
+    text('In magazzino (click per montare)', x0 + 24, cy + 124, 15, '#ffd9a0', 'left');
+    if (!store.length) text('Vuoto.', x0 + 24, cy + 150, 13, HC.dim, 'left');
+    store.slice(0, 10).forEach((id, i) => card(x0 + 24 + (i % 5) * (cw + 10), cy + 140 + Math.floor(i / 5) * 86, id, '', () => mountSystem(id), { off: state.systems.length >= n }));
+    const stock = garageStock(state.shopSite), sy = cy + 140 + (store.length > 5 ? 172 : store.length ? 86 : 30);
+    text('In vendita da questa officina', x0 + 24, sy, 15, '#ffd9a0', 'left');
+    if (!stock.length) text('Niente di nuovo da vendere.', x0 + 24, sy + 26, 13, HC.dim, 'left');
+    stock.forEach((id, i) => card(x0 + 24 + i * (cw + 10), sy + 16, id, systemCost(id) + ' rottami', () => buySystem(id), { off: state.scrap < systemCost(id) }));
+  },
+});

@@ -296,3 +296,65 @@ function dressTank(g, hull) {
 function tankBarrel(hull) { return tankStats().barrel * (hull === 'mbt' ? 1 : hull === 'light' ? 0.8 : 0.9); }
 /** The fitted plates, for the HUD: [{name, cond, side}]. */
 function plateStatus() { return hardpoints().map(p => state.fit && state.fit[p.id]).filter(f => f && MODULES[f.id].plate).map(f => ({ name: MODULES[f.id].name, cond: f.cond, side: MODULES[f.id].plate.side })); }
+
+// ---- The workshop tab (js/systems/workshop.js) -------------------------------------------------------------
+registerShopTab('modules', {
+  name: 'Moduli', order: 10,
+  preview: true, // the vehicle turns in the middle window
+  draw(x0, y0, w, h, cy) {
+    // the modules: hardpoints on the left, the vehicle in the middle, this workshop's offer and the store on the right
+    const lx = x0 + 24, lw = 356, rw = 330, rx = x0 + w - 24 - rw, wx = lx + lw + 12, ww = rx - 12 - wx, wy = cy - 4, wh = y0 + h - 56 - wy;
+    ctx.clearRect(wx, wy, ww, wh); rrect(wx, wy, ww, wh, 6, null, '#7a5a40');
+    const S0 = tankStats(), used = loadUsed(), cap = loadCap();
+    rrect(wx + 4, wy + wh - 62, ww - 8, 58, 4, 'rgba(14,10,8,0.72)', null);
+    text('Velocità ' + S0.speed.toFixed(1) + '   Integrità ' + Math.round(S0.hp), wx + ww / 2, wy + wh - 48, 12, HC.text);
+    text('Radio ' + Math.round(S0.radio) + '   Torretta ' + Math.round(S0.turret) + '°/s', wx + ww / 2, wy + wh - 32, 12, HC.text);
+    const pf = platesOn('front').reduce((a, o) => a * (1 - o.P.k * o.f.cond), 1), ps = platesOn('side').reduce((a, o) => a * (1 - o.P.k * o.f.cond), 1);
+    text('Placche: fronte -' + Math.round((1 - pf) * 100) + '%  fianchi -' + Math.round((1 - ps) * 100) + '%', wx + ww / 2, wy + wh - 16, 12, '#b6d77a');
+    text('Punti di attacco', lx, cy + 6, 17, '#ffd9a0', 'left');
+    text('carico ' + used + ' / ' + cap, lx + lw, cy + 6, 14, used >= cap ? '#e0a070' : HC.gold, 'right');
+    bar(lx, cy + 18, lw, 6, Math.min(1, used / Math.max(1, cap)), used >= cap ? '#e0a070' : '#ffe08a');
+    const pts = hardpoints(), RH = 60;
+    pts.forEach((p, r) => {
+      const yy = cy + 32 + r * RH, f = state.fit[p.id], M = f && MODULES[f.id], sel = state.hpSel === p.id;
+      button(lx, yy, lw - 84, RH - 6, '', () => { state.hpSel = sel ? null : p.id; state.shopMsg = sel ? '' : p.name + ': i moduli che compri o monti vanno qui (se ci stanno).'; }, { active: sel });
+      partIcon(MOD_ICON[M ? M.type : p.types[0]], lx + 22, yy + 27, 26);
+      text(p.name, lx + 44, yy + 14, 15, HC.text, 'left');
+      text(p.types.map(t => MOD_TYPE[t]).join(', '), lx + 44 + ctx.measureText(p.name).width + 10, yy + 14, 11, HC.dim, 'left');
+      if (M) {
+        text(M.name, lx + 44, yy + 32, 14, RARITY[M.r].col, 'left'); text('peso ' + M.w, lx + lw - 92, yy + 32, 11, HC.dim, 'right');
+        if (M.plate) { bar(lx + 44, yy + 41, 150, 6, f.cond, f.cond > 0.5 ? '#8fd86a' : f.cond > 0 ? '#e0a050' : '#5a3a32'); text(f.cond > 0 ? Math.round(f.cond * 100) + '%' : 'distrutta', lx + 200, yy + 45, 11, f.cond > 0 ? HC.dim : '#e0503a', 'left'); }
+        else text(wrap(M.desc, lw - 140, 11)[0], lx + 44, yy + 46, 11, HC.dim, 'left');
+        button(lx + lw - 78, yy + 12, 78, 30, 'Smonta', () => unmountModule(p.id), { size: 13 });
+      } else text('vuoto: di serie', lx + 44, yy + 34, 13, sel ? '#d8e8b8' : '#8a7a68', 'left');
+    });
+    text('Click su un punto per scegliere dove montare.', lx, cy + 40 + pts.length * RH, 12, HC.dim, 'left');
+    // the offer: rolled once per visit
+    const offers = workshopOffers(state.shopSite);
+    text('In vendita qui (' + offers.length + ')', rx, cy + 6, 17, '#ffd9a0', 'left');
+    if (!offers.length) text('Oggi il meccanico non ha moduli nuovi.', rx, cy + 34, 13, HC.dim, 'left');
+    offers.forEach((id, i) => {
+      const M = MODULES[id], yy = cy + 20 + i * 86, c = modCost(id), t = targetPoint(id), afford = state.scrap >= c;
+      button(rx, yy, rw, 80, '', () => buyModule(state.shopSite, id), { off: !afford });
+      partIcon(MOD_ICON[M.type], rx + 20, yy + 22, 22);
+      text(M.name, rx + 38, yy + 15, 14, afford ? RARITY[M.r].col : '#9a8a78', 'left');
+      text(RARITY[M.r].name + ' · ' + MOD_TYPE[M.type] + ' · peso ' + M.w, rx + 38, yy + 31, 11, HC.dim, 'left');
+      text(wrap(M.desc, rw - 20, 11)[0], rx + 10, yy + 48, 11, HC.text, 'left');
+      if (M.bad) text(wrap(M.bad, rw - 20, 11)[0], rx + 10, yy + 63, 11, '#e08a6a', 'left'); else if (wrap(M.desc, rw - 20, 11)[1]) text(wrap(M.desc, rw - 20, 11)[1], rx + 10, yy + 63, 11, HC.text, 'left');
+      text(c + ' rottami', rx + rw - 8, yy + 15, 13, HC.gold, 'right');
+      text(t ? '→ ' + t.name : 'non va su questo scafo', rx + rw - 8, yy + 31, 11, t ? '#b6d77a' : '#e08a6a', 'right');
+    });
+    // the store: modules taken off, or bought with no room
+    const sy = cy + 20 + Math.max(1, offers.length) * 86 + 14;
+    text('Magazzino (' + state.depot.length + ')  ·  click per montare', rx, sy, 15, '#ffd9a0', 'left');
+    if (!state.depot.length) text('Vuoto.', rx, sy + 22, 13, HC.dim, 'left');
+    const maxN = Math.max(1, Math.floor((y0 + h - 60 - sy - 12) / 40));
+    state.depot.slice(0, maxN).forEach((f, i) => {
+      const M = MODULES[f.id], yy = sy + 12 + i * 40, v = sellValue(f);
+      button(rx, yy, rw - 88, 36, '', () => mountFromDepot(i));
+      text(M.name + (M.plate && f.cond < 0.999 ? ' (' + Math.round(f.cond * 100) + '%)' : ''), rx + 10, yy + 12, 13, RARITY[M.r].col, 'left');
+      text(MOD_TYPE[M.type] + ' · peso ' + M.w, rx + 10, yy + 27, 11, HC.dim, 'left');
+      button(rx + rw - 82, yy, 82, 36, 'Vendi ' + v, () => sellModule(i), { size: 12 });
+    });
+  },
+});

@@ -608,7 +608,7 @@ function restoreCam() { if (state.camSave) { Object.assign(cam, state.camSave); 
 /** Draws the play world: chunks, figures, effects, rings, camera. */
 function renderWorld() {
   if (!R3.ready || !state.ents) return;
-  if (typeof scene !== 'undefined' && scene === 'shop' && state.shopTab === 0) previewCam(); else restoreCam();
+  if (typeof scene !== 'undefined' && scene === 'shop' && shopTab().preview) previewCam(); else restoreCam();
   if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
   if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();

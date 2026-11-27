@@ -37,6 +37,7 @@
 <script src="js/systems/unitstep.js"></script>
 <script src="js/systems/combat.js"></script>
 <script src="js/systems/economy.js"></script>
+<script src="js/systems/workshop.js"></script>
 <script src="js/systems/barracks.js"></script>
 <script src="js/systems/sound.js"></script>
 <script src="js/systems/dev.js"></script>
@@ -217,17 +218,9 @@ const scenes = {
     draw() { ctx.clearRect(0, 0, W, H); renderWorld(); drawHUD(); drawEvent(); },
   },
   shop: {
-    update() {
-      for (let i = 0; i < 5; i++) if (pressed('Digit' + (i + 1))) state.shopTab = i;
-      clickButtons();
-      if (state.confirm) { if (pressed('Escape')) state.confirm = null; else if (pressed('Enter')) { const f = state.confirm.yes; state.confirm = null; f(); } }
-      else if (state.leaving && pressed('Backspace')) { state.leaving = false; scene = 'play'; }
-      else if (state.leaving && (pressed('Escape') || pressed('Enter'))) { departSector(); follow(); }
-      else if (pressed('Escape')) scene = 'play';
-      MS.lp = MS.rp = MS.lr = MS.rr = false;
-    },
+    update() { workshopInput(); }, // js/systems/workshop.js
     draw() {
-      if (!state.shopSite) { state.shopSite = world.sites.start; state.shopTab = Number(params.get('tab')) || 0; } // a shot opens it straight
+      if (!state.shopSite) { state.shopSite = world.sites.start; state.shopTab = shopTabs()[Number(params.get('tab')) || 0]; } // a shot opens it straight
       ctx.clearRect(0, 0, W, H); renderWorld(); drawShop();
     },
   },

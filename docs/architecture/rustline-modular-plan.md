@@ -54,8 +54,10 @@
    del SITREP, probabilità e i suoi passi (`prepare`, `setup`, `update`, `exitShut`, `leave`, `line`,
    `tags`, `minimap`). `campaign.js` esegue la voce e non nomina più nessuna missione; `pickMission`
    tira una volta sulle probabilità delle voci.
-4. **L'officina come un solo sistema.** Le tab (moduli, arma, sistemi, caserma, riparazioni) si
-   registrano, ognuna con il suo disegno; `hud.js` non le conosce più.
+4. **Fatto, iteration 22: l'officina come un solo sistema.** `js/systems/workshop.js` ha la cornice,
+   i tasti 1-9, la domanda di conferma e il registro delle tab. Ogni tab sta nel file del suo sistema
+   (moduli in `modules.js`, arma e sistemi in `loadout.js`, caserma e riparazioni in `barracks.js`);
+   `hud.js` non le conosce più e `state.shopTab` è il nome della tab, non più un numero.
 5. **La generazione del mondo a passi registrati:** forma, geografia, acqua, impianto, siti.
 6. **I contenuti in pacchetti** (`js/content/<pacchetto>/`): un'espansione è una cartella e una riga
    nell'elenco dei file.
@@ -109,3 +111,21 @@ partire), `fallback` (scelta quando le probabilità finiscono). Il commento in t
 
 Attenzione alle probabilità: le voci si tirano nell'ordine di registrazione e oggi la loro somma è 1.
 Una voce in più va bilanciata togliendo ad altre; altrimenti, registrata dopo, non uscirebbe mai.
+
+## Come aggiungere una tab all'officina (dall'iteration 22)
+
+Una chiamata nel file del sistema che la possiede:
+
+```js
+registerShopTab('intel', {
+  name: 'Informazioni', order: 60,                 // il posto: dopo Riparazioni (50); il tasto è il 6
+  draw(x0, y0, w, h, cy) {                         // il pannello e, in cy, l'inizio sotto i pulsanti
+    text('Rottami: ' + state.scrap, x0 + 24, cy + 6, 17, '#ffd9a0', 'left');
+    button(x0 + 24, cy + 30, 220, 40, 'Compra una mappa (50)', () => { state.scrap -= 50; }, { off: state.scrap < 50 });
+  },
+});
+```
+
+`order` mette le tab in fila (10 moduli, 20 arma, 30 sistemi, 40 caserma, 50 riparazioni) e i tasti
+1-9 la seguono. `preview: true` fa girare il mezzo in 3D nella finestra centrale, come nella tab dei
+moduli. Il pulsante `button()` e il testo `text()` sono quelli dell'HUD (`js/hud.js`).
