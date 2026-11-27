@@ -51,12 +51,12 @@ registerWorldStep('testRelief', { order: 35, run: wgTestRelief });
 /**
  * The test yard, near the start (order 72, after the sites' structures): one of each kind of structure, whole, on
  * level ground, to try how they are damaged and how they fall: a water tower, a petrol station, a silo, a brick
- * house, a four-storey block, a car wreck, a fence and a stack of bales. world.testYard: its box.
+ * house, a four-storey block, a car wreck, a fence and a stack of bales; containers, a pylon, hedgehogs, a wall. world.testYard: its box.
  */
 function wgTestYard(G) {
   world.testYard = null;
   if (!(world.spec && world.spec.test)) return;
-  const st = G.sites.start, W = 38, D = 26;
+  const st = G.sites.start, W = 50, D = 26;
   let A = null;
   for (const r of [20, 35, 55]) { A = findArea(W, D, { sites: [st], cx: st.x, cz: st.z, r, flat: 4, road: 1, margin: 2, tries: 200 }); if (A) break; }
   if (!A) return;
@@ -70,6 +70,10 @@ function wgTestYard(G) {
   carWreck(x + 24, z + 16, g, true);
   for (let k = 0; k < 11; k++) if (k !== 5) put(x + 24 + k, g, z + 22, V.WOOD); // a fence with a gap
   for (let k = 0; k < 3; k++) { put(x + 30 + k, g, z + 10, V.HAY); put(x + 30 + k, g, z + 11, V.HAY); if (k < 2) put(x + 30 + k, g + 1, z + 10, V.HAY); }
+  container(x + 38, z + 2, g, false, true); container(x + 41, z + 2, g, false, false); // obstacles and industry (iteration 48)
+  pylon(x + 44, z + 10, g);
+  for (let k = 0; k < 4; k++) hedgehog(x + 38 + k * 2, z + 18, g);
+  perimWall(x + 37, z + 23, 13, true, g, V.BRICK);
   keepArea(x, z, W, D, 1); recomputeArea(x - 4, z - 4, W + 8, D + 8);
   world.testYard = { x, z, w: W, d: D, g };
 }
@@ -128,6 +132,6 @@ function startTestMap() {
   state.scrap = 999;
   placeTargets();
   say('Test', 'Mappa di test: nessun nemico vero. Rampe, strada, gola nella montagna, altopiano con una rampa, scarpata, fiume con un guado, villaggi e rocce.', '#9fe3a0');
-  if (world.testYard) say('Test', 'Cantiere vicino alla partenza: cisterna su gambe, pensilina, silos, casa, palazzo di 4 piani, auto, recinzione e balle, interi, per provare danni e crolli.', '#9fe3a0');
+  if (world.testYard) say('Test', 'Cantiere vicino alla partenza: cisterna su gambe, pensilina, silos, casa, palazzo di 4 piani, auto, recinzione e balle, container, traliccio, cavalli di frisia e un muro, interi, per provare danni e crolli.', '#9fe3a0');
   say('Test', 'Davanti a te ' + TEST_TARGETS.length + ' bersagli da 15 a 70 m (alcuni dietro sacchi): non si muovono e non sparano, abbattuti ricompaiono dopo ' + TEST_RESPAWN + ' s. Colpi infiniti. Le squadre sparano ai bersagli a tiro: Q nel menu ordini (Non sparare) le ferma. Nuovi: la jeep con mitragliatrice e, col click destro su un bersaglio, il Fuoco di soppressione (S).', '#ffd36a');
 }

@@ -140,8 +140,8 @@ function silo(x, z, g) { cylinder(x, z, 2.2, g, 9, V.METAL, V.STRIPE, V.METAL); 
  * two ring beams with crossed braces between them, a plank deck and the metal tank with a rusty cap on it. Lose
  * two legs (or one, with the tank's weight hanging off the frame) and it tips and comes down whole (staticsFail).
  */
-function waterTower(x, z, g) {
-  const S = objStruct(x - 1, z - 1, 6, 6, g, 15), W = FM.WOOD, top = g + 6.5, r0 = g + 2.5, r1 = g + 5;
+function waterTower(x, z, g, steel) { // steel: a rusty steel frame (industrial zones)
+  const S = objStruct(x - 1, z - 1, 6, 6, g, 15), W = steel ? FM.RUST : FM.WOOD, top = g + 6.5, r0 = g + 2.5, r1 = g + 5;
   const legs = [[x + 0.25, z + 0.25], [x + 3.75, z + 0.25], [x + 3.75, z + 3.75], [x + 0.25, z + 3.75]];
   for (const [a, b] of legs) fbox(S, a - 0.25, g, b - 0.25, a + 0.25, top, b + 0.25, W);
   for (let i = 0; i < 4; i++) {
@@ -150,7 +150,7 @@ function waterTower(x, z, g) {
     fbeam(S, a, r0 + 0.25, b, c, r1, d, 0.25, W); fbeam(S, c, r0 + 0.25, d, a, r1, b, 0.25, W); // the crossed braces
   }
   fbox(S, x - 0.25, top, z - 0.25, x + 4.25, top + 0.5, z + 4.25, W); // the deck
-  fineCylinder(x + 1.5, z + 1.5, 1.9, top + 0.5, 3, V.METAL, null, V.RUST, S);
+  fineCylinder(x + 1.5, z + 1.5, 1.9, top + 0.5, 3, steel ? V.STRIPE : V.METAL, null, V.RUST, S);
   projectStruct(S); world.sdirty.add(S.id);
 }
 /** A church: a plastered nave with a tiled roof and a bell tower with open arches and a cross. */
@@ -181,6 +181,102 @@ function petrolStation(x, z, g) {
   buildHouse(x, z + 6, 6, 4, g, { wall: V.PLAST, corner: V.STRIPE, roof: 'flat', shop: true, face: [0, -1] });
   signboard(x + 8, z + 1, g, 0, 'fuel', false);
   for (let k = 0; k < 3; k++) addProp('barrel', x + 7 + k * 0.9, g, z + 6 + (k % 2) * 0.9, { ay: g - 1, crush: true, col: [0xa62f28, 0x56693a, 0x7d8b92][k] });
+}
+
+// ---- Obstacles and industry: objects on the fine grid (js/structs.js kit) -----------------------------------------
+/** A shipping container, 6 x 2 m (along x when ax), 2.5 m tall, hollow with one end open; stack: a second on top. */
+function container(x, z, g, ax, stack) {
+  const L = 6, Wd = 2, H = 2.5, n = stack ? 2 : 1, x1 = x + (ax ? L : Wd), z1 = z + (ax ? Wd : L), S = objStruct(x, z, x1 - x, z1 - z, g, H * n + 1);
+  for (let k = 0; k < n; k++) {
+    const m = [FM.RUST, FM.RAID, FM.METAL, FM.STRIPE][Math.floor(rng() * 4)], y = g + k * H;
+    fbox(S, x, y, z, x1, y + H, z1, m);
+    if (ax) fbox(S, x + 0.5, y + 0.25, z + 0.5, x1 - (k ? 0.5 : 0), y + H - 0.5, z1 - 0.5, 0); // hollow, the end at x1 open below
+    else fbox(S, x + 0.5, y + 0.25, z + 0.5, x1 - 0.5, y + H - 0.5, z1 - (k ? 0.5 : 0), 0);
+  }
+  projectStruct(S); world.sdirty.add(S.id);
+}
+/** A power-line pylon 13 m tall on a 3 x 3 m base: four steel legs leaning in, braced in rings, two cross arms. Shot through the legs, it falls. */
+function pylon(x, z, g) {
+  const S = objStruct(x - 2, z - 2, 7, 7, g, 15), M = FM.METAL, H = 13, cx = x + 1.5, cz = z + 1.5;
+  const foot = [[x + 0.25, z + 0.25], [x + 2.75, z + 0.25], [x + 2.75, z + 2.75], [x + 0.25, z + 2.75]], lean = (p, k) => [p[0] + (cx - p[0]) * 0.75 * k, p[1] + (cz - p[1]) * 0.75 * k];
+  for (const f of foot) { const t = lean(f, 1); fbeam(S, f[0], g, f[1], t[0], g + H, t[1], 0.5, M); }
+  for (const h of [3, 6.5, 10]) { const ring = foot.map(f => lean(f, h / H)); for (let i = 0; i < 4; i++) { const a = ring[i], b = ring[(i + 1) % 4]; fbeam(S, a[0], g + h, a[1], b[0], g + h, b[1], 0.25, M); } }
+  fbeam(S, cx - 3.25, g + 11, cz, cx + 3.25, g + 11, cz, 0.25, M); fbeam(S, cx - 2.25, g + 12.5, cz, cx + 2.25, g + 12.5, cz, 0.25, M);
+  projectStruct(S); world.sdirty.add(S.id);
+}
+/** A Czech hedgehog: three rusty steel beams crossed at the middle, 1.6 m tall; its core stops a vehicle. */
+function hedgehog(x, z, g) {
+  const S = objStruct(x - 1, z - 1, 3, 3, g, 3), cx = x + 0.5, cz = z + 0.5, M = FM.RUST;
+  fbeam(S, cx - 0.9, g + 0.25, cz - 0.9, cx + 0.9, g + 1.6, cz + 0.9, 0.5, M);
+  fbeam(S, cx + 0.9, g + 0.25, cz - 0.9, cx - 0.9, g + 1.6, cz + 0.9, 0.5, M);
+  fbeam(S, cx, g + 0.25, cz + 1.1, cx, g + 1.6, cz - 1.1, 0.5, M);
+  fbox(S, cx - 0.5, g, cz - 0.5, cx + 0.5, g + 1, cz + 0.5, M); // the core where they cross
+  projectStruct(S); world.sdirty.add(S.id);
+}
+/** A perimeter wall len metres long from (x0, z0) along x (ax) or z: half a metre thick, 2.5 m tall, a pillar every 3 m, here and there broken down. */
+function perimWall(x0, z0, len, ax, g, t) {
+  const S = objStruct(x0, z0, ax ? len : 1, ax ? 1 : len, g, 4), m = fmOf(t, FM.CONC);
+  for (let k = 0; k < len; k++) {
+    const x = ax ? x0 + k : x0, z = ax ? z0 : z0 + k, pil = k % 3 === 0, h = hash2(x, z, 91);
+    if (!pil && h < 0.12) continue; // a gap
+    const top = pil ? 3 : h < 0.3 ? 1.25 : 2.5; // broken down to half height here and there
+    if (pil) fbox(S, x, g, z, x + 1, g + top, z + 1, FM.CONC); else fbox(S, ax ? x : x + 0.25, g, ax ? z + 0.25 : z, ax ? x + 1 : x + 0.75, g + top, ax ? z + 0.75 : z + 1, m);
+  }
+  projectStruct(S); world.sdirty.add(S.id);
+}
+/**
+ * An industrial zone, 28 x 22 m: a hangar (one tall hall on a steel frame, a wide door, a pitched metal roof),
+ * rows of containers (some stacked), a steel water tower, a perimeter wall behind and on one side with a gate, a
+ * line of hedgehogs at the gate.
+ */
+function industrialZone(sites) {
+  const W = 28, D = 22, A = findArea(W, D, { sites, flat: 4, margin: 1, road: 2, tries: 200 });
+  if (!A) return false;
+  levelGround(A.x, A.z, W, D, A.g, 1); recomputeArea(A.x - 2, A.z - 2, W + 4, D + 4);
+  const x = A.x, z = A.z, g = A.g;
+  buildHouse(x + 2, z + 2, 12, 9, g, { wall: rng() < 0.5 ? V.METAL : V.RUST, corner: V.CONC, floors: 2, hall: true, system: 'frame', roof: rng() < 0.6 ? 'gable' : 'shed', roofT: V.METAL, doorW: 3, doorH: 3, face: [0, 1], ruin: tune.struct_ruin * (0.3 + rng() * 0.6) });
+  for (let k = 0; k < 3; k++) { container(x + 16, z + 2 + k * 3, g, true, rng() < 0.4); if (rng() < 0.6) container(x + 16, z + 11 + k * 3, g, true, rng() < 0.3); }
+  waterTower(x + 3, z + 14, g, true);
+  perimWall(x, z + D - 1, W, true, g, rng() < 0.5 ? V.CONC : V.BRICK);
+  perimWall(x + W - 1, z, D - 6, false, g, V.CONC);
+  for (let k = 0; k < 3; k++) hedgehog(x + W - 1 + (k % 2 ? 2 : 0), z + D - 5 + k * 1.5 | 0, g);
+  keepArea(x, z, W, D, 1); recomputeArea(x - 4, z - 4, W + 8, D + 8);
+  return true;
+}
+/** A power line across the map: a straight run from edge to edge, a pylon every pylon_gap metres where the ground lets it. */
+function powerLine(sites) {
+  if (tune.pylon_gap <= 0) return 0;
+  const N = world.N, a = rng() * Math.PI, cx = N * (0.3 + rng() * 0.4), cz = N * (0.3 + rng() * 0.4), dx = Math.cos(a), dz = Math.sin(a), gap = Math.max(10, tune.pylon_gap);
+  let n = 0;
+  for (let t = -N; t <= N; t += gap) {
+    const ox = Math.round(cx + dx * t), oz = Math.round(cz + dz * t);
+    if (ox < 6 || oz < 6 || ox > N - 9 || oz > N - 9 || !areaOK(ox - 1, oz - 1, 5, 5, 0, 2, 1, sites)) continue;
+    const g = areaG(ox, oz, 3, 3); levelGround(ox, oz, 3, 3, g, 0); recomputeArea(ox - 1, oz - 1, 5, 5);
+    pylon(ox, oz, g); keepArea(ox - 2, oz - 2, 7, 7, 0); n++;
+  }
+  return n;
+}
+/** A free spot for a hedgehog at (x, z): dry, level, nothing built or grown, no road under it or beside it. */
+function trapSpot(x, z) {
+  const N = world.N, g = groundOf(x, z);
+  if (x < 3 || z < 3 || x > N - 4 || z > N - 4 || g < world.WL + 1) return false;
+  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const i = x + a + N * (z + b); if (world.road[i] || world.sown[i] || world.bld[i] || world.hmap[i] > groundOf(x + a, z + b) || Math.abs(groundOf(x + a, z + b) - g) > 0) return false; }
+  return true;
+}
+/** trap_clusters clusters of three to five hedgehogs beside the roads, a few metres off them: obstacles for vehicles, cover for infantry. */
+function trapClusters(sites) {
+  const N = world.N, roads = [];
+  for (let i = 0; i < N * N; i++) if (world.road[i]) roads.push(i);
+  let n = 0;
+  for (let c = 0; c < Math.round(tune.trap_clusters) && roads.length; c++) {
+    const r = roads[Math.floor(rng() * roads.length)], ax = r % N, az = (r / N) | 0, k0 = 3 + Math.floor(rng() * 3);
+    for (let k = 0, tries = 0; k < k0 && tries < 30; tries++) {
+      const x = Math.round(ax + (rng() - 0.5) * 12), z = Math.round(az + (rng() - 0.5) * 12);
+      if (!trapSpot(x, z)) continue;
+      hedgehog(x, z, groundOf(x, z)); keepArea(x - 1, z - 1, 3, 3, 0); n++; k++;
+    }
+  }
+  return n;
 }
 
 /**
@@ -303,6 +399,8 @@ function buildLayout(sites, placed, freeSpot, P, ns) {
     onArea(A, 9, 10, (x, z, g) => petrolStation(x, z, g));
   }
   for (let k = 0; k < P.ruins; k++) { const s = freeSpot(18, 2); if (s) { buildRuin(s); recomputeAll(); } }
+  if (rng() < tune.industry_p) industrialZone(placed); // obstacles and industry
+  world.pylons = powerLine(placed); world.traps = trapClusters(placed);
 }
 
 // ---- The sites, rebuilt ---------------------------------------------------------------------------------------

@@ -501,7 +501,7 @@ function updatePieces(dt) {
 }
 on('playStep', dt => updatePieces(dt));
 /** The rubble kind a falling piece's material breaks into. */
-function rubbleOf(m) { return m === FM.BRICK || m === FM.RUBB || m === FM.TILE ? FM.RUBB : m === FM.WOOD || m === FM.BEAM ? FM.BEAM : FM.RUBC; }
+function rubbleOf(m) { return m === FM.BRICK || m === FM.RUBB || m === FM.TILE ? FM.RUBB : m === FM.WOOD || m === FM.BEAM ? FM.BEAM : m === FM.METAL || m === FM.RUST || m === FM.STRIPE || m === FM.RAID || m === FM.JUNK ? FM.RUST : m === FM.ADOBE || m === FM.HAY || m === FM.BAG ? m : FM.RUBC; } // metal comes down as scrap
 /**
  * The structure holding column (x, z); a free column gets a new one, a 4 x 4 m tile of the free columns round it
  * from the lowest natural ground there, 12 m tall (rubble, ported 1 m things, sandbags laid in play).
@@ -673,7 +673,8 @@ function structRayT(ox, oy, oz, dx, dy, dz, t0, t1) {
  *    built up under it) or 'shed' (one slope, high at the back); pitched roofs only on rectangles, built in steps
  *    two cells thick so each rests on the one below it down to the eaves (staticsFail); roofT their material.
  *  - wall, corner (1 m kinds), floors, face (the door's side), doorW, doorH (metres), win (false: no windows),
- *    chimney, skeleton (a frame with most of its infill walls gone above the ground floor), ruin (0..1, else
+ *    chimney, hall (no slabs but the top one: a warehouse, a hangar, its windows high up), skeleton (a frame
+ *    with most of its infill walls gone above the ground floor), ruin (0..1, else
  *    struct_ruin x 0.6..1.4).
  * Then ruined (ruinHouse) and what cannot stand goes at structSync (the statics). Registered as a building soldiers
  * can enter, its slots inside the footprint.
@@ -731,7 +732,7 @@ function structHouse(x0, z0, w, d, g, o) {
     const pilWall = pillarAt(mx, mz) && wall; // a pillar's metre of wall stays whole
     const rh = RH(fx, fz);
     for (let ly = 0; ly < fl * SH + PR + rh + 2; ly++) {
-      const st = Math.floor(ly / SH), sy = ly % SH, slab = st < fl && sy >= SH - SL;
+      const st = Math.floor(ly / SH), sy = ly % SH, slab = st < fl && sy >= SH - SL && !(o.hall && st < fl - 1); // a hall: one room up to the top slab
       let m = 0;
       if (ly < fl * SH) {
         if (pil) m = FM.CONC;
@@ -741,7 +742,7 @@ function structHouse(x0, z0, w, d, g, o) {
           if (!corner && !pilWall) {
             const onDoor = front && st === 0 && Math.abs(along - dAt) < dw && sy < doorH;
             const shopOpen = frame && o.shop && front && st === 0 && sy < doorH;
-            const winOK = o.win !== false && sy >= sill && sy < sill + winH && (frame ? true : along % 2 === 1 && (wz ? ix : iz) < F - 1);
+            const winOK = o.win !== false && sy >= sill && sy < sill + winH && (!o.hall || st === fl - 1) && (frame ? true : along % 2 === 1 && (wz ? ix : iz) < F - 1);
             if (onDoor || shopOpen || winOK) m = 0;
             if (o.skeleton && st >= 1 && hash2(mx * 7 + st * 3, mz * 13 + st, 77) < 0.75) m = 0; // a skeleton: most infill gone, the frame left
             if (frame && sy === SH - SL - 1) m = 0; // an infill wall stops short of the slab over it: each floor's walls weigh on their own slab, carried to the pillars, never on the walls below

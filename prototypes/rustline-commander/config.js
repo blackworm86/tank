@@ -38,6 +38,9 @@ window.CONFIG = {
   struct_chip: { value: 0.2, min: 0.05, max: 0.6, step: 0.05 },  // metres a round chips off a wall where it strikes (heavy rounds 1.8 times)
   struct_chip_p: { value: 0.5, min: 0, max: 1, step: 0.05 },     // chance a round chips, times the material's softness (heavy rounds 2.5 times)
   struct_settle: { value: 0.3, min: 0.1, max: 2, step: 0.1 },    // seconds between the chipped walls' updates (what falls, cover, paths, the drawn walls)
+  industry_p: { value: 0.6, min: 0, max: 1, step: 0.05 },       // the chance a map holds an industrial zone (hangar, containers, steel water tower, walls, hedgehogs)
+  pylon_gap: { value: 30, min: 0, max: 80, step: 5 },            // metres between the pylons of the power line across the map (0: none)
+  trap_clusters: { value: 3, min: 0, max: 10, step: 1 },          // clusters of hedgehogs beside the roads a map
   city_tower: { value: 0.2, min: 0, max: 1, step: 0.05 },       // the chance a wide city lot holds a tower of 8 to 15 storeys (40% of them shot to a skeleton)
   cut_h: { value: 3, min: 1, max: 12, step: 0.5 },               // metres over the tank's ground (and the cursor's) where the cutaway starts, rising toward the camera with the line of sight
   cut_r: { value: 7, min: 0, max: 30, step: 1 },                 // metres wide the cutaway runs from the tank toward the camera (0: off); from the cursor two thirds of it
