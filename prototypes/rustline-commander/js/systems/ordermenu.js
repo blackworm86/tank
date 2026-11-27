@@ -12,7 +12,16 @@ function menuItems(g, append) {
   const sel = selectedSquads(), tk = state.tank, p = g.p, items = [];
   if (append) { // a stop on the drawn path: how to get there
     const n = Math.max(1, ...sel.map(sq => sq.order.t === 'move' && !sq.order.done && sq.order.pts ? sq.order.pts.length - (sq.order.i || 0) + 1 : 1));
+    if (g.tgt && g.tgt.alive) { // Shift + right click on an enemy: what the path does about it
+      const t = g.tgt, nm = UT[t.kind].name.toLowerCase(), has = sel.some(sq => sq.order.t === 'move' && !sq.order.done), last = n - 1;
+      const sent = k => () => { const c = legAll(k); if (c) { sfx('radio'); mark(t.x, t.z, 0x9fd8ff); } else say('Radio', 'Prima traccia un percorso (click destro, poi Shift + click destro per le tappe).', '#e0a070'); };
+      items.push({ key: 'S', label: 'Sopprimilo lungo il tratto ' + last, col: '#9fd8ff', desc: DESC.legSupp, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; }) });
+      items.push({ key: 'F', label: 'All\'arrivo: fermi lì, fuoco su di lui', col: '#ff8a6a', desc: DESC.final, off: !has, act: sent(o => { o.final = t; }) });
+      items.push({ key: 'D', label: 'Entrambe le cose', col: '#ffb070', desc: DESC.both, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; o.final = t; }) });
+      return items;
+    }
     items.push({ key: 'V', label: 'Tappa ' + n + ': vai', desc: DESC.move, act: () => issueOrder('move', true, p, g.face) });
+    items.push({ key: 'N', label: 'Tappa ' + n + ': vai senza sparare', col: '#b8b0a0', desc: DESC.nofire, act: () => { if (issueOrder('move', true, p, g.face)) legAll((o, q) => { q.fire = 'none'; }); } });
     if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'C', label: 'Tappa ' + n + ': vai al riparo', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', true, p, g.face) });
     items.push({ key: 'F', label: 'Tappa ' + n + ': assalto', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', true, p, g.face, null) });
     return items;
@@ -36,6 +45,7 @@ function menuItems(g, append) {
   }
   if (!onTank) {
     items.push({ key: 'V', label: g.tgt ? 'Vai lì (senza attaccare)' : 'Vai qui', desc: DESC.move, act: () => issueOrder('move', false, p, g.face) });
+    if (!g.tgt) items.push({ key: 'N', label: 'Vai qui senza sparare', col: '#b8b0a0', desc: DESC.nofire, act: () => { if (issueOrder('move', false, p, g.face)) legAll((o, q) => { q.fire = 'none'; }); } });
     if (inf) items.push({ key: 'C', label: 'Vai al riparo qui', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', false, p, g.face) });
     if (!g.tgt) items.push({ key: 'F', label: 'Assalto fin qui', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', false, p, g.face, null) });
     if (inf) items.push({ key: 'R', label: 'Agguato qui', desc: DESC.ambush(), act: () => issueOrder('ambush', false, p, g.face) });
@@ -57,6 +67,10 @@ const DESC = {
   assault: 'Avanzano fin qui sparando a ciò che incontrano, senza fermarsi né cercare riparo. Rapido ma esposto.',
   ambush: () => 'Si appostano al coperto e restano nascosti (il nemico li vede solo entro ' + tune.ambush_reveal + ' m). Aprono il fuoco tutti insieme quando il nemico arriva a ' + Math.round(tune.ambush_trigger * 100) + '% della loro portata, con mira migliore per 4 s.',
   stop: 'La squadra ci passa dopo l\'ultima tappa del percorso (anche Shift + click destro).',
+  nofire: 'Ci vanno senza sparare un colpo, qualunque siano le regole d\'ingaggio: per passare senza farsi notare. Arrivati, tornano alle regole d\'ingaggio.',
+  legSupp: 'Mentre percorrono il tratto verso l\'ultima tappa tracciata tengono il nemico sotto fuoco di soppressione (anche senza vederlo, se a tiro).',
+  final: 'Arrivati all\'ultima tappa si fermano lì, rivolti al nemico, e gli sparano finché cade; poi tornano alle regole d\'ingaggio e ingaggiano il prossimo.',
+  both: 'Soppressione sul nemico lungo il tratto verso l\'ultima tappa, poi fermi lì a sparargli finché cade.',
   follow: 'Seguono il carro comando restandogli dietro; se ingaggiati si fermano a combattere al riparo.',
   hold: 'Si fermano dove sono e sparano secondo le regole d\'ingaggio.',
   attack: 'Si avvicinano finché il bersaglio è a tiro e in vista, poi gli sparano anche se le regole d\'ingaggio dicono di non sparare. Abbattuto, si fermano.',
@@ -72,7 +86,7 @@ function openMenu(g, append) {
   const h = MENU.head + items.length * MENU.row + MENU.pad + foot;
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
-  state.menu = { x, y, h, foot, lines, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
+  state.menu = { x, y, h, foot, lines, items, p: g.p, face: g.face, title: append && g.tgt && g.tgt.alive ? 'Percorso → ' + UT[g.tgt.kind].name.toLowerCase() : (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
 }
 /** The next order row that can be picked from row k, going dir (1 down, -1 up), wrapping round. */
 function menuStep(m, k, dir) {

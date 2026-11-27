@@ -210,12 +210,12 @@ function orderAttack(sq, target) {
  * Suppression fire on target: the squad stays where it is and keeps firing at it, seen or not (pickTarget), whatever
  * its rules of engagement; every round at it pins it down (fire). It ends when the target falls.
  */
-function orderSuppress(sq, target) {
+function orderSuppress(sq, target, stay = false) {
   const ms = alive(sq); if (!ms.length) return;
   for (const m of ms) { m.pref = target; m.path = null; m.moveFace = null; m.face = Math.atan2(target.x - m.x, target.z - m.z); }
-  sq.order = { t: 'suppress', target };
+  sq.order = { t: 'suppress', target, stay }; // stay: the end of a plan, they hold the spot even out of range
   sq.tick = 0;
-  say(sq.name, 'Fuoco di soppressione su ' + UT[target.kind].name.toLowerCase() + '!');
+  say(sq.name, (stay ? 'In posizione: fuoco su ' : 'Fuoco di soppressione su ') + UT[target.kind].name.toLowerCase() + '!');
   mark(target.x, target.z, 0x9fd8ff);
 }
 /** Infantry that can ride (not the anti-tank gun, not vehicles). */
@@ -435,7 +435,7 @@ function squadUpkeep(sq, dt) {
     if (!t || !t.alive) { for (const m of ms) m.pref = null; sq.order = { t: 'hold' }; say(sq.name, 'Bersaglio abbattuto, cessiamo il fuoco.'); return; }
     for (const m of ms) { // out of reach: closer, just into range (no need to see it); in reach: they stay and fire
       m.pref = t; if (m.kind === 'medic') continue;
-      const w = weapon(UT[m.kind].w), far = dist2(m, t) > (w.range * 0.9) ** 2;
+      const w = weapon(UT[m.kind].w), far = !sq.order.stay && dist2(m, t) > (w.range * 0.9) ** 2;
       if (!far) { if (m.path && m.suppGo) { m.path = null; m.suppGo = false; } if (!m.moving) m.face = Math.atan2(t.x - m.x, t.z - m.z); }
       else if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5) { const d = Math.sqrt(dist2(m, t)) || 1, k = (d - w.range * 0.75) / d; setDest(m, m.x + (t.x - m.x) * k, m.z + (t.z - m.z) * k); m.suppGo = true; }
     }
@@ -449,15 +449,29 @@ function squadUpkeep(sq, dt) {
     }
   } else if (sq.order.t === 'move' && !sq.order.done) {
     const o = sq.order;
+    // the leg under way: suppression on its target (the ROE do not stop it), or none at all (the fire gate, unitstep.js)
+    const lg = o.pts[o.i], sp = lg && lg.supp && lg.supp.alive ? lg.supp : null;
+    for (const m of ms) { if (sp) m.pref = sp; else if (m.pref && m.pref === o.lastSupp) m.pref = null; }
+    if (sp) o.lastSupp = sp;
     if (boundStep(sq, ms, o)) { /* tactics.js: bounding under fire */ }
     else if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
       if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how, p.face) > 0; sq.tick = 0.4; }
-      else { o.done = true; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
+      else if (o.final && o.final.alive) { for (const m of ms) if (m.pref === o.lastSupp) m.pref = null; orderSuppress(sq, o.final, true); } // the plan's end: stop and fire on it till it falls
+      else { o.done = true; for (const m of ms) if (o.lastSupp && m.pref === o.lastSupp) m.pref = null; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
     }
   }
   roleUpkeep(sq, ms);
 }
 function selectedSquads() { return state.squads.filter(s => s.selected && alive(s).length); }
+/**
+ * Changes the plan of every selected squad that heard it and walks a path: f(order, lastStop). Returns how many.
+ * The attack vectors: a leg without fire, suppression on an enemy along a leg, the action at the end.
+ */
+function legAll(f) {
+  let n = 0;
+  for (const sq of selectedSquads()) { const o = sq.order; if (!inRadio(sq) || o.t !== 'move' || o.done || !o.pts.length) continue; f(o, o.pts[o.pts.length - 1], sq); n++; }
+  return n;
+}
 /**
  * Gives an order to every selected squad the radio reaches. kind: null (an enemy = attack, else
  * move, into cover if near some), 'move', 'attack' (an enemy, or an assault to the ground),

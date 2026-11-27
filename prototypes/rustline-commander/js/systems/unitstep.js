@@ -56,6 +56,7 @@ function updateUnits(dt) {
         const r = roe(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory, ordered = t === e.pref;
         if (!ordered && (r === 'hold' || (r === 'return' && !hit))) aligned = false; // the rules of engagement (squads.js ROES)
         if (!e.veh && e.moving && gait(e) === 'run') aligned = false; // running: no fire on the move
+        const lg = legNow(e); if (lg && lg.fire === 'none') aligned = false; // a leg of the plan told not to fire
       }
       if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet' || w.move)) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
     } else {
@@ -180,7 +181,14 @@ function moveAlong(e, dt) {
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */
 /** True for a member of a squad under a suppression order (orderSuppress). */
-function suppressing(e) { return !!(e.squad && e.squad.order && e.squad.order.t === 'suppress'); }
+function suppressing(e) {
+  const o = e.squad && e.squad.order; if (!o) return false;
+  if (o.t === 'suppress') return true;
+  const lg = o.t === 'move' && !o.done ? o.pts[o.i] : null; // a plan's leg with suppression on its target
+  return !!(lg && lg.supp && lg.supp === e.pref);
+}
+/** The leg of its squad's plan a unit walks now (null: no plan, or arrived). */
+function legNow(e) { const o = e.squad && e.squad.order; return o && o.t === 'move' && !o.done ? o.pts[o.i] : null; }
 function pickTarget(e, w) {
   const sight = (e.team ? tune.raider_sight * (w.sight || 1) : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
   const R = w.indirect ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));

@@ -30,6 +30,8 @@ function clickButtons() {
 }
 
 // ---- Small drawn icons (no emoji, every one drawn) ------------------------------------------------
+/** The card's word for a squad walking its plan: what the leg under way does about firing. */
+function legLabel(o) { const p = o.pts && o.pts[o.i]; return p && p.supp && p.supp.alive ? 'Marcia, soppressione' : p && p.fire === 'none' ? 'Marcia, non spara' : 'In marcia'; }
 /** A tiny silhouette of a unit kind, for squad cards and the barracks. */
 function unitIcon(kind, x, y, s, col) {
   ctx.save(); ctx.translate(x, y); ctx.scale(s / 20, s / 20); ctx.fillStyle = col;
@@ -215,15 +217,23 @@ function drawHUD() {
     if (o.t === 'move' && !o.done) {
       for (let i = o.i; i < o.pts.length; i++) {
         const p = o.pts[i], q = toScreen(p.x, hAt(p.x, p.z) + 0.6, p.z); if (!q.on || !prev.on) { prev = q; continue; }
-        const col = sqColor(sq);
-        ctx.strokeStyle = col; ctx.globalAlpha = sq.selected ? 0.95 : 0.5;
+        const col = sqColor(sq), sp = p.supp && p.supp.alive ? p.supp : null;
+        ctx.strokeStyle = p.fire === 'none' ? '#9a9488' : sp ? '#9fd8ff' : col; ctx.globalAlpha = sq.selected ? 0.95 : 0.5;
         ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+        // the leg's fire: a thin blue line from its middle to the enemy it suppresses, or 'non spara'
+        const mx = (prev.x + q.x) / 2, my = (prev.y + q.y) / 2;
+        if (sp) { const s = toScreen(sp.x, sp.y + 1, sp.z); if (s.on) { ctx.save(); ctx.setLineDash([2, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = '#9fd8ff'; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(s.x, s.y); ctx.stroke(); ctx.restore(); } text('soppressione', mx, my - 8, 10, '#9fd8ff'); }
+        else if (p.fire === 'none') text('non spara', mx, my - 8, 10, '#c8c0b0');
         ctx.setLineDash([]); ctx.fillStyle = col;
         ctx.beginPath(); ctx.moveTo(q.x, q.y - 7); ctx.lineTo(q.x + 7, q.y); ctx.lineTo(q.x, q.y + 7); ctx.lineTo(q.x - 7, q.y); ctx.closePath(); ctx.fill();
         text(String(i - o.i + 1), q.x, q.y - 15, 12, col);
         if (p.face != null) groundArrow(p.x, p.z, p.face, 4.5, p.assault ? '#ff6a4a' : col, 2.5);
         ctx.setLineDash([6, 5]);
         prev = q;
+      }
+      if (o.final && o.final.alive && prev.on) { // the plan's end: from the last stop, fire on it
+        const s = toScreen(o.final.x, o.final.y + 1, o.final.z);
+        if (s.on) { ctx.strokeStyle = '#ff6a4a'; ctx.globalAlpha = sq.selected ? 0.95 : 0.5; ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(s.x, s.y); ctx.stroke(); ctx.globalAlpha = 1; text('all\'arrivo: fuoco', (prev.x + s.x) / 2, (prev.y + s.y) / 2 - 8, 10, '#ff9a7a'); }
       }
     } else if ((o.t === 'attack' || o.t === 'suppress') && o.target && o.target.alive) {
       const q = toScreen(o.target.x, o.target.y + 1, o.target.z);
@@ -336,7 +346,7 @@ function drawHUD() {
     });
     UI.cards.push(card);
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
-    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : 'In marcia') : 'Ferma';
+    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : legLabel(sq.order)) : 'Ferma';
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
     { ctx.font = `11px ${FONT}`; const sw = ctx.measureText(heard ? ord : 'Fuori portata').width; ctx.font = `bold 9px ${FONT}`; const gw = ctx.measureText(gt.short).width + 12; // the gait, left of the order
       card.gait = { x: 232 - sw - gw, y: y + 31, w: gw, h: 15 };
