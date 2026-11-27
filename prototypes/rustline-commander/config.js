@@ -42,6 +42,7 @@ window.CONFIG = {
   statics_load: { value: 1, min: 0.2, max: 5, step: 0.1 },       // the load a post or a wall carries before it is crushed, times
   statics_moment: { value: 1, min: 0.2, max: 5, step: 0.1 },     // the overhang (weight times metres) a post or a wall holds before it snaps, times
   statics_tip: { value: 0.3, min: 0, max: 2, step: 0.05 },      // metres the centre of what stands on a floor may lie outside what bears it before it tips over
+  collapse_impact: { value: 0.5, min: 0, max: 2, step: 0.05 },   // how hard a falling piece strikes a roof or a wall it lands on: crater radius a cube root of m3, times its speed
   collapse_tip: { value: 3, min: 0, max: 8, step: 0.5 },         // metres a second (and a turn) a piece that tips over goes that way as it falls
   statics_iter: { value: 3, min: 1, max: 10, step: 1 },          // rounds of a collapse worked out a settle (the rest at the next one)
   struct_mesh_ms: { value: 6, min: 1, max: 30, step: 1 },       // milliseconds a frame may spend redrawing changed structures (at least one a frame)

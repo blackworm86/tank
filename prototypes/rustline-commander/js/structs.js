@@ -126,6 +126,32 @@ registerWorldStep('structSync', { order: 95, run: () => structsSync() });
 
 // ---- Damage ------------------------------------------------------------------------------------------------
 /**
+ * Where an object leans on an older structure: its fine cells touching, side by side, a solid fine cell of a
+ * structure built before it (a lean-to against a wall, a fence run up to a house) are held by it, as by the ground.
+ * Only objects lean (S.obj), and only on what was built earlier, so two things never hold each other up. A mask
+ * over S.cells, or null.
+ */
+function leanMask(S) {
+  if (!S.obj) return null;
+  const { sx, sy, sz, F } = S, N = world.N; let M = null;
+  for (let fz = 0; fz < sz; fz++) for (let fx = 0; fx < sx; fx++) {
+    const cx = (fx / F) | 0, cz = (fz / F) | 0; if (!S.own[cx + S.w * cz]) continue;
+    const ex = fx % F, ez = fz % F; if (ex && ex < F - 1 && ez && ez < F - 1) continue;
+    for (let s = 0; s < 4; s++) {
+      const nx = fx + (s === 0 ? -1 : s === 1 ? 1 : 0), nz = fz + (s === 2 ? -1 : s === 3 ? 1 : 0), ncx = Math.floor(nx / F), ncz = Math.floor(nz / F);
+      if (ncx === cx && ncz === cz) continue;
+      const X = S.x0 + ncx, Z = S.z0 + ncz; if (!inMap(X, Z)) continue;
+      const o = world.sown[X + N * Z]; if (!o || o - 1 >= S.id) continue;
+      const T = world.structs[o - 1], tx = Math.floor((S.x0 + (nx + 0.5) / F - T.x0) * T.F), tz = Math.floor((S.z0 + (nz + 0.5) / F - T.z0) * T.F);
+      for (let fy = 0; fy < sy; fy++) {
+        const l = fx + sx * (fz + sz * fy); if (!S.cells[l]) continue;
+        if (sget(T, tx, Math.floor((S.yb + (fy + 0.5) / F - T.yb) * T.F), tz)) (M || (M = new Uint8Array(sx * sy * sz)))[l] = 1;
+      }
+    }
+  }
+  return M;
+}
+/**
  * Removes what no longer stands: a fine cell is anchored when the 1 m cell under it is solid ground or another
  * 1 m voxel no structure holds (never merely because it is the bottom of its box), and the rest stands through
  * its six neighbours. Returns how many fine cells fell. With fall (in play)
@@ -142,6 +168,7 @@ function dropLoose(S, fall) {
       if (y === 0 || (k >= 0 && world.vox[k] && !world.fmark[k])) { seen[l] = 1; q[qt++] = l; }
     }
   }
+  const lean = leanMask(S); if (lean) for (let l = 0; l < n; l++) if (lean[l] && !seen[l]) { seen[l] = 1; q[qt++] = l; } // leaning on an older structure
   const sxz = sx * sz;
   while (qh < qt) {
     const l = q[qh++], fx = l % sx, fz = ((l / sx) | 0) % sz, fy = (l / sxz) | 0;
@@ -172,7 +199,7 @@ function dropLoose(S, fall) {
  */
 function staticsFail(S) {
   const { sx, sy, sz, F } = S, A = sx * sz, n = A * sy, C = S.cells, kS = tune.statics_span * F, kL = tune.statics_load, kM = tune.statics_moment, tol = tune.statics_tip * F, D2 = Math.SQRT2;
-  const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A);
+  const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A), lean = leanMask(S);
   const onGround = (i, fy) => {
     if (fy % F) return false;
     const y = S.yb + fy / F; if (y <= 0) return true;
@@ -211,7 +238,7 @@ function staticsFail(S) {
     const base = A * fy; let any = false;
     for (let i = 0; i < A; i++) {
       if (!C[base + i]) { dist[i] = -1; continue; }
-      any = true; root[i] = i; dist[i] = (fy > 0 && held[base - A + i]) || onGround(i, fy) ? 0 : 1e9;
+      any = true; root[i] = i; dist[i] = (fy > 0 && held[base - A + i]) || onGround(i, fy) || (lean && lean[base + i]) ? 0 : 1e9;
     }
     if (!any) continue;
     sweep();
@@ -225,7 +252,7 @@ function staticsFail(S) {
       const l = base + i, m = C[l]; comp[i] = -1;
       if (!m || !held[l]) { dist[i] = -1; if (m && !(fy < sy - 1 && C[l + A])) bad.push(l); continue; }
       any = true; L[i] = FMW[m] + down[i]; root[i] = i;
-      dist[i] = (fy > 0 && held[l - A]) || onGround(i, fy) ? 0 : 1e9;
+      dist[i] = (fy > 0 && held[l - A]) || onGround(i, fy) || (lean && lean[l]) ? 0 : 1e9;
       Wt += FMW[m]; Wx += FMW[m] * (i % sx + 0.5); Wz += FMW[m] * (((i / sx) | 0) + 0.5);
     }
     down.fill(0);
@@ -313,12 +340,20 @@ function structCheck(S, fall) {
   const rounds = fall ? Math.max(1, Math.round(tune.statics_iter)) : 30;
   for (let it = 0; it < rounds; it++) {
     S.tip = null;
-    const bad = staticsFail(S); if (!bad.length) { S.tip = null; return fell; }
+    const bad = staticsFail(S); if (!bad.length) { S.tip = null; if (fall && fell) touchNeighbours(S); return fell; }
     crumble(S, bad, fall); fell += bad.length + dropLoose(S, fall); // (a piece that tips goes over S.tip's way)
   }
   S.tip = null;
   if (fall) world.schip.add(S.id);
+  if (fall) touchNeighbours(S);
   return fell;
+}
+/** The structures touching S's box (a metre round it) are checked again at the next settle: what leaned on it, what it fell on. */
+function touchNeighbours(S) {
+  for (const T of world.structs) {
+    if (T === S || T.x0 > S.x0 + S.w || T.x0 + T.w < S.x0 || T.z0 > S.z0 + S.d || T.z0 + T.d < S.z0) continue;
+    world.schip.add(T.id);
+  }
 }
 /** Carves a sphere (fine units: centre and radius) out of a structure; each material resists by its hardness. */
 function carveSphere(S, cx, cy, cz, r, noisy) {
@@ -482,6 +517,13 @@ function landPiece(P) {
     dmgTo(e, a, 'collapse', null, { x: e.x, z: e.z, top: true });
     if (e.alive && !e.veh) e.supT = state.t + tune.suppress_time;
     world.crushed = (world.crushed || 0) + 1;
+  }
+  // a structure it lands on takes the blow: a crater by its volume and speed (collapse_impact), then its statics
+  if (tune.collapse_impact > 0) for (const [px, pz] of [[cx, cz], [x0 + 0.3, z0 + 0.3], [x1 - 0.3, z0 + 0.3], [x0 + 0.3, z1 - 0.3], [x1 - 0.3, z1 - 0.3]]) {
+    if (structSolidAt(px, yb - 0.15, pz) !== 1) continue;
+    const r = Math.min(2.5, tune.collapse_impact * Math.cbrt(vol) * k);
+    if (r > 0.2) { structBlast(px, yb - 0.15, pz, r); world.impacts = (world.impacts || 0) + 1; }
+    break;
   }
   // the heap: each column of the piece slumps outward until no column stands more than a cell over its neighbour
   const R = Math.min(4 * F, Math.max(1, Math.round(F * 0.75 + 0.7 * P.n / (P.sx * P.sz)))), W = P.sx + 2 * R, D = P.sz + 2 * R, h = new Int16Array(W * D), mats = []; // a taller piece spreads wider
