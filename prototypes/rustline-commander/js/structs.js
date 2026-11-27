@@ -367,13 +367,27 @@ function structCheck(S, fall) {
   const rounds = fall ? Math.max(1, Math.round(tune.statics_iter)) : 30;
   for (let it = 0; it < rounds; it++) {
     S.tip = null;
-    const bad = staticsFail(S); if (!bad.length) { S.tip = null; if (fall && fell) touchNeighbours(S); return fell; }
+    const bad = staticsFail(S); if (!bad.length) { S.tip = null; S.creakT = 0; if (fall && fell) touchNeighbours(S); return fell; }
+    if (fall) { // in play it creaks first (dust, a groan), then gives way: storey after storey, not all at once
+      if (!S.creakT) { S.creakT = state.t + tune.collapse_delay * (0.5 + rng()); creakFx(S, bad); world.schip.add(S.id); S.tip = null; return fell; }
+      if (state.t < S.creakT) { world.schip.add(S.id); S.tip = null; return fell; }
+      S.creakT = 0;
+    }
     crumble(S, bad, fall); fell += bad.length + dropLoose(S, fall); // (a piece that tips goes over S.tip's way)
   }
   S.tip = null;
   if (fall) world.schip.add(S.id);
   if (fall) touchNeighbours(S);
   return fell;
+}
+/** The creak of a structure about to give way: dust trickling from a few of the failing cells, a groan. */
+function creakFx(S, bad) {
+  const A = S.sx * S.sz, F = S.F;
+  if (state.fx) for (let i = 0; i < Math.min(5, 1 + bad.length / 30); i++) {
+    const l = bad[Math.floor(rng() * bad.length)];
+    state.fx.push({ kind: 'smoke', x: S.x0 + (l % S.sx + 0.5) / F, y: S.yb + (((l / A) | 0) + 0.5) / F, z: S.z0 + ((((l / S.sx) | 0) % S.sz) + 0.5) / F, t: -i * 0.1, life: 1.6, s: 0.35, rise: -0.4, col: 0xa89a88 });
+  }
+  if (typeof sfx === 'function') sfx('crunch', S.x0 + S.w / 2, S.z0 + S.d / 2);
 }
 /** The structures touching S's box (a metre round it) are checked again at the next settle: what leaned on it, what it fell on. */
 function touchNeighbours(S) {
@@ -503,7 +517,11 @@ function spawnPieces(S, seen) {
     if (qt < minCells || !world.pieces) { for (let i = 0; i < qt; i++) C[q[i]] = 0; continue; } // dust
     const P = { F, sx: x1 - x0 + 1, sy: y1 - y0 + 1, sz: z1 - z0 + 1, n: qt, x: S.x0 + x0 / F, y: S.yb + y0 / F, z: S.z0 + z0 / F,
       vy: 0, drop: 0, fallen: 0, rx: 0, rz: 0, vrx: (rng() - 0.5) * 0.5, vrz: (rng() - 0.5) * 0.5, vx: 0, vz: 0, lim: 0.35, mesh: null };
-    if (S.tip) { const k = tune.collapse_tip; P.vx = S.tip[0] * k; P.vz = S.tip[1] * k; P.vrx = S.tip[1] * k * 0.8; P.vrz = -S.tip[0] * k * 0.8; P.lim = 1.3; } // it goes over: slides and turns that way
+    if (S.tip) {
+      const ax = Math.abs(S.tip[0]) >= Math.abs(S.tip[1]) ? 0 : 2, sg = Math.sign(S.tip[ax ? 1 : 0]) || 1, wide = ax ? P.sz : P.sx;
+      if (P.sy >= wide * 0.6 && P.sy >= 2 * F) P.hinge = { ax, s: sg, a: 0, w: 0.15 }; // tall: it turns over on its foot's edge (updatePieces)
+      else { const k = tune.collapse_tip; P.vx = S.tip[0] * k; P.vz = S.tip[1] * k; P.vrx = S.tip[1] * k * 0.8; P.vrz = -S.tip[0] * k * 0.8; P.lim = 1.3; } // flat: it slides and turns that way
+    }
     P.yb = P.y; P.cells = new Uint8Array(P.sx * P.sy * P.sz);
     for (let i = 0; i < qt; i++) {
       const l = q[i], fx = l % sx, fz = ((l / sx) | 0) % sz, fy = (l / sxz) | 0;
@@ -544,11 +562,48 @@ function supportBelow(X, y, Z, st, floor) {
   }
   return Math.max(yy, lo);
 }
-/** The falling pieces: gravity (collapse_g), a slow tumble drawn on the mesh; on the ground, landPiece. */
+/**
+ * A piece going over on its edge (P.hinge: axis 0 x or 2 z, side s, angle a, turn rate w): it turns faster as it leans
+ * (collapse_hinge); past most of a right angle its cells are turned a quarter (hingeSnap) and it falls the rest.
+ * Returns true while it is still turning.
+ */
+function hingeStep(P, dt) {
+  const H = P.hinge, F = P.F, h = P.sy / F;
+  H.w += tune.collapse_g * tune.collapse_hinge / Math.max(1, h) * Math.sin(H.a + 0.25) * dt; H.a += H.w * dt;
+  if (H.a >= Math.PI / 2 * 0.9) { hingeSnap(P); return false; }
+  if (P.mesh) {
+    const hx = P.sx / F / 2, hy = P.sy / F / 2, hz = P.sz / F / 2, y0 = P.y - P.fallen;
+    if (H.ax === 0) { const px = H.s > 0 ? P.x + 2 * hx : P.x, rx = (P.x + hx) - px, f = -H.s * H.a, c = Math.cos(f), s = Math.sin(f); P.mesh.position.set(px + rx * c - hy * s, y0 + rx * s + hy * c, P.z + hz); P.mesh.rotation.set(0, 0, f); }
+    else { const pz = H.s > 0 ? P.z + 2 * hz : P.z, rz = (P.z + hz) - pz, f = H.s * H.a, c = Math.cos(f), s = Math.sin(f); P.mesh.position.set(P.x + hx, y0 + hy * c - rz * s, pz + hy * s + rz * c); P.mesh.rotation.set(f, 0, 0); }
+  }
+  return true;
+}
+/** A piece that went over: its cells turned a quarter onto the side it fell to, lying from its old foot's edge; it falls on from there with the speed its top had. */
+function hingeSnap(P) {
+  const F = P.F, H = P.hinge, { sx, sy, sz } = P, C = P.cells;
+  let nx = sx, ny = sy, nz = sz;
+  if (H.ax === 0) { nx = sy; ny = sx; } else { nz = sy; ny = sz; }
+  const N = new Uint8Array(nx * ny * nz);
+  for (let py = 0; py < sy; py++) for (let pz = 0; pz < sz; pz++) for (let px = 0; px < sx; px++) {
+    const m = C[px + sx * (pz + sz * py)]; if (!m) continue;
+    if (H.ax === 0) N[(H.s > 0 ? py : sy - 1 - py) + nx * (pz + nz * (H.s > 0 ? sx - 1 - px : px))] = m;
+    else N[px + nx * ((H.s > 0 ? py : sy - 1 - py) + nz * (H.s > 0 ? sz - 1 - pz : pz))] = m;
+  }
+  if (H.ax === 0) P.x = H.s > 0 ? P.x + sx / F : P.x - sy / F; else P.z = H.s > 0 ? P.z + sz / F : P.z - sy / F;
+  P.y -= P.fallen; P.fallen = 0; P.sx = nx; P.sy = ny; P.sz = nz; P.cells = N;
+  P.vy = H.w * sy / F * 0.5; P.vx = H.ax === 0 ? H.s * H.w * 0.5 : 0; P.vz = H.ax === 2 ? H.s * H.w * 0.5 : 0; P.hinge = null; P.rx = P.rz = 0; P.vrx = P.vrz = 0;
+  if (P.mesh) { P.mesh.geometry.dispose(); if (P.mesh.parent) P.mesh.parent.remove(P.mesh); P.mesh = null; }
+  pieceDrop(P);
+}
+/** The falling pieces: gravity (collapse_g), a slow tumble drawn on the mesh, a tall one going over on its edge (hingeStep); on the ground, landPiece. */
 function updatePieces(dt) {
   const L = world.pieces; if (!L || !L.length) return;
   for (let i = L.length - 1; i >= 0; i--) {
     const P = L[i];
+    if (P.hinge) {
+      if (!P.mesh && typeof R3 !== 'undefined' && R3.structGroup) { structTex(); const g = structGeo(P); g.translate(-P.sx / P.F / 2, -P.sy / P.F / 2, -P.sz / P.F / 2); P.mesh = new THREE.Mesh(g, R3.structMat); P.mesh.castShadow = !CHEAP; R3.structGroup.add(P.mesh); }
+      if (hingeStep(P, dt)) continue;
+    }
     P.vy += tune.collapse_g * dt; P.fallen += P.vy * dt;
     if (P.fallen >= P.drop) { P.fallen = P.drop; landPiece(P); L.splice(i, 1); continue; }
     P.x += P.vx * dt; P.z += P.vz * dt;
@@ -557,13 +612,64 @@ function updatePieces(dt) {
       structTex();
       const g = structGeo(P), hx = P.sx / P.F / 2, hy = P.sy / P.F / 2, hz = P.sz / P.F / 2;
       g.translate(-hx, -hy, -hz);
-      P.mesh = new THREE.Mesh(g, R3.structMat); P.mesh.castShadow = !CHEAP; P.mesh.userData.h = [hx, hy, hz];
+      P.mesh = new THREE.Mesh(g, R3.structMat); P.mesh.castShadow = !CHEAP;
       R3.structGroup.add(P.mesh);
     }
-    if (P.mesh) { const h = P.mesh.userData.h; P.mesh.position.set(P.x + h[0], P.y - P.fallen + h[1], P.z + h[2]); P.mesh.rotation.set(P.rx, 0, P.rz); }
+    if (P.mesh) { const hx = P.sx / P.F / 2, hy = P.sy / P.F / 2, hz = P.sz / P.F / 2; P.mesh.position.set(P.x + hx, P.y - P.fallen + hy, P.z + hz); P.mesh.rotation.set(P.rx, 0, P.rz); }
   }
 }
 on('playStep', dt => updatePieces(dt));
+/**
+ * A landed piece breaks into blocks (iteration 54): a grid of collapse_chunk metres at 7 m/s, finer the harder it
+ * struck (by the square root of the speed), coarser for wood and metal that bend; the cells along the cracks between blocks break off (collapse_frac)
+ * and blocks too small to stand go too: those come back as rubble (the heap). The blocks, lowest first, each lands as a
+ * rigid whole on whatever is under it (a block lands on the one before), a little apart the harder it struck, and is
+ * written as cells of its own material into the structures that hold those columns: a slab of wall, a length of beam,
+ * new cover that can be shot again. Returns the rubble cells (in P's frame).
+ */
+function landBlocks(P, yb, v) {
+  const F = P.F, { sx, sy, sz } = P, C = P.cells, n = sx * sy * sz, rub = new Uint8Array(n);
+  let bend = 0, tot = 0; for (let l = 0; l < n; l += 7) if (C[l]) { tot++; if (FMBEND.has(C[l])) bend++; }
+  const s = Math.max(0.5, Math.min(4, tune.collapse_chunk * Math.sqrt(7 / Math.max(2, v)) * (tot && bend / tot > 0.5 ? 2 : 1))), cs = Math.max(1, Math.round(s * F));
+  const ox = Math.floor(rng() * cs), oy = Math.floor(rng() * cs), oz = Math.floor(rng() * cs), key = (px, py, pz) => Math.floor((px + ox) / cs) + 1000 * (Math.floor((py + oy) / cs) + 1000 * Math.floor((pz + oz) / cs));
+  const groups = new Map();
+  for (let py = 0; py < sy; py++) for (let pz = 0; pz < sz; pz++) for (let px = 0; px < sx; px++) {
+    const l = px + sx * (pz + sz * py), m = C[l]; if (!m) continue;
+    const k = key(px, py, pz);
+    let crack = false; // on a crack between blocks: a neighbour in another block
+    if (px + 1 < sx && C[l + 1] && key(px + 1, py, pz) !== k || pz + 1 < sz && C[l + sx] && key(px, py, pz + 1) !== k || py + 1 < sy && C[l + sx * sz] && key(px, py + 1, pz) !== k) crack = true;
+    if (crack && rng() < tune.collapse_frac) { rub[l] = rubbleOf(m); continue; }
+    let g = groups.get(k); if (!g) { g = []; groups.set(k, g); } g.push(l);
+  }
+  const minCells = Math.max(2, Math.round(tune.collapse_block * F * F * F)), blocks = [];
+  for (const g of groups.values()) { if (g.length < minCells) { for (const l of g) rub[l] = rubbleOf(C[l]); continue; } blocks.push(g); }
+  blocks.sort((a, b) => Math.floor(a[0] / (sx * sz)) - Math.floor(b[0] / (sx * sz))); // lowest first: the upper ones land on them
+  const cx = P.x + sx / F / 2, cz = P.z + sz / F / 2, spread = Math.min(1.5, v / 10) * tune.collapse_spread, touched = new Set(), st = 1 / F;
+  for (const g of blocks.slice(0, 48)) {
+    let bx = 0, bz = 0; for (const l of g) { bx += l % sx; bz += ((l / sx) | 0) % sz; } bx = P.x + (bx / g.length + 0.5) / F; bz = P.z + (bz / g.length + 0.5) / F;
+    const dl = Math.hypot(bx - cx, bz - cz) || 1, dx = (bx - cx) / dl * spread * (0.5 + rng()) + (P.vx || 0) * 0.15, dz = (bz - cz) / dl * spread * (0.5 + rng()) + (P.vz || 0) * 0.15;
+    let drop = 1e9; // a rigid block: the least gap under its columns
+    const low = new Map();
+    for (const l of g) { const px = l % sx, pz = ((l / sx) | 0) % sz, py = (l / (sx * sz)) | 0, c = px + sx * pz; if (!low.has(c) || py < low.get(c)) low.set(c, py); }
+    for (const [c, py] of low) { const X = P.x + (c % sx + 0.5) / F + dx, Z = P.z + (((c / sx) | 0) + 0.5) / F + dz, y = yb + py / F; if (!inMap(Math.floor(X), Math.floor(Z))) continue; drop = Math.min(drop, y - supportBelow(X, y, Z, st, y - 30)); }
+    if (drop === 1e9) continue; drop = Math.max(0, drop);
+    const here = new Set();
+    for (const l of g) {
+      const px = l % sx, pz = ((l / sx) | 0) % sz, py = (l / (sx * sz)) | 0, X = P.x + (px + 0.5) / F + dx, Y = yb + (py + 0.5) / F - drop, Z = P.z + (pz + 0.5) / F + dz;
+      const T = rubbleStructAt(X, Z); if (!T) { rub[l] = rubbleOf(C[l]); continue; }
+      const fx = Math.floor((X - T.x0) * F), fy = Math.floor((Y - T.yb) * F), fz = Math.floor((Z - T.z0) * F);
+      if (fy < 0 || fy >= T.sy || sget(T, fx, fy, fz)) { rub[l] = rubbleOf(C[l]); continue; } // a place already taken: that bit is crushed
+      sset(T, fx, fy, fz, C[l]); here.add(T);
+    }
+    for (const T of here) { projectStruct(T); touched.add(T); } // the next block lands on this one
+  }
+  for (const g of blocks.slice(48)) for (const l of g) rub[l] = rubbleOf(C[l]);
+  for (const T of touched) { world.sdirty.add(T.id); if (!T.rubble) world.schip.add(T.id); }
+  world.blocks = (world.blocks || 0) + Math.min(48, blocks.length);
+  return rub;
+}
+/** Materials that bend rather than shatter: they land in bigger blocks. */
+const FMBEND = new Set([FM.WOOD, FM.METAL, FM.RUST, FM.BEAM, FM.STRIPE, FM.RAID, FM.TYRE]);
 /** The rubble kind a falling piece's material breaks into. */
 function rubbleOf(m) { return m === FM.BRICK || m === FM.RUBB || m === FM.TILE ? FM.RUBB : m === FM.WOOD || m === FM.BEAM ? FM.BEAM : m === FM.METAL || m === FM.RUST || m === FM.STRIPE || m === FM.RAID || m === FM.JUNK ? FM.RUST : m === FM.ADOBE || m === FM.HAY || m === FM.BAG ? m : FM.RUBC; } // metal comes down as scrap
 /**
@@ -607,10 +713,13 @@ function landPiece(P) {
     if (r > 0.2) { structBlast(px, yb - 0.15, pz, r); world.impacts = (world.impacts || 0) + 1; }
     break;
   }
-  // the heap: each column of the piece slumps outward until no column stands more than a cell over its neighbour
-  const R = Math.min(4 * F, Math.max(1, Math.round(F * 0.75 + 0.7 * P.n / (P.sx * P.sz)))), W = P.sx + 2 * R, D = P.sz + 2 * R, h = new Int16Array(W * D), mats = []; // a taller piece spreads wider
+  // the blocks: it breaks along a grid as fine as it struck hard, the blocks lie where they land (landBlocks); what breaks off is the heap
+  const rub = landBlocks(P, yb, Math.hypot(P.vy, P.vx || 0, P.vz || 0));
+  // the heap: each column of the rubble slumps outward until no column stands more than a cell over its neighbour
+  let nr = 0; for (let l = 0; l < rub.length; l++) if (rub[l]) nr++;
+  const R = Math.min(4 * F, Math.max(1, Math.round(F * 0.5 + 0.7 * nr / (P.sx * P.sz)))), W = P.sx + 2 * R, D = P.sz + 2 * R, h = new Int16Array(W * D), mats = []; // more rubble spreads wider
   for (let pz = 0; pz < P.sz; pz++) for (let px = 0; px < P.sx; px++) for (let py = 0; py < P.sy; py++) {
-    const m = P.cells[px + P.sx * (pz + P.sz * py)]; if (!m) continue;
+    const m = rub[px + P.sx * (pz + P.sz * py)]; if (!m) continue;
     h[px + R + W * (pz + R)]++; if (mats.length < 64) mats.push(rubbleOf(m));
   }
   const ns = Math.floor(rng() * 9999);

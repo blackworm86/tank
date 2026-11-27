@@ -62,6 +62,12 @@ window.CONFIG = {
   collapse_veh: { value: 0.35, min: 0, max: 1, step: 0.05 },     // a light vehicle takes this share (then its roof armour, armor_top)
   collapse_heavy: { value: 0.1, min: 0, max: 1, step: 0.05 },    // a tank takes this share (then its roof armour)
   collapse_min: { value: 0.06, min: 0.01, max: 0.5, step: 0.01 }, // cubic metres below which a loose bit crumbles to dust instead of falling
+  collapse_delay: { value: 0.7, min: 0, max: 3, step: 0.05 },     // seconds a failing structure creaks (dust, a groan) before it gives way, give or take half
+  collapse_hinge: { value: 1.6, min: 0.3, max: 5, step: 0.1 },    // how fast a tall piece going over turns on its edge
+  collapse_chunk: { value: 2.6, min: 0.3, max: 5, step: 0.1 },    // metres the blocks a piece breaks into when it lands at 7 m/s (harder: smaller; wood and metal: twice)
+  collapse_frac: { value: 0.15, min: 0, max: 1, step: 0.05 },      // share of the cells along the cracks between blocks that break off as rubble
+  collapse_block: { value: 0.08, min: 0.01, max: 1, step: 0.01 }, // cubic metres below which a block goes to rubble
+  collapse_spread: { value: 0.8, min: 0, max: 3, step: 0.1 },     // metres the blocks scatter from where the piece lands, at 10 m/s
   collapse_g: { value: 12, min: 4, max: 30, step: 1 },           // how fast the pieces fall, m/s2
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
