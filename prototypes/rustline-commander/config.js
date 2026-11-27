@@ -63,9 +63,9 @@ window.CONFIG = {
   fog_unknown: { value: 0.97, min: 0, max: 1, step: 0.01 },     // how dark the ground nobody has explored yet is drawn (map and minimap)
   fog_lid: { value: 11, min: 0, max: 30, step: 1 },              // how high the unexplored fog sits above the ground, covering trees and buildings
   fog_dark: { value: 0.7, min: 0, max: 0.9, step: 0.05 },      // how dark the ground nobody sees is drawn
-  posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (return-fire and stealth postures)
-  stealth_trigger: { value: 0.45, min: 0.1, max: 1, step: 0.05 }, // a stealthy squad opens fire inside this share of its range
-  stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a stealthy soldier's speed
+  posture_memory: { value: 8, min: 1, max: 30, step: 1 },        // seconds a squad counts as 'shot at' (the Rispondi al fuoco rule of engagement)
+  stealth_speed: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // a soldier's speed in the Furtiva gait
+  run_speed: { value: 1.4, min: 1, max: 2.5, step: 0.05 },       // a soldier's speed in the Di corsa gait (no fire on the move)
   sight_range: { value: 34, min: 10, max: 80, step: 1 },        // how far any soldier spots enemies
 
   // ---- Command tank: hull (js/systems/vehicle.js, js/systems/tank.js) ----

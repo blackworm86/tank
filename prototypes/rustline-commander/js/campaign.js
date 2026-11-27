@@ -103,7 +103,7 @@ function carryOut() {
       if (!with_(m)) { lost++; return; }
       slots.push(k); mem.push({ kind: m.kind, rank: m.rank || 0, xp: m.xp || 0, hp: m.veh ? m.hp / m.maxhp : 1 });
     });
-    if (mem.length) squads.push({ name: sq.name, named: !!sq.named, color: sq.color, posture: sq.posture, slots, mem });
+    if (mem.length) squads.push({ name: sq.name, named: !!sq.named, color: sq.color, roe: roeOf(sq).k, gait: gaitOf(sq).k, slots, mem });
   }
   return { hp: tk.hp / tk.maxhp, fit: JSON.parse(JSON.stringify(state.fit || {})), depot: (state.depot || []).map(f => Object.assign({}, f)), systems: state.systems.slice(), owned: state.owned.slice(), weaponsOwned: state.weaponsOwned.slice(),
     ammo: Object.assign({}, state.ammo), shell: state.shell, techKills: state.techKills, crushes: state.crushes, newAch: (state.newAch || []).slice(), hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
@@ -117,7 +117,7 @@ function exitCount() {
 /** Brings the carried squads back near (x,z), facing like the tank. */
 function restoreSquads(list, x, z) {
   list.forEach((d, j) => {
-    const sq = { id: state.squads.length, slots: d.slots.slice(), members: [], order: { t: 'follow' }, selected: false, tick: 0, posture: d.posture || 'neutral', name: d.name, named: d.named, color: d.color };
+    const sq = { id: state.squads.length, slots: d.slots.slice(), members: [], order: { t: 'follow' }, selected: false, tick: 0, roe: d.roe || 'free', gait: d.gait || 'normal', name: d.name, named: d.named, color: d.color };
     d.mem.forEach((md, i) => {
       const p = spotNear(x - 3 * (j % 3), z - 3 * Math.floor(j / 3), i);
       const m = spawn(md.kind, p.x, p.z, { rank: md.rank, xp: md.xp });

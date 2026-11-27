@@ -53,8 +53,9 @@ function updateUnits(dt) {
       }
       if (e.kind === 'at' && !e.revealed && dist2(e, t) > (w.range * tune.at_ambush) ** 2) aligned = false; // the gun waits for a sure shot
       if (!e.team && e.squad) { // the squad's posture decides whether it opens fire
-        const ps = posture(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory;
-        if (ps === 'hold' || (ps === 'return' && !hit) || (ps === 'stealth' && !hit && dist2(e, t) > (w.range * tune.stealth_trigger) ** 2)) aligned = false;
+        const r = roe(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory, ordered = t === e.pref;
+        if (!ordered && (r === 'hold' || (r === 'return' && !hit))) aligned = false; // the rules of engagement (squads.js ROES)
+        if (!e.veh && e.moving && gait(e) === 'run') aligned = false; // running: no fire on the move
       }
       if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet' || w.move)) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
     } else {

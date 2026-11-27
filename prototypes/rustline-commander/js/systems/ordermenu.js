@@ -6,7 +6,7 @@
 
 // ---- The order menu: right-click shows the orders that fit what is under the mouse ---------------------
 /** Menu layout, shared by the drawing and the mouse. */
-const MENU = { w: 250, row: 26, head: 26, pad: 6 };
+const MENU = { w: 300, row: 26, head: 26, pad: 6, foot: 36 };
 /** Every order the selected squads can take at the clicked point (an enemy, a building, the own vehicle, open ground). */
 function menuItems(g, append) {
   const sel = selectedSquads(), tk = state.tank, p = g.p, items = [];
@@ -39,8 +39,9 @@ function menuItems(g, append) {
     items.push({ key: 'G', label: 'Seguimi', act: all(orderFollow) });
   }
   items.push({ key: 'Z', label: 'Fermi dove siete', act: all(orderHold) });
-  { const cur = postureOf(sel[0]), nx = POSTURES[(POSTURES.findIndex(q => q.k === cur.k) + 1) % POSTURES.length];
-    items.push({ key: 'Q', label: 'Atteggiamento: ' + cur.name + ' → ' + nx.name, col: nx.col, act: () => { for (const sq of sel) setPosture(sq, nx.k); } }); }
+  { const cur = roeOf(sel[0]), nx = nextOf(ROES, cur.k), g = gaitOf(sel[0]), ng = nextOf(GAITS, g.k);
+    items.push({ key: 'Q', label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
+    items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } }); }
   if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
   if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', act: () => unloadSelected() });
   return items;
@@ -48,7 +49,7 @@ function menuItems(g, append) {
 /** Opens the menu at the mouse for the order gesture g (its point, its dragged bearing, its enemy). */
 function openMenu(g, append) {
   const items = menuItems(g, append); if (!items.length) return;
-  const h = MENU.head + items.length * MENU.row + MENU.pad;
+  const h = MENU.head + items.length * MENU.row + MENU.pad + MENU.foot; // the foot: what the highlighted order does
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
   state.menu = { x, y, h, items, p: g.p, face: g.face, title: (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };

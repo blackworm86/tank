@@ -24,32 +24,52 @@ function sqColor(sq) {
   return sq.color;
 }
 /**
- * How a squad fights. aggressive: goes for every enemy it sees; neutral: fires on what comes in range
- * and takes cover; return: fires only once shot at; stealth: slow and hard to spot, fires only up close
- * or once shot at; hold: never fires.
+ * The squad's rules of engagement (ROE): when it opens fire. An ordered target (Attacca) is always fired on.
+ * free: every enemy in reach, and it takes cover once engaged; return: only after the squad has been shot at,
+ * for posture_memory seconds; hold: only the ordered target.
  */
-const POSTURES = [
-  { k: 'aggressive', name: 'Aggressiva', short: 'AGG', col: '#ff8a6a' },
-  { k: 'neutral', name: 'Neutrale', short: 'NEU', col: '#e8dcc4' },
-  { k: 'return', name: 'Risponde al fuoco', short: 'RISP', col: '#ffd36a' },
-  { k: 'stealth', name: 'Furtiva', short: 'FURT', col: '#9fd8ff' },
-  { k: 'hold', name: 'Non sparare', short: 'NO', col: '#b0a8a0' },
+const ROES = [
+  { k: 'free', name: 'Fuoco libero', short: 'LIBERO', col: '#ff8a6a', desc: 'Spara a ogni nemico a tiro; ingaggiata, cerca riparo.' },
+  { k: 'return', name: 'Rispondi al fuoco', short: 'RISPONDI', col: '#ffd36a', desc: 'Spara solo se le hanno sparato negli ultimi secondi.' },
+  { k: 'hold', name: 'Fuoco trattenuto', short: 'TRATTIENI', col: '#b0a8a0', desc: 'Spara solo al bersaglio che le ordini (Attacca).' },
 ];
-function postureOf(sq) { return POSTURES.find(q => q.k === ((sq && sq.posture) || 'neutral')); }
-function posture(e) { return (e.squad && e.squad.posture) || 'neutral'; }
-function setPosture(sq, k) { sq.posture = k; say(sq.name, 'Atteggiamento: ' + postureOf(sq).name.toLowerCase() + '.', postureOf(sq).col); }
-function cyclePosture(sq) { const i = POSTURES.findIndex(q => q.k === postureOf(sq).k); setPosture(sq, POSTURES[(i + 1) % POSTURES.length].k); }
-/** A soldier in stealth that has not fired lately: raiders spot it only up close. */
-function stealthy(o) { return !o.team && !o.veh && posture(o) === 'stealth' && state.t - (o.firedT || -99) > 3; }
+/**
+ * How the squad's soldiers move (vehicles drive as they do). normal; run: faster by run_speed, no fire on the
+ * move; stealth: slower by stealth_speed, seen by raiders only within ambush_reveal until it fires.
+ */
+const GAITS = [
+  { k: 'normal', name: 'Normale', short: 'PASSO', col: '#e8dcc4', desc: 'Si muove e spara secondo le regole d\'ingaggio.' },
+  { k: 'run', name: 'Di corsa', short: 'CORSA', col: '#9fe3a0', desc: 'Più veloce; non spara mentre corre.' },
+  { k: 'stealth', name: 'Furtiva', short: 'FURTIVA', col: '#9fd8ff', desc: 'Più lenta; i nemici la vedono solo da vicino finché non spara.' },
+];
+/** An old save's posture as the new rules and gait. */
+function migratePosture(sq) {
+  if (!sq.posture) return;
+  sq.roe = sq.roe || ({ hold: 'hold', return: 'return' }[sq.posture] || 'free');
+  sq.gait = sq.gait || (sq.posture === 'stealth' ? 'stealth' : 'normal');
+  delete sq.posture;
+}
+function roeOf(sq) { if (sq) migratePosture(sq); return ROES.find(q => q.k === ((sq && sq.roe) || 'free')); }
+function gaitOf(sq) { if (sq) migratePosture(sq); return GAITS.find(q => q.k === ((sq && sq.gait) || 'normal')); }
+/** A soldier's squad's rules of engagement and gait ('free', 'normal' with no squad). */
+function roe(e) { return e.squad ? roeOf(e.squad).k : 'free'; }
+function gait(e) { return e.squad ? gaitOf(e.squad).k : 'normal'; }
+function setRoe(sq, k) { sq.roe = k; const r = roeOf(sq); say(sq.name, 'Regole d\'ingaggio: ' + r.name.toLowerCase() + '.', r.col); }
+function setGait(sq, k) { sq.gait = k; const g = gaitOf(sq); say(sq.name, 'Andatura: ' + g.name.toLowerCase() + '.', g.col); }
+function nextOf(list, k) { return list[(list.findIndex(q => q.k === k) + 1) % list.length]; }
+function cycleRoe(sq) { setRoe(sq, nextOf(ROES, roeOf(sq).k).k); }
+function cycleGait(sq) { setGait(sq, nextOf(GAITS, gaitOf(sq).k).k); }
+/** A soldier moving in stealth that has not fired lately: raiders spot it only up close. */
+function stealthy(o) { return !o.team && !o.veh && gait(o) === 'stealth' && state.t - (o.firedT || -99) > 3; }
 /** An empty squad at the end of the list, with its own colour. */
 function newSquad() {
-  const sq = { id: state.squads.length, slots: [], members: [], order: { t: 'hold' }, selected: false, tick: 0, posture: 'neutral' };
+  const sq = { id: state.squads.length, slots: [], members: [], order: { t: 'hold' }, selected: false, tick: 0, roe: 'free', gait: 'normal' };
   state.squads.push(sq); sqColor(sq); return sq;
 }
 /** Adds a squad of the given unit kinds near (x,z). */
 function addSquad(slots, x, z, force) {
   if (state.squads.length >= maxSquads()) return null;
-  const sq = { id: state.squads.length, slots: slots.slice(), members: [], order: { t: 'hold' }, selected: false, tick: 0, posture: 'neutral' };
+  const sq = { id: state.squads.length, slots: slots.slice(), members: [], order: { t: 'hold' }, selected: false, tick: 0, roe: 'free', gait: 'normal' };
   slots.forEach((k, i) => { const p = spotNear(x, z, i); const m = spawn(k, p.x, p.z); m.squad = sq; m.heading = state.tank ? state.tank.heading : 0; m.turretYaw = m.heading; sq.members[i] = m; });
   sq.name = squadName(slots);
   state.squads.push(sq); sqColor(sq);
@@ -250,14 +270,6 @@ function roleUpkeep(sq, ms) {
     const th = (m.target && m.target.alive && m.target) || (m.shotBy && m.shotBy.alive && state.t - m.shotT < 6 && m.shotBy) || null;
     if (th) { m.combatT = state.t; m.threat = th; }
     if (m.kind === 'sniper') { sniperUpkeep(m, sq); continue; }
-    if (sq.posture === 'aggressive' && !marching && !sq.order.ambush && !m.garrison) { // goes for the nearest enemy it sees, no waiting in cover
-      const t = nearestSeenFoe(m, tune.sight_range + 10);
-      if (t) {
-        const w = weapon(UT[m.kind].w);
-        if ((dist2(m, t) > (w.range * 0.7) ** 2 || !canSee(m, t)) && (!m.path || m.pi >= m.path.length || state.t - (m.pathT || 0) > 2.5)) { setDest(m, t.x + (m.id % 3 - 1) * 2, t.z + (m.id % 2 - 0.5) * 3); m.pathT = state.t; }
-        continue;
-      }
-    }
     if (marching || sq.order.ambush || m.moving) continue;
     if (!(state.t - (m.combatT || -99) < 6 && m.threat && m.threat.alive)) continue;
     if (tune.smart_soldiers) { soldierPosition(m, sq); continue; } // tactics.js: the best spot by role against every threat
@@ -549,7 +561,8 @@ function cardInput() {
   if (!MS.lp) return false;
   const c = cardAt(MS.x, MS.y); if (!c) return false;
   MS.lp = false; MS.drag = null; state.menuBlock = true; state.menu = null;
-  if (inRect(c.post, MS.x, MS.y)) { cyclePosture(c.sq); return true; }
+  if (inRect(c.post, MS.x, MS.y)) { cycleRoe(c.sq); return true; }
+  if (c.gait && inRect(c.gait, MS.x, MS.y)) { cycleGait(c.sq); return true; }
   if (inRect(c.edit, MS.x, MS.y)) { state.rename = { sq: c.sq, text: c.sq.name }; return true; }
   const ic = c.icons.find(i => i.m && i.m.alive && Math.abs(MS.x - i.x) < 10 && Math.abs(MS.y - i.y) < 11);
   if (ic && !ic.m.veh) { state.dragSoldier = { m: ic.m, x0: MS.x, y0: MS.y, moved: false, add }; return true; }

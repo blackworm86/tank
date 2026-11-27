@@ -43,7 +43,7 @@ function unitHp(e) {
   }
 }
 function unitSpeed(e) {
-  const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1) * (!e.team && !e.veh && posture(e) === 'stealth' ? tune.stealth_speed : 1);
+  const k = (e.team ? 1 : rankK(e, 'rank_speed')) * (suppressed(e) ? tune.suppress_speed : 1) * (!e.team && !e.veh ? (gait(e) === 'stealth' ? tune.stealth_speed : gait(e) === 'run' ? tune.run_speed : 1) : 1);
   return k * baseSpeed(e) * modOf(e).speed;
 }
 function baseSpeed(e) {

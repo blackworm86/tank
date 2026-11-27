@@ -307,7 +307,7 @@ function drawHUD() {
   const dragging = state.dragSoldier && state.dragSoldier.moved ? state.dragSoldier : null;
   state.squads.forEach((sq, i) => {
     squadMod(sq);
-    const heard = inRadio(sq), ms = alive(sq), h = (sq.traits && sq.traits.length) ? 64 : 52, col = sqColor(sq), ps = postureOf(sq), card = { sq, x: 14, y, w: 230, h, icons: [] };
+    const heard = inRadio(sq), ms = alive(sq), h = (sq.traits && sq.traits.length) ? 64 : 52, col = sqColor(sq), ps = roeOf(sq), card = { sq, x: 14, y, w: 230, h, icons: [] };
     const over = dragging && cardAt(MS.x, MS.y) && cardAt(MS.x, MS.y).sq === sq && sq !== dragging.m.squad;
     rrect(14, y, 230, h, 6, over ? 'rgba(60,70,50,0.95)' : sq.selected ? 'rgba(32,36,32,0.92)' : 'rgba(24,18,14,0.72)', sq.selected || over ? col : 'rgba(142,75,39,0.55)');
     ctx.fillStyle = col; ctx.fillRect(15, y + 4, 4, h - 8);
@@ -318,9 +318,11 @@ function drawHUD() {
     if (renaming) rrect(39, y + 4, Math.max(90, nw + 12), 19, 3, 'rgba(0,0,0,0.55)', col);
     text(nm, 44, y + 14, 13, ms.length ? HC.text : '#8a7a68', 'left');
     card.edit = { x: 46 + nw, y: y + 4, w: 18, h: 19 }; if (!renaming) text('✎', 55 + nw, y + 14, 12, HC.dim);
-    ctx.font = `bold 10px ${FONT}`; const pw = ctx.measureText(ps.short).width + 12;
+    // the rules of engagement (click: the next), the gait under them (click: the next)
+    ctx.font = `bold 10px ${FONT}`; const pw = ctx.measureText(ps.short).width + 12, gt = gaitOf(sq);
     card.post = { x: 238 - pw, y: y + 5, w: pw, h: 17 };
     rrect(card.post.x, card.post.y, pw, 17, 4, 'rgba(0,0,0,0.45)', ps.col); text(ps.short, card.post.x + pw / 2, y + 14, 10, ps.col);
+
     sq.slots.forEach((k, j) => {
       const m = sq.members[j], ix = 30 + j * 21, iy = y + 37, pk = !!(m && state.picked && state.picked.has(m));
       if (pk) rrect(ix - 10, iy - 11, 20, 22, 3, 'rgba(255,255,255,0.22)', '#ffffff');
@@ -333,6 +335,9 @@ function drawHUD() {
     const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
     const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Imboscata!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? "All'attacco" : 'In marcia') : 'Ferma';
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
+    { ctx.font = `11px ${FONT}`; const sw = ctx.measureText(heard ? ord : 'Fuori portata').width; ctx.font = `bold 9px ${FONT}`; const gw = ctx.measureText(gt.short).width + 12; // the gait, left of the order
+      card.gait = { x: 232 - sw - gw, y: y + 31, w: gw, h: 15 };
+      rrect(card.gait.x, card.gait.y, gw, 15, 4, 'rgba(0,0,0,0.35)', gt.k === 'normal' ? 'rgba(232,220,196,0.3)' : gt.col); text(gt.short, card.gait.x + gw / 2, y + 39, 9, gt.k === 'normal' ? HC.dim : gt.col); }
     if (h > 52) { let tx = 24; ctx.font = 'bold 10px ' + FONT; for (const t of sq.traits) { const tw = ctx.measureText(t.name).width; if (tx + tw > 238) break; text(t.name, tx, y + 55, 10, t.bad ? '#e0a070' : '#b6d77a', 'left'); tx += tw + 8; } }
     y += h + 5;
   });
@@ -544,6 +549,9 @@ function drawMenu() {
   text(m.title, m.x + 12, m.y + 14, 13, HC.gold, 'left');
   text('Tab · Invio · Esc', m.x + MENU.w - 10, m.y + 14, 11, HC.dim, 'right');
   const hv = m.sel;
+  const sd = m.items[hv] || null, fy = m.y + m.h - MENU.foot; // the foot: what the highlighted order does
+  ctx.fillStyle = 'rgba(142,75,39,0.45)'; ctx.fillRect(m.x + 8, fy, MENU.w - 16, 1);
+  wrap(sd ? (sd.desc || sd.label) : 'Mouse, Tab o frecce: scegli · Invio o click: ordina', MENU.w - 24, 11).slice(0, 2).forEach((l, i) => text(l, m.x + 12, fy + 11 + i * 13, 11, sd && sd.desc ? '#e8dcc4' : HC.dim, 'left'));
   m.items.forEach((it, k) => {
     const y = m.y + MENU.head + k * MENU.row;
     if (k === hv && !it.off) rrect(m.x + 4, y + 1, MENU.w - 8, MENU.row - 2, 4, 'rgba(79,227,224,0.18)', null);
