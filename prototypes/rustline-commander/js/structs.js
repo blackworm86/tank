@@ -23,6 +23,16 @@ const FMCOL = [0, 0x9e968b, 0x9c5038, 0xd2c3a2, 0xbba57c, 0x7c5535, 0x7d8b92, 0x
   VCOL[V.BAG], VCOL[V.HAY], VCOL[V.CLOTH], VCOL[V.STRIPE], VCOL[V.RAID], VCOL[V.JUNK], VCOL[V.GLASS], 0x2b2724];
 /** Fine materials tracks crush (vehCrush). */
 const FSOFT = new Set([FM.WOOD, FM.BAG, FM.HAY, FM.CLOTH, FM.JUNK]);
+/**
+ * The statics (staticsFail), a value a material: FMW the weight of a fine cell (metal shells are thin sheet drawn
+ * half a metre thick, so light); FMC the load a cell bearing on the one under it carries before it is crushed
+ * (statics_load times); FMM the moment (weight times metres of overhang) a bearing cell holds (statics_moment
+ * times); FMS the metres a cell may reach out from the nearest cell that bears (statics_span times).
+ *            AIR  CONC BRICK PLAST ADOBE WOOD METAL RUST RUBC RUBB BEAM TILE BAG  HAY  CLOTH STRIPE RAID JUNK GLASS TYRE */
+const FMW = [0,   1,   0.9,  0.85, 0.8,  0.35, 0.15, 0.15, 0.8, 0.75, 0.4, 0.7, 0.6, 0.2, 0.05, 0.15,  0.15, 0.3, 0.3,  0.2];
+const FMC = [0,   400, 250,  200,  120,  80,   300,  150,  20,  20,   120, 60,  40,  15,  5,    300,   200,  30,  10,   200];
+const FMM = [0,   150, 60,   50,   30,   130,  50,   30,   5,   5,    150, 10,  10,  5,   5,    50,    40,   15,  5,    100];
+const FMS = [0,   6,   1.5,  1.5,  1,    3,    4,    3,    0.5, 0.5,  4,   1,   0.5, 0.5, 2,    4,     3,    2,   0.5,  0.5];
 /** The fine material a 1 m kind becomes (d when it has none). */
 function fmOf(t, d) {
   const m = { [V.CONC]: FM.CONC, [V.BRICK]: FM.BRICK, [V.PLAST]: FM.PLAST, [V.ADOBE]: FM.ADOBE, [V.PLANK]: FM.WOOD, [V.WOOD]: FM.WOOD, [V.METAL]: FM.METAL, [V.RUST]: FM.RUST, [V.TILE]: FM.TILE,
@@ -107,7 +117,7 @@ function structsSync() {
         for (let fy = cy * F; fy < cy * F + F; fy++) for (let fz = cz * F; fz < cz * F + F; fz++) for (let fx = cx * F; fx < cx * F + F; fx++) S.cells[fx + S.sx * (fz + S.sz * fy)] = 0;
       }
     }
-    if (!S.port) dropLoose(S); // (ported 1 m decor keeps its odd joins, a tent's ridge on its sides, till it is hit)
+    if (!S.port) structCheck(S, false); // what cannot stand goes before play (ported 1 m decor keeps its odd joins, a tent's ridge on its sides, till it is hit)
     projectStruct(S);
     world.sdirty.add(S.id);
   }
@@ -147,6 +157,169 @@ function dropLoose(S, fall) {
   for (let l = 0; l < n; l++) if (C[l] && !seen[l]) { C[l] = 0; fell++; }
   return fell;
 }
+/**
+ * The statics of a structure. First, from the bottom up, which fine cells are held up: one on solid ground (the
+ * anchors of dropLoose) or on a held cell, or reaching out through its layer from one no farther than its
+ * material's span (FMS, statics_span: a slab over its walls, a canopy round its posts). A cell not held that has a
+ * cell over it hangs from it (a cut leg under its deck: no weight counted); one with nothing over it breaks off.
+ * Then from the top down, the loads: each held cell weighs FMW; one on a held cell bears and passes its load down,
+ * one reaching out passes it sideways to the nearest bearing cell of its layer (through the layer, eight ways),
+ * with a moment of its load times the overhang. The bearing cells of a layer joined side by side are one section
+ * (a post, a wall): crushed when its load passes the sum of its cells' FMC (statics_load), snapped when its moment
+ * passes the sum of their FMM (statics_moment), else its load is shared evenly by its cells and goes down. And a
+ * layer tips over when the centre of what stands on it lies outside the outline of its bearing cells (by more than
+ * statics_tip metres): every section of it fails. Returns the fine cells that fail (index into S.cells).
+ */
+function staticsFail(S) {
+  const { sx, sy, sz, F } = S, A = sx * sz, n = A * sy, C = S.cells, kS = tune.statics_span * F, kL = tune.statics_load, kM = tune.statics_moment, tol = tune.statics_tip * F, D2 = Math.SQRT2;
+  const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A);
+  const onGround = (i, fy) => {
+    if (fy % F) return false;
+    const y = S.yb + fy / F; if (y <= 0) return true;
+    const k = vi(S.x0 + (((i % sx) / F) | 0), y - 1, S.z0 + ((((i / sx) | 0) / F) | 0)); return !!world.vox[k] && !world.fmark[k];
+  };
+  const sweep = () => { // distances through the layer's cells (dist >= 0) from those at 0, with the nearest one (root)
+    for (let rep = 0; rep < 2; rep++) {
+      for (let fz = 0; fz < sz; fz++) for (let fx = 0; fx < sx; fx++) {
+        const i = fx + sx * fz; if (dist[i] <= 0) continue;
+        let d = dist[i], r = root[i];
+        if (fx > 0 && dist[i - 1] >= 0 && dist[i - 1] + 1 < d) { d = dist[i - 1] + 1; r = root[i - 1]; }
+        if (fz > 0) {
+          const j = i - sx;
+          if (dist[j] >= 0 && dist[j] + 1 < d) { d = dist[j] + 1; r = root[j]; }
+          if (fx > 0 && dist[j - 1] >= 0 && dist[j - 1] + D2 < d) { d = dist[j - 1] + D2; r = root[j - 1]; }
+          if (fx < sx - 1 && dist[j + 1] >= 0 && dist[j + 1] + D2 < d) { d = dist[j + 1] + D2; r = root[j + 1]; }
+        }
+        dist[i] = d; root[i] = r;
+      }
+      for (let fz = sz - 1; fz >= 0; fz--) for (let fx = sx - 1; fx >= 0; fx--) {
+        const i = fx + sx * fz; if (dist[i] <= 0) continue;
+        let d = dist[i], r = root[i];
+        if (fx < sx - 1 && dist[i + 1] >= 0 && dist[i + 1] + 1 < d) { d = dist[i + 1] + 1; r = root[i + 1]; }
+        if (fz < sz - 1) {
+          const j = i + sx;
+          if (dist[j] >= 0 && dist[j] + 1 < d) { d = dist[j] + 1; r = root[j]; }
+          if (fx < sx - 1 && dist[j + 1] >= 0 && dist[j + 1] + D2 < d) { d = dist[j + 1] + D2; r = root[j + 1]; }
+          if (fx > 0 && dist[j - 1] >= 0 && dist[j - 1] + D2 < d) { d = dist[j - 1] + D2; r = root[j - 1]; }
+        }
+        dist[i] = d; root[i] = r;
+      }
+    }
+  };
+  // 1. from the bottom up: what is held up
+  for (let fy = 0; fy < sy; fy++) {
+    const base = A * fy; let any = false;
+    for (let i = 0; i < A; i++) {
+      if (!C[base + i]) { dist[i] = -1; continue; }
+      any = true; root[i] = i; dist[i] = (fy > 0 && held[base - A + i]) || onGround(i, fy) ? 0 : 1e9;
+    }
+    if (!any) continue;
+    sweep();
+    for (let i = 0; i < A; i++) if (dist[i] >= 0 && dist[i] <= FMS[C[base + i]] * kS) held[base + i] = 1;
+  }
+  // 2. from the top down: loads, sections, tipping
+  const bad = []; let Wt = 0, Wx = 0, Wz = 0;
+  for (let fy = sy - 1; fy >= 0; fy--) {
+    const base = A * fy; let any = false;
+    for (let i = 0; i < A; i++) {
+      const l = base + i, m = C[l]; comp[i] = -1;
+      if (!m || !held[l]) { dist[i] = -1; if (m && !(fy < sy - 1 && C[l + A])) bad.push(l); continue; }
+      any = true; L[i] = FMW[m] + down[i]; root[i] = i;
+      dist[i] = (fy > 0 && held[l - A]) || onGround(i, fy) ? 0 : 1e9;
+      Wt += FMW[m]; Wx += FMW[m] * (i % sx + 0.5); Wz += FMW[m] * (((i / sx) | 0) + 0.5);
+    }
+    down.fill(0);
+    if (!any) continue;
+    sweep();
+    // the sections: bearing cells joined side by side
+    const cLoad = [], cMom = [], cCap = [], cMc = [], cN = [];
+    for (let i = 0; i < A; i++) {
+      if (dist[i] !== 0 || comp[i] >= 0) continue;
+      const id = cLoad.length; let qh = 0, qt = 0, cap = 0, mc = 0, ld = 0;
+      q[qt++] = i; comp[i] = id;
+      while (qh < qt) {
+        const j = q[qh++], m = C[base + j], fx = j % sx, fz = (j / sx) | 0;
+        cap += FMC[m]; mc += FMM[m]; ld += L[j];
+        if (fx > 0 && dist[j - 1] === 0 && comp[j - 1] < 0) { comp[j - 1] = id; q[qt++] = j - 1; }
+        if (fx < sx - 1 && dist[j + 1] === 0 && comp[j + 1] < 0) { comp[j + 1] = id; q[qt++] = j + 1; }
+        if (fz > 0 && dist[j - sx] === 0 && comp[j - sx] < 0) { comp[j - sx] = id; q[qt++] = j - sx; }
+        if (fz < sz - 1 && dist[j + sx] === 0 && comp[j + sx] < 0) { comp[j + sx] = id; q[qt++] = j + sx; }
+      }
+      cLoad.push(ld); cMom.push(0); cCap.push(cap); cMc.push(mc); cN.push(qt);
+    }
+    // what reaches out weighs on its section
+    for (let i = 0; i < A; i++) {
+      const d = dist[i]; if (d <= 0) continue;
+      const c = comp[root[i]]; if (c < 0 || d > FMS[C[base + i]] * kS + 0.01) { bad.push(base + i); continue; }
+      cLoad[c] += L[i]; cMom[c] += L[i] * d / F;
+    }
+    // tipping: the centre of what stands on this layer over the outline of its bearing cells
+    let tip = false;
+    if (Wt > 0 && cLoad.length) {
+      const pts = []; let mx = 0, mz = 0, mn = 0;
+      for (let fz = 0; fz < sz; fz++) {
+        let a0 = -1, b0 = -1;
+        for (let fx = 0; fx < sx; fx++) if (dist[fx + sx * fz] === 0) { if (a0 < 0) a0 = fx; b0 = fx; mx += fx + 0.5; mz += fz + 0.5; mn++; }
+        if (a0 >= 0) pts.push([a0, fz], [b0 + 1, fz], [a0, fz + 1], [b0 + 1, fz + 1]);
+      }
+      tip = outsideHull(pts, Wx / Wt, Wz / Wt, tol);
+      if (tip) { const dx = Wx / Wt - mx / mn, dz = Wz / Wt - mz / mn, dl = Math.hypot(dx, dz) || 1; S.tip = [dx / dl, dz / dl]; } // the way it goes over (spawnPieces)
+    }
+    // each section holds or fails; what holds passes its load down, shared evenly
+    for (let c = 0; c < cLoad.length; c++) {
+      const fail = tip || cLoad[c] > cCap[c] * kL || cMom[c] > cMc[c] * kM;
+      cLoad[c] = fail ? -1 : cLoad[c] / cN[c];
+    }
+    for (let i = 0; i < A; i++) {
+      if (dist[i] !== 0) continue;
+      const per = cLoad[comp[i]];
+      if (per < 0) { bad.push(base + i); continue; }
+      if (fy > 0 && held[base - A + i]) down[i] += per;
+    }
+  }
+  return bad;
+}
+/** Whether point (px, pz) lies outside the convex outline of pts ([x, z] pairs) by more than tol. */
+function outsideHull(pts, px, pz, tol) {
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], hi = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (hi.length >= 2 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+  const H = lo.slice(0, -1).concat(hi.slice(0, -1));
+  if (H.length < 3) return false;
+  for (let i = 0; i < H.length; i++) {
+    const a = H[i], b = H[(i + 1) % H.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    if (cr(a, b, [px, pz]) / len < -tol) return true;
+  }
+  return false;
+}
+/** Fine cells a failing structure loses where it gives way: crushed to dust and a few chips. */
+function crumble(S, bad, fall) {
+  const C = S.cells, A = S.sx * S.sz, F = S.F;
+  let ax = 0, ay = 0, az = 0, m0 = 0;
+  for (const l of bad) { if (!m0) m0 = C[l]; C[l] = 0; ax += l % S.sx; az += ((l / S.sx) | 0) % S.sz; ay += (l / A) | 0; }
+  if (!fall || !bad.length) return;
+  const n = bad.length, x = S.x0 + ax / n / F, y = S.yb + ay / n / F, z = S.z0 + az / n / F;
+  if (state.fx) state.fx.push({ kind: 'smoke', x, y, z, t: 0, life: 1.2, s: 0.4 + Math.min(1.5, n / 200), rise: 0.6, col: FMCOL[m0] || 0x9a8e80 });
+  for (let i = 0; i < Math.min(5, 1 + n / 40); i++) { const l = bad[Math.floor(rng() * n)]; spawnDebris([Math.floor(x), Math.floor(y), Math.floor(z), FMV[m0] || V.CONC], S.x0 + (l % S.sx + 0.5) / F, S.yb + (((l / A) | 0) + 0.5) / F, S.z0 + ((((l / S.sx) | 0) % S.sz) + 0.5) / F, 1); }
+}
+/**
+ * After damage: what is cut off falls (dropLoose), then the statics, statics_iter rounds of failing sections and
+ * what they leave hanging. In play (fall) a collapse still going on comes back at the next settle, a round at a
+ * time; building the map it goes on till it stands. Returns how many fine cells came away.
+ */
+function structCheck(S, fall) {
+  let fell = dropLoose(S, fall);
+  const rounds = fall ? Math.max(1, Math.round(tune.statics_iter)) : 30;
+  for (let it = 0; it < rounds; it++) {
+    S.tip = null;
+    const bad = staticsFail(S); if (!bad.length) { S.tip = null; return fell; }
+    crumble(S, bad, fall); fell += bad.length + dropLoose(S, fall); // (a piece that tips goes over S.tip's way)
+  }
+  S.tip = null;
+  if (fall) world.schip.add(S.id);
+  return fell;
+}
 /** Carves a sphere (fine units: centre and radius) out of a structure; each material resists by its hardness. */
 function carveSphere(S, cx, cy, cz, r, noisy) {
   const R = Math.ceil(r * 1.2), C = S.cells;
@@ -175,7 +348,7 @@ function structBlast(x, y, z, r) {
     for (let cz = 0; cz < S.d; cz++) for (let cx = 0; cx < S.w; cx++) for (let cy = S.g - S.yb; cy < S.hgt; cy++) {
       const k = vi(S.x0 + cx, S.yb + cy, S.z0 + cz); if (S.own[cx + S.w * cz] && world.fmark[k] === 1) before.push(cx, cy, cz, world.vox[k]);
     }
-    dropLoose(S, true);
+    structCheck(S, true);
     projectStruct(S);
     for (let i = 0; i < before.length; i += 4) {
       const X = S.x0 + before[i], Y = S.yb + before[i + 1], Z = S.z0 + before[i + 2];
@@ -212,7 +385,8 @@ function spawnPieces(S, seen) {
     fell += qt;
     if (qt < minCells || !world.pieces) { for (let i = 0; i < qt; i++) C[q[i]] = 0; continue; } // dust
     const P = { F, sx: x1 - x0 + 1, sy: y1 - y0 + 1, sz: z1 - z0 + 1, n: qt, x: S.x0 + x0 / F, y: S.yb + y0 / F, z: S.z0 + z0 / F,
-      vy: 0, drop: 0, fallen: 0, rx: 0, rz: 0, vrx: (rng() - 0.5) * 0.5, vrz: (rng() - 0.5) * 0.5, mesh: null };
+      vy: 0, drop: 0, fallen: 0, rx: 0, rz: 0, vrx: (rng() - 0.5) * 0.5, vrz: (rng() - 0.5) * 0.5, vx: 0, vz: 0, lim: 0.35, mesh: null };
+    if (S.tip) { const k = tune.collapse_tip; P.vx = S.tip[0] * k; P.vz = S.tip[1] * k; P.vrx = S.tip[1] * k * 0.8; P.vrz = -S.tip[0] * k * 0.8; P.lim = 1.3; } // it goes over: slides and turns that way
     P.yb = P.y; P.cells = new Uint8Array(P.sx * P.sy * P.sz);
     for (let i = 0; i < qt; i++) {
       const l = q[i], fx = l % sx, fz = ((l / sx) | 0) % sz, fy = (l / sxz) | 0;
@@ -260,7 +434,8 @@ function updatePieces(dt) {
     const P = L[i];
     P.vy += tune.collapse_g * dt; P.fallen += P.vy * dt;
     if (P.fallen >= P.drop) { P.fallen = P.drop; landPiece(P); L.splice(i, 1); continue; }
-    P.rx = Math.max(-0.35, Math.min(0.35, P.rx + P.vrx * dt)); P.rz = Math.max(-0.35, Math.min(0.35, P.rz + P.vrz * dt));
+    P.x += P.vx * dt; P.z += P.vz * dt;
+    P.rx = Math.max(-P.lim, Math.min(P.lim, P.rx + P.vrx * dt)); P.rz = Math.max(-P.lim, Math.min(P.lim, P.rz + P.vrz * dt));
     if (!P.mesh && typeof R3 !== 'undefined' && R3.structGroup) {
       structTex();
       const g = structGeo(P), hx = P.sx / P.F / 2, hy = P.sy / P.F / 2, hz = P.sz / P.F / 2;
@@ -339,7 +514,7 @@ function landPiece(P) {
     for (let j = 0; j < hh; j++) if (!sget(T, fx, fy0 + j, fz)) sset(T, fx, fy0 + j, fz, mats.length ? mats[Math.floor(rng() * mats.length)] : FM.RUBC);
     touched.add(T);
   }
-  for (const T of touched) { projectStruct(T); world.sdirty.add(T.id); }
+  for (const T of touched) { projectStruct(T); world.sdirty.add(T.id); if (!T.rubble) world.schip.add(T.id); } // a heap on a slab weighs on it (the statics at the next settle)
   // dust, a thud, a few chips
   if (state.fx) for (let i = 0; i < Math.min(6, 1 + vol * 2); i++) state.fx.push({ kind: 'smoke', x: cx + (rng() - 0.5) * (x1 - x0), y: yb + 0.3, z: cz + (rng() - 0.5) * (z1 - z0), t: -i * 0.05, life: 1.4 + rng(), s: 0.5 + Math.min(2, vol) * 0.5, rise: 1.2, col: 0x9a8e80 });
   if (vol > 0.4 && typeof sfx === 'function') sfx('boomS', cx, cz);
@@ -414,8 +589,8 @@ function structSettle(dt) {
   if (!world.schip || !world.schip.size) return;
   world.settleT -= dt; if (world.settleT > 0) return;
   world.settleT = tune.struct_settle;
-  for (const id of world.schip) { const S = world.structs[id]; if (!S) continue; dropLoose(S, true); projectStruct(S); world.sdirty.add(id); }
-  world.schip.clear();
+  const ids = [...world.schip]; world.schip.clear(); // (a collapse still going on puts itself back for the next settle)
+  for (const id of ids) { const S = world.structs[id]; if (!S) continue; structCheck(S, true); projectStruct(S); world.sdirty.add(id); }
 }
 on('playStep', dt => structSettle(dt));
 /** The first fine cell on the ray from o along d (t in d's units) between t0 and t1, or -1: rayVoxel's look inside a structure's 1 m cell. */

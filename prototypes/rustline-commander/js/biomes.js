@@ -136,17 +136,18 @@ function barn(x, z, g, face) {
 /** A grain silo: a tall ribbed cylinder with a cone cap. */
 function silo(x, z, g) { cylinder(x, z, 2.2, g, 9, V.METAL, V.STRIPE, V.METAL); }
 /**
- * A water tower, one structure on the fine grid: four wooden legs half a metre square braced crosswise, a ring beam
- * halfway up, a plank deck and the metal tank with a rusty cap on it. Shot through, its legs give way and it all comes down.
+ * A water tower, one structure on the fine grid: four wooden legs half a metre square, bare for the first 2.5 m,
+ * two ring beams with crossed braces between them, a plank deck and the metal tank with a rusty cap on it. Lose
+ * two legs (or one, with the tank's weight hanging off the frame) and it tips and comes down whole (staticsFail).
  */
 function waterTower(x, z, g) {
-  const S = objStruct(x - 1, z - 1, 6, 6, g, 15), W = FM.WOOD, top = g + 6.5;
+  const S = objStruct(x - 1, z - 1, 6, 6, g, 15), W = FM.WOOD, top = g + 6.5, r0 = g + 2.5, r1 = g + 5;
   const legs = [[x + 0.25, z + 0.25], [x + 3.75, z + 0.25], [x + 3.75, z + 3.75], [x + 0.25, z + 3.75]];
   for (const [a, b] of legs) fbox(S, a - 0.25, g, b - 0.25, a + 0.25, top, b + 0.25, W);
   for (let i = 0; i < 4; i++) {
     const [a, b] = legs[i], [c, d] = legs[(i + 1) % 4];
-    fbox(S, Math.min(a, c) - 0.125, g + 3, Math.min(b, d) - 0.125, Math.max(a, c) + 0.125, g + 3.25, Math.max(b, d) + 0.125, W); // the ring beam
-    fbeam(S, a, g + 0.5, b, c, g + 3, d, 0.25, W); fbeam(S, c, g + 3.25, d, a, top - 0.25, b, 0.25, W); // the braces
+    for (const ry of [r0, r1]) fbox(S, Math.min(a, c) - 0.125, ry, Math.min(b, d) - 0.125, Math.max(a, c) + 0.125, ry + 0.25, Math.max(b, d) + 0.125, W); // the ring beams
+    fbeam(S, a, r0 + 0.25, b, c, r1, d, 0.25, W); fbeam(S, c, r0 + 0.25, d, a, r1, b, 0.25, W); // the crossed braces
   }
   fbox(S, x - 0.25, top, z - 0.25, x + 4.25, top + 0.5, z + 4.25, W); // the deck
   fineCylinder(x + 1.5, z + 1.5, 1.9, top + 0.5, 3, V.METAL, null, V.RUST, S);

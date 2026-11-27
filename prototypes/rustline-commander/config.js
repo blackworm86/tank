@@ -38,6 +38,12 @@ window.CONFIG = {
   struct_chip: { value: 0.2, min: 0.05, max: 0.6, step: 0.05 },  // metres a round chips off a wall where it strikes (heavy rounds 1.8 times)
   struct_chip_p: { value: 0.5, min: 0, max: 1, step: 0.05 },     // chance a round chips, times the material's softness (heavy rounds 2.5 times)
   struct_settle: { value: 0.3, min: 0.1, max: 2, step: 0.1 },    // seconds between the chipped walls' updates (what falls, cover, paths, the drawn walls)
+  statics_span: { value: 1, min: 0.3, max: 3, step: 0.1 },      // how far each material may reach out from what bears it (concrete 6 m, metal 4, wood 3, brick 1.5), times
+  statics_load: { value: 1, min: 0.2, max: 5, step: 0.1 },       // the load a post or a wall carries before it is crushed, times
+  statics_moment: { value: 1, min: 0.2, max: 5, step: 0.1 },     // the overhang (weight times metres) a post or a wall holds before it snaps, times
+  statics_tip: { value: 0.3, min: 0, max: 2, step: 0.05 },      // metres the centre of what stands on a floor may lie outside what bears it before it tips over
+  collapse_tip: { value: 3, min: 0, max: 8, step: 0.5 },         // metres a second (and a turn) a piece that tips over goes that way as it falls
+  statics_iter: { value: 3, min: 1, max: 10, step: 1 },          // rounds of a collapse worked out a settle (the rest at the next one)
   struct_mesh_ms: { value: 6, min: 1, max: 30, step: 1 },       // milliseconds a frame may spend redrawing changed structures (at least one a frame)
   collapse_dmg: { value: 80, min: 0, max: 300, step: 5 },        // damage a falling piece does a cubic metre to whoever is under it (soldiers have inf_hp 30)
   collapse_cap: { value: 3, min: 0.5, max: 10, step: 0.5 },      // cubic metres of a piece that count for its damage at most
