@@ -256,6 +256,7 @@ window.CONFIG = {
   jeep_hp: { value: 90, min: 20, max: 400, step: 5 },            // jeep: open, fast, thin-skinned (rifles hurt it)
   jeep_speed: { value: 10.5, min: 2, max: 18, step: 0.5 },
   jeep_turret: { value: 160, min: 20, max: 400, step: 5 },       // its pintle machine gun, degrees a second
+  jeep_seats: { value: 3, min: 0, max: 4, step: 1 },             // soldiers it carries in the open: they fire their own weapons from it
   jeep_acc: { value: 0.55, min: 0.05, max: 1, step: 0.01 },
   car_turret: { value: 90, min: 20, max: 300, step: 5 },        // armoured car turret, degrees a second
   car_hp: { value: 160, min: 30, max: 600, step: 10 },          // armoured car
@@ -390,7 +391,7 @@ window.CONFIG = {
   cost_mg: { value: 55, min: 0, max: 300, step: 5 },
   cost_medic: { value: 50, min: 0, max: 300, step: 5 },
   cost_mortar: { value: 85, min: 0, max: 400, step: 5 },
-  cost_jeep: { value: 140, min: 0, max: 1000, step: 10 },        // not sold yet: the barracks get it with its passengers (command mode step 5)
+  cost_jeep: { value: 140, min: 0, max: 1000, step: 10 },
   cost_car: { value: 220, min: 0, max: 1000, step: 10 },
   cost_at: { value: 110, min: 0, max: 500, step: 5 },
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },

@@ -84,11 +84,11 @@ registerShopTab('barracks', {
     const rc = rosterCost(state.roster);
     button(rx, ry + 70, 150, 38, 'Svuota', () => { state.roster = []; });
     button(rx + 160, ry + 70, 296, 38, 'Arruola (' + rc + ' rottami)', recruitRoster, { off: !state.roster.length || state.scrap < rc || state.squads.length >= maxSquads() });
-    [['car', 'Autoblindo: cannoncino, veloce'], ['ltank', 'Carro di supporto: cannone, corazza']].forEach(([k, d], i) => {
-      const c = tune[UT[k].cost], bx0 = rx + i * 232;
-      button(bx0, ry + 124, 224, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
-      unitIcon(k, bx0 + 22, ry + 147, 24, '#a8d870');
-      text(d.split(':')[0], bx0 + 44, ry + 139, 14, HC.text, 'left'); text(c + ' rottami', bx0 + 44, ry + 157, 13, HC.gold, 'left');
+    [['jeep', 'Jeep'], ['car', 'Autoblindo'], ['ltank', 'Carro supporto']].forEach(([k, d], i) => {
+      const c = tune[UT[k].cost], bx0 = rx + i * 154;
+      button(bx0, ry + 124, 148, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
+      unitIcon(k, bx0 + 20, ry + 147, 22, '#a8d870');
+      text(d, bx0 + 40, ry + 139, 13, HC.text, 'left'); text(c + ' rottami', bx0 + 40, ry + 157, 12, HC.gold, 'left');
     });
     text('Squadre: ' + state.squads.length + ' / ' + maxSquads(), rx, ry + 190, 14, HC.dim, 'left');
     // the role under the mouse, or what the new squad's make-up gives it

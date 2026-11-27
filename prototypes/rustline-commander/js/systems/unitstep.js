@@ -13,6 +13,7 @@ function updateUnits(dt) {
     if (!e.alive) { if (!e.gone && state.t - e.deathT > (e.veh ? 40 : 9)) e.gone = true; continue; }
     if (e.kind === 'tank' || UT[e.kind].inert || e.dummy) continue; // (a depot only stands there; a practice target neither moves nor shoots)
     if (e.inside) { e.x = tk.x; e.z = tk.z; e.y = e.vy = tk.y; e.moving = false; continue; } // riding
+    if (e.rideOn && !e.rideOn.alive) dismount(e); // its jeep is gone: on foot again (ride.js)
     const g = e.group;
     if (g && !g.alert && dist2(e, tk) > 90 * 90) continue; // far and calm: asleep
     e.think -= dt; e.cool -= dt; e.recoil = Math.max(0, (e.recoil || 0) - dt * 3);
@@ -20,12 +21,13 @@ function updateUnits(dt) {
     if (e.think <= 0) {
       e.think = 0.35 + rng() * 0.15;
       e.target = pickTarget(e, w);
-      e.cover = e.veh ? 0 : e.target ? coverFrom(e, e.target.x, e.target.z) : coverAround(e);
+      e.cover = e.veh || e.rideOn ? 0 : e.target ? coverFrom(e, e.target.x, e.target.z) : coverAround(e);
       e.inCover = e.cover > 0;
       if (e.team === 1) raiderThink(e, w);
       if (!e.veh && !e.fixed && !e.garrison && !e.moving && raised(e) && state.t - (e.strandT || -99) > 2) unstrand(e);
     }
     if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g; } // inside a building, at a window
+    else if (e.rideOn) { seatPos(e); e.path = null; e.moving = false; } // on a jeep's seat: it goes where the jeep goes
     else {
       moveAlong(e, dt);
       e.y = e.veh ? surfaceY(e.x, e.z) : hAt(e.x, e.z); // a vehicle rides the drawn ground, ramps and all (as the command tank)
@@ -66,7 +68,7 @@ function updateUnits(dt) {
     if (e.kind === 'medic' || e.kind === 'eng') roleSkill(e, dt);
   }
   // soldiers keep a little space between them
-  const inf = state.ents.filter(e => e.alive && !e.veh && !e.fixed && !e.inside);
+  const inf = state.ents.filter(e => e.alive && !e.veh && !e.fixed && !e.inside && !e.rideOn);
   for (let i = 0; i < inf.length; i++) for (let j = i + 1; j < inf.length; j++) {
     const a = inf[i], b = inf[j], dx = b.x - a.x, dz = b.z - a.z, d2 = dx * dx + dz * dz;
     if (d2 > 0.0001 && d2 < 0.64) { const d = Math.sqrt(d2), p = (0.8 - d) * 0.25; nudge(a, -dx / d * p, -dz / d * p); nudge(b, dx / d * p, dz / d * p); }
@@ -336,12 +338,12 @@ function fire(e, t, w) {
   if (w.kind === 'bullet') {
     const d = Math.sqrt(dist2(e, t));
     let acc = w.acc * Math.max(0.35, Math.min(1, 1.25 - d / w.range * 0.6));
-    if (e.moving) acc *= 0.5;
+    if (e.moving || (e.rideOn && e.rideOn.moving)) acc *= 0.5; // on the move, or from a jeep on the move
     if (t.moving) acc *= 0.8;
     if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc') * modOf(e).acc);
     if (suppressed(e)) acc *= tune.suppress_acc;
     if (e.squad && e.squad.order.sprungT != null && state.t - e.squad.order.sprungT < 4) acc = Math.min(0.97, acc * tune.ambush_bonus);
-    const cover = t.veh ? 0 : coverFrom(t, e.x, e.z);
+    const cover = t.veh || t.rideOn ? 0 : coverFrom(t, e.x, e.z); // a rider sits in the open
     if (cover === 2) acc *= tune.cover_factor; else if (cover === 1) acc *= tune.cover_light;
     if (cover) acc *= modOf(t).coverK;
     if (t.veh) acc = Math.min(1, acc * 1.7);

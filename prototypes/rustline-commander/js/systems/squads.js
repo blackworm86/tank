@@ -78,7 +78,7 @@ function addSquad(slots, x, z, force) {
 function alive(sq) { return sq.members.filter(m => m && m.alive); }
 function inRadio(sq) { return state.tank.alive && alive(sq).some(heardAt); }
 function setDest(m, x, z) {
-  if (m.fixed) return;
+  if (m.fixed || m.rideOn) return; // a rider goes where its jeep goes
   // paths go around the vehicles standing still (the command tank above all)
   const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && dist2(v, m) > (v.rad + 1.2) ** 2 && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)));
   PF.avoid = (px, pz) => { for (const v of vs) { const r = v.rad + 0.7; if ((px - v.x) ** 2 + (pz - v.z) ** 2 < r * r) return true; } return false; };
@@ -219,7 +219,7 @@ function orderSuppress(sq, target, stay = false) {
   mark(target.x, target.z, 0x9fd8ff);
 }
 /** Infantry that can ride (not the anti-tank gun, not vehicles). */
-function canRide(m) { return m && m.alive && !m.veh && m.kind !== 'at'; }
+function canRide(m) { return m && m.alive && !m.veh && m.kind !== 'at' && !m.rideOn; }
 function passengers() { return state.ents.filter(e => e.alive && e.inside); }
 function seatsFree() { return tankStats().seats - passengers().length; }
 /** Sends the squad's infantry to the command vehicle to climb in. */
@@ -405,6 +405,7 @@ function squadUpkeep(sq, dt) {
     return;
   }
   if (sq.order.t === 'inside') return;
+  if (sq.order.t === 'ride') { rideUpkeep(sq, ms); sq.tick = 0.3; return; } // ride.js
   if (sq.order.t === 'garrison') {
     const b = sq.order.b; let left = 0;
     for (const m of ms) {
@@ -500,6 +501,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     }
     if (leaveBuilding(sq)) say(sq.name, 'Usciamo!');
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
+    if (dismountSquad(sq, true)) say(sq.name, 'Giù dalla jeep, ci andiamo a piedi.'); // riders given an order of their own walk it
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
     else if (kind === 'suppress') orderSuppress(sq, tgt);
     else if (tgt) orderAttack(sq, tgt);
