@@ -38,6 +38,7 @@ window.CONFIG = {
   struct_chip: { value: 0.2, min: 0.05, max: 0.6, step: 0.05 },  // metres a round chips off a wall where it strikes (heavy rounds 1.8 times)
   struct_chip_p: { value: 0.5, min: 0, max: 1, step: 0.05 },     // chance a round chips, times the material's softness (heavy rounds 2.5 times)
   struct_settle: { value: 0.3, min: 0.1, max: 2, step: 0.1 },    // seconds between the chipped walls' updates (what falls, cover, paths, the drawn walls)
+  struct_mesh_ms: { value: 6, min: 1, max: 30, step: 1 },       // milliseconds a frame may spend redrawing changed structures (at least one a frame)
   collapse_dmg: { value: 80, min: 0, max: 300, step: 5 },        // damage a falling piece does a cubic metre to whoever is under it (soldiers have inf_hp 30)
   collapse_cap: { value: 3, min: 0.5, max: 10, step: 0.5 },      // cubic metres of a piece that count for its damage at most
   collapse_veh: { value: 0.35, min: 0, max: 1, step: 0.05 },     // a light vehicle takes this share (then its roof armour, armor_top)

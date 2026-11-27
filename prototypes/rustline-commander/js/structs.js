@@ -230,11 +230,26 @@ function pieceDrop(P) {
     for (let py = 0; py < P.sy; py++) if (P.cells[px + P.sx * (pz + P.sz * py)]) { low = py; break; }
     if (low < 0) continue;
     const X = P.x + (px + 0.5) / F, Z = P.z + (pz + 0.5) / F, y = P.y + low / F;
-    let d = 0;
-    while (d < drop && y - d > 0 && !solidF(X, y - d - st * 0.5, Z)) d += st;
+    const d = y - supportBelow(X, y, Z, st, y - drop);
     if (d < drop) drop = d;
   }
   P.drop = drop === 1e9 ? 0 : drop;
+}
+/**
+ * From height y down at (X, Z): the first height on y's grid of step st with something solid just under it (0 at
+ * the bottom, or floor when it gets there first). Open 1 m cells are crossed a metre at a time; only a cell that
+ * holds something (a structure's, or solid) is looked at finely.
+ */
+function supportBelow(X, y, Z, st, floor) {
+  const ix = Math.floor(X), iz = Math.floor(Z); if (!inMap(ix, iz)) return 0;
+  const base = VH * (ix + world.N * iz), lo = Math.max(0, floor ?? 0);
+  let yy = y;
+  while (yy > lo) {
+    const cy = Math.floor(yy - st * 0.5); if (cy < 0) return 0;
+    if (cy < VH && (world.fmark[base + cy] || world.vox[base + cy])) { if (solidF(X, yy - st * 0.5, Z)) return yy; yy -= st; continue; }
+    yy -= Math.max(1, Math.ceil((yy - cy) / st - 1e-6)) * st; // an open 1 m cell: to its bottom, on the same grid
+  }
+  return Math.max(yy, lo);
 }
 /** The falling pieces: gravity (collapse_g), a slow tumble drawn on the mesh; on the ground, landPiece. */
 function updatePieces(dt) {
@@ -298,11 +313,16 @@ function landPiece(P) {
     h[px + R + W * (pz + R)]++; if (mats.length < 64) mats.push(rubbleOf(m));
   }
   const ns = Math.floor(rng() * 9999);
-  for (let pass = 0; pass < 2 * R + 8; pass++) for (let c = 0; c < W * D; c++) {
-    const cxi = c % W, czi = (c / W) | 0, lim = 1 + (hash2(cxi, czi, ns) < 0.3 ? 1 : 0); // rough slopes: some columns hold a cell more
-    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = cxi + a, nz = czi + b; if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
-      const nc = nx + W * nz; if (h[c] - h[nc] > lim) { const mv = (h[c] - h[nc]) >> 1; h[c] -= mv; h[nc] += mv; }
+  const lim = new Uint8Array(W * D); for (let c = 0; c < W * D; c++) lim[c] = 1 + (hash2(c % W, (c / W) | 0, ns) < 0.3 ? 1 : 0); // rough slopes: some columns hold a cell more
+  for (let pass = 0, moved = 1; pass < 2 * R + 8 && moved; pass++) {
+    moved = 0;
+    for (let c = 0; c < W * D; c++) {
+      const hc = h[c]; if (hc <= lim[c]) continue;
+      const cxi = c % W, czi = (c / W) | 0;
+      for (let s = 0; s < 4; s++) {
+        const nx = cxi + (s === 0 ? 1 : s === 1 ? -1 : 0), nz = czi + (s === 2 ? 1 : s === 3 ? -1 : 0); if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
+        const nc = nx + W * nz; if (h[c] - h[nc] > lim[c]) { const mv = (h[c] - h[nc]) >> 1; h[c] -= mv; h[nc] += mv; moved = 1; }
+      }
     }
   }
   for (let c = 0; c < W * D; c++) if (h[c] > 1) h[c] += Math.round((hash2(c, 7, ns) - 0.5) * 3); // a lumpy top
@@ -311,7 +331,7 @@ function landPiece(P) {
     const hh = h[cxi + W * czi]; if (!hh) continue;
     const X = P.x + (cxi - R + 0.5) / F, Z = P.z + (czi - R + 0.5) / F;
     if (!inMap(Math.floor(X), Math.floor(Z)) || solidF(X, top - st * 0.5, Z)) continue; // a wall stands there: that share is lost
-    let y = top; while (y > 0 && !solidF(X, y - st * 0.5, Z)) y -= st;
+    const y = supportBelow(X, top, Z, st);
     const T = rubbleStructAt(X, Z); if (!T) continue;
     const fx = Math.floor((X - T.x0) * F), fz = Math.floor((Z - T.z0) * F), fy0 = Math.round((y - T.yb) * F);
     for (let j = 0; j < hh; j++) if (!sget(T, fx, fy0 + j, fz)) sset(T, fx, fy0 + j, fz, mats.length ? mats[Math.floor(rng() * mats.length)] : FM.RUBC);
@@ -653,10 +673,16 @@ function structTex() {
   R3.fmlin = FMCOL.map(h => new THREE.Color(h || 0));
   return t;
 }
-/** The structure's surface: for each axis and side, the faces between a cell and air merged greedily into rectangles. */
+/**
+ * The structure's surface: for each axis and side, the faces between a cell and air merged greedily into rectangles.
+ * A face whose air side lies under the natural ground (a foundation's sides and bottom) is buried: not drawn.
+ */
 function structGeo(S) {
   const dims = [S.sx, S.sy, S.sz], F = S.F, inv = 1 / F, pos = [], nor = [], col = [], uv = [], idx = [];
   const get = (x, y, z) => sget(S, x, y, z);
+  const cull = S.x0 !== undefined, GW = (S.w || 0) + 2, GH = cull ? new Int16Array(GW * (S.d + 2)) : null;
+  if (cull) for (let b = 0; b < S.d + 2; b++) for (let a = 0; a < GW; a++) { const x = S.x0 - 1 + a, z = S.z0 - 1 + b; GH[a + GW * b] = inMap(x, z) ? groundOf(x, z) : 0; }
+  const buried = (x, y, z) => S.yb + (y + 1) * inv <= GH[Math.floor(x / F) + 1 + GW * (Math.floor(z / F) + 1)] - 0.5; // (half a metre kept: the drawn ground dips on slopes)
   let vc = 0;
   for (let d = 0; d < 3; d++) {
     const u = (d + 1) % 3, v = (d + 2) % 3, du = dims[u], dv = dims[v], mask = new Int16Array(du * dv), p = [0, 0, 0], q = [0, 0, 0];
@@ -665,7 +691,9 @@ function structGeo(S) {
       let n = 0;
       for (p[v] = 0; p[v] < dv; p[v]++) for (p[u] = 0; p[u] < du; p[u]++) {
         const a = p[d] >= 0 ? get(p[0], p[1], p[2]) : 0, b = p[d] < dims[d] - 1 ? get(p[0] + q[0], p[1] + q[1], p[2] + q[2]) : 0;
-        mask[n++] = a && !b ? a : !a && b ? -b : 0;
+        let f = a && !b ? a : !a && b ? -b : 0;
+        if (f && cull && (f > 0 ? buried(p[0] + q[0], p[1] + q[1], p[2] + q[2]) : buried(p[0], p[1], p[2]))) f = 0;
+        mask[n++] = f;
       }
       p[d]++;
       n = 0;
@@ -724,6 +752,6 @@ function rebuildStructsView() {
 /** Rebuilds up to max damaged structures' meshes. */
 function rebuildStructsDirty(max) {
   if (!world.sdirty || !world.sdirty.size) return;
-  let n = 0;
-  for (const id of world.sdirty) { const S = world.structs[id]; if (S) setStructMesh(S); world.sdirty.delete(id); if (++n >= max) break; }
+  let n = 0; const t0 = performance.now(), ms = tune.struct_mesh_ms; // a frame budget: at least one mesh, then more while under struct_mesh_ms
+  for (const id of world.sdirty) { const S = world.structs[id]; if (S) setStructMesh(S); world.sdirty.delete(id); if (++n >= max || performance.now() - t0 >= ms) break; }
 }

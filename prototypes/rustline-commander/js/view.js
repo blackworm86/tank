@@ -700,7 +700,7 @@ function renderWorld() {
   if (typeof scene !== 'undefined' && scene === 'shop' && shopTab().preview) previewCam(); else restoreCam();
   if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
-  rebuildStructsDirty(4);
+  rebuildStructsDirty(8);
   if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();
   R3.terTex.wn.offset.set((state.t || 0) * 0.011, (state.t || 0) * 0.006);
   updateCamera();
