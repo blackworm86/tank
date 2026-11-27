@@ -701,6 +701,7 @@ function renderWorld() {
   if (R3.worldGen !== world.gen || R3.look !== smoothLook()) rebuildWorldView();
   rebuildDirty(10);
   rebuildStructsDirty(8);
+  updateStructCut(); // js/structs.js: the cutaway round the tank and the cursor
   if (TER.decorDirty && performance.now() - TER.decorAt > 400) rebuildDecor();
   R3.terTex.wn.offset.set((state.t || 0) * 0.011, (state.t || 0) * 0.006);
   updateCamera();

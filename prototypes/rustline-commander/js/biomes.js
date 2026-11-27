@@ -155,11 +155,16 @@ function waterTower(x, z, g) {
 }
 /** A church: a plastered nave with a tiled roof and a bell tower with open arches and a cross. */
 function church(x, z, g, face) { return buildHouse(x, z, 6, 10, g, { wall: V.PLAST, corner: V.CONC, floors: 2, roof: 'gable', roofT: V.TILE, doorW: 2, doorH: 3, face: [0, 1] }); }
-/** A city block: two to four storeys of concrete or brick, window rows, maybe a shop front, a flat roof, half shot away. */
+/**
+ * A city block: masonry of two to four storeys (a rectangle, an L or a U), a concrete frame of three to six (shops,
+ * balconies), or, city_tower of the time on a wide lot, a tower of eight to fifteen storeys on a frame, some of
+ * them shot to a skeleton of pillars and slabs. Flat roofs, half shot away.
+ */
 function cityBlock(x, z, w, d, g, face) {
-  const frame = rng() < 0.45, floors = frame ? 3 + Math.floor(rng() * 4) : 2 + Math.floor(rng() * 3), brick = !frame && rng() < 0.55;
-  const shape = w >= 7 && d >= 7 ? ['rect', 'L', 'U', 'court'][Math.floor(rng() * (w >= 10 && d >= 10 ? 4 : 3))] : 'rect';
-  return buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : frame ? (rng() < 0.5 ? V.PLAST : V.BRICK) : V.CONC, corner: V.CONC, floors, face, shape, system: frame ? 'frame' : 'masonry', shop: frame && rng() < 0.7, balcony: frame && rng() < 0.6, ruin: tune.struct_ruin * (0.8 + rng() * 0.6) });
+  const tower = w >= 7 && d >= 7 && rng() < tune.city_tower, frame = tower || rng() < 0.45;
+  const maxF = Math.max(3, Math.floor((VH - g - 4) / 3)), floors = Math.min(maxF, tower ? 8 + Math.floor(rng() * 8) : frame ? 3 + Math.floor(rng() * 4) : 2 + Math.floor(rng() * 3)), brick = !frame && rng() < 0.55;
+  const shape = tower ? (rng() < 0.3 ? 'L' : 'rect') : w >= 7 && d >= 7 ? ['rect', 'L', 'U', 'court'][Math.floor(rng() * (w >= 10 && d >= 10 ? 4 : 3))] : 'rect';
+  return buildHouse(x, z, w, d, g, { wall: brick ? V.BRICK : frame ? (rng() < 0.5 ? V.PLAST : V.BRICK) : V.CONC, corner: V.CONC, floors, face, shape, system: frame ? 'frame' : 'masonry', shop: frame && rng() < 0.7, balcony: frame && !tower && rng() < 0.6, skeleton: tower && rng() < 0.4, ruin: tune.struct_ruin * (0.8 + rng() * 0.6) });
 }
 /** A desert hut: adobe walls, a flat roof with a low parapet, small windows. */
 function adobeHut(x, z, g, face) { return buildHouse(x, z, 4 + Math.floor(rng() * 3), 4 + Math.floor(rng() * 2), g, { wall: V.ADOBE, roof: 'flat', roofSlab: V.ADOBE, face }); }

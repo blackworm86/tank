@@ -32,7 +32,7 @@ function hardNear(x, z) {
 }
 /** True when column i ends in natural ground: its steps are slopes a vehicle can take, not walls. */
 function natTop(i) { const h = world.hmap[i]; return h > 0 && GROUNDV.has(world.vox[VH * i + h - 1]); }
-const VH = 40; // world height in voxels
+const VH = 64; // world height in voxels (towers up to 15 storeys: iteration 47)
 
 /** The one world of the current run. */
 const world = { N: 0, WL: 4, vox: null, hmap: null, road: null, scorch: null, groundRaw: null, gsm: null, dirty: new Set(), sites: null, gen: 0, mapDirty: true };

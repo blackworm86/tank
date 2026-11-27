@@ -192,14 +192,15 @@ function dropLoose(S, fall) {
  * Then from the top down, the loads: each held cell weighs FMW; one on a held cell bears and passes its load down,
  * one reaching out passes it sideways to the nearest bearing cell of its layer (through the layer, eight ways),
  * with a moment of its load times the overhang. The bearing cells of a layer joined side by side are one section
- * (a post, a wall): crushed when its load passes the sum of its cells' FMC (statics_load), snapped when its moment
- * passes the sum of their FMM (statics_moment), else its load is shared evenly by its cells and goes down. And a
+ * (a post, a wall): crushed when its load passes the sum of its cells' FMC (statics_load); the cells of a layer
+ * joined side by side are one plate (a slab and its posts), snapped when the moments of all its sections pass the
+ * sum of their FMM (statics_moment); else a section's load is shared evenly by its cells and goes down. And a
  * layer tips over when the centre of what stands on it lies outside the outline of its bearing cells (by more than
  * statics_tip metres): every section of it fails. Returns the fine cells that fail (index into S.cells).
  */
 function staticsFail(S) {
   const { sx, sy, sz, F } = S, A = sx * sz, n = A * sy, C = S.cells, kS = tune.statics_span * F, kL = tune.statics_load, kM = tune.statics_moment, tol = tune.statics_tip * F, D2 = Math.SQRT2;
-  const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A), lean = leanMask(S);
+  const held = new Uint8Array(n), down = new Float32Array(A), L = new Float32Array(A), dist = new Float32Array(A), root = new Int32Array(A), comp = new Int32Array(A), q = new Int32Array(A), lc = new Int32Array(A), lean = leanMask(S);
   const onGround = (i, fy) => {
     if (fy % F) return false;
     const y = S.yb + fy / F; if (y <= 0) return true;
@@ -259,10 +260,10 @@ function staticsFail(S) {
     if (!any) continue;
     sweep();
     // the sections: bearing cells joined side by side
-    const cLoad = [], cMom = [], cCap = [], cMc = [], cN = [];
+    const cLoad = [], cMom = [], cCap = [], cMc = [], cN = [], cAt = [];
     for (let i = 0; i < A; i++) {
       if (dist[i] !== 0 || comp[i] >= 0) continue;
-      const id = cLoad.length; let qh = 0, qt = 0, cap = 0, mc = 0, ld = 0;
+      const id = cLoad.length; cAt.push(i); let qh = 0, qt = 0, cap = 0, mc = 0, ld = 0;
       q[qt++] = i; comp[i] = id;
       while (qh < qt) {
         const j = q[qh++], m = C[base + j], fx = j % sx, fz = (j / sx) | 0;
@@ -292,9 +293,26 @@ function staticsFail(S) {
       tip = outsideHull(pts, Wx / Wt, Wz / Wt, tol);
       if (tip) { const dx = Wx / Wt - mx / mn, dz = Wz / Wt - mz / mn, dl = Math.hypot(dx, dz) || 1; S.tip = [dx / dl, dz / dl]; } // the way it goes over (spawnPieces)
     }
-    // each section holds or fails; what holds passes its load down, shared evenly
+    // the plates: the layer's cells joined side by side share the moment of what hangs from them over all their
+    // sections (a slab spreads its weight over every post under it, a damaged one or not)
+    lc.fill(-1); const pMom = [], pMc = [];
+    for (let i = 0; i < A; i++) {
+      if (dist[i] < 0 || lc[i] >= 0) continue;
+      const id = pMom.length; let qh = 0, qt = 0; q[qt++] = i; lc[i] = id;
+      while (qh < qt) {
+        const j = q[qh++], fx = j % sx, fz = (j / sx) | 0;
+        if (fx > 0 && dist[j - 1] >= 0 && lc[j - 1] < 0) { lc[j - 1] = id; q[qt++] = j - 1; }
+        if (fx < sx - 1 && dist[j + 1] >= 0 && lc[j + 1] < 0) { lc[j + 1] = id; q[qt++] = j + 1; }
+        if (fz > 0 && dist[j - sx] >= 0 && lc[j - sx] < 0) { lc[j - sx] = id; q[qt++] = j - sx; }
+        if (fz < sz - 1 && dist[j + sx] >= 0 && lc[j + sx] < 0) { lc[j + sx] = id; q[qt++] = j + sx; }
+      }
+      pMom.push(0); pMc.push(0);
+    }
+    for (let c = 0; c < cLoad.length; c++) { const p = lc[cAt[c]]; pMom[p] += cMom[c]; pMc[p] += cMc[c]; }
+    // each section holds or fails (crushed by its load, or its plate snapped by its moment); what holds passes its
+    // load down, shared evenly
     for (let c = 0; c < cLoad.length; c++) {
-      const fail = tip || cLoad[c] > cCap[c] * kL || cMom[c] > cMc[c] * kM;
+      const p = lc[cAt[c]], fail = tip || cLoad[c] > cCap[c] * kL || pMom[p] > pMc[p] * kM;
       cLoad[c] = fail ? -1 : cLoad[c] / cN[c];
     }
     for (let i = 0; i < A; i++) {
@@ -655,7 +673,8 @@ function structRayT(ox, oy, oz, dx, dy, dz, t0, t1) {
  *    built up under it) or 'shed' (one slope, high at the back); pitched roofs only on rectangles, built in steps
  *    two cells thick so each rests on the one below it down to the eaves (staticsFail); roofT their material.
  *  - wall, corner (1 m kinds), floors, face (the door's side), doorW, doorH (metres), win (false: no windows),
- *    chimney, ruin (0..1, else struct_ruin x 0.6..1.4).
+ *    chimney, skeleton (a frame with most of its infill walls gone above the ground floor), ruin (0..1, else
+ *    struct_ruin x 0.6..1.4).
  * Then ruined (ruinHouse) and what cannot stand goes at structSync (the statics). Registered as a building soldiers
  * can enter, its slots inside the footprint.
  */
@@ -724,6 +743,8 @@ function structHouse(x0, z0, w, d, g, o) {
             const shopOpen = frame && o.shop && front && st === 0 && sy < doorH;
             const winOK = o.win !== false && sy >= sill && sy < sill + winH && (frame ? true : along % 2 === 1 && (wz ? ix : iz) < F - 1);
             if (onDoor || shopOpen || winOK) m = 0;
+            if (o.skeleton && st >= 1 && hash2(mx * 7 + st * 3, mz * 13 + st, 77) < 0.75) m = 0; // a skeleton: most infill gone, the frame left
+            if (frame && sy === SH - SL - 1) m = 0; // an infill wall stops short of the slab over it: each floor's walls weigh on their own slab, carried to the pillars, never on the walls below
           }
         }
       } else if (roof === 'flat') {
@@ -778,7 +799,7 @@ function ruinHouse(S, H) {
     for (let fz = 0; fz < D; fz++) for (let fx = 0; fx < W; fx++) if (fbm(fx / (2.5 * F), fz / (2.5 * F), ns + 7 + st * 13, 2) < lim) for (let k = 1; k <= SL; k++) sset(S, fx0 + fx, gy + (st + 1) * SH - k, fz0 + fz, 0);
   }
   // shell holes through the walls
-  const nh = Math.round(dmg * (2 + fl) + rng() * 1.5);
+  const nh = Math.round(dmg * (2 + fl) + rng() * 1.5 * Math.min(1, dmg * 3));
   for (let k = 0; k < nh; k++) {
     const sd = Math.floor(rng() * 4), t = 0.15 + rng() * 0.7, hy = gy + F * 1.2 + rng() * (fl * SH - F * 1.5), r = F * (0.6 + rng() * 1.1 * (0.5 + dmg));
     const hx = sd < 2 ? fx0 + t * W : sd === 2 ? fx0 : fx0 + W - 1, hz = sd < 2 ? (sd === 0 ? fz0 : fz0 + D - 1) : fz0 + t * D;
@@ -1004,8 +1025,40 @@ function structTex() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.colorSpace = THREE.SRGBColorSpace;
   R3.structTex = t;
   R3.structMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: t });
+  // the cutaway (updateStructCut): two capsules along the line of sight, from the tank and from the cursor toward the
+  // camera (a: the point, its cut height, the radius; b: the far end, the slope of the line of sight); what rises
+  // above that line inside them is not drawn
+  R3.cutU = { uCutA0: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB0: { value: new THREE.Vector4() }, uCutA1: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB1: { value: new THREE.Vector4() } };
+  R3.structMat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, R3.cutU);
+    sh.vertexShader = 'varying vec3 vCutW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCutW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = `varying vec3 vCutW;
+uniform vec4 uCutA0; uniform vec4 uCutB0; uniform vec4 uCutA1; uniform vec4 uCutB1;
+bool cutAway(vec4 A, vec4 B) {
+  vec2 pa = vCutW.xz - A.xz, ba = B.xy - A.xz; float L2 = max(dot(ba, ba), 1e-4), h = clamp(dot(pa, ba) / L2, 0.0, 1.0);
+  float d = h * sqrt(L2); // over the line of sight to the tank's foot, cut_h over it next to the tank only
+  return length(pa - ba * h) < A.w && vCutW.y > A.y + d * B.z + B.w * max(0.0, 1.0 - d / 4.0);
+}
+` + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (cutAway(uCutA0, uCutB0) || cutAway(uCutA1, uCutB1)) discard;');
+  };
   R3.fmlin = FMCOL.map(h => new THREE.Color(h || 0));
   return t;
+}
+/**
+ * The cutaway, each frame: what of a structure rises between the camera and the tank is not drawn. A capsule cut_r
+ * metres wide runs from the tank toward the camera; inside it, everything over the line of sight to the tank's foot
+ * goes (cut_h metres over it right by the tank, so the tank's own cover stays), so a tall building never hides the tank and
+ * its rooms show from above. The same from the cursor (two thirds as wide), so a spot inside a building shows.
+ */
+function updateStructCut() {
+  if (!R3.cutU || typeof state === 'undefined' || !state.tank) return;
+  const tk = state.tank, r = tune.cut_r, on = r > 0 && (typeof scene === 'undefined' || scene === 'play');
+  const sl = Math.tan(tune.cam_pitch * Math.PI / 180), L = 70, dx = Math.sin(cam.yaw) * L, dz = Math.cos(cam.yaw) * L;
+  const put = (A, B, x, y, z, rr) => { A.value.set(x, on ? y : 1e9, z, rr); B.value.set(x + dx, z + dz, sl, tune.cut_h); };
+  put(R3.cutU.uCutA0, R3.cutU.uCutB0, tk.x, tk.y || hAt(Math.floor(tk.x), Math.floor(tk.z)), tk.z, r);
+  const m = state.mouse3;
+  if (m && inMap(Math.floor(m.x), Math.floor(m.z))) put(R3.cutU.uCutA1, R3.cutU.uCutB1, m.x, groundOf(Math.floor(m.x), Math.floor(m.z)), m.z, r * 0.66);
+  else R3.cutU.uCutA1.value.set(0, 1e9, 0, 0);
 }
 /**
  * The structure's surface: for each axis and side, the faces between a cell and air merged greedily into rectangles.
