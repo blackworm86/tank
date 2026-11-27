@@ -381,6 +381,25 @@ function drawHUD() {
 
 }
 /**
+ * Around the gun cross: the main weapon's reload (inner arc, white when ready), the coax's heat (outer arc,
+ * yellow to red, blinking when jammed), a faint line to where the gun points now while the turret swings,
+ * and "MG fuori portata" by the coax's circle when the mouse is past its range.
+ */
+function drawGunnerArcs() {
+  const tk = state.tank; if (!tk || !tk.alive || !state.aimP) return;
+  const S = tankStats(), arc = (r, f, col, w) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(MS.x, MS.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, f))); ctx.stroke(); };
+  arc(15, 1, 'rgba(20,16,12,0.55)', 4); arc(21, 1, 'rgba(20,16,12,0.55)', 4);
+  const ready = tk.reload <= 0, fr = ready ? 1 : 1 - tk.reload / Math.max(0.01, S.reload);
+  arc(15, fr, ready ? (tk.aligned ? '#ffffff' : '#ffb060') : '#9a9a9a', 2.5);
+  const heat = tk.heat || 0, hot = tk.jammed ? (Math.floor(state.t * 6) % 2 ? '#ff3a2a' : '#7a2a1a') : heat > 0.75 ? '#ff6a3a' : heat > 0.4 ? '#f2b13a' : '#e8d070';
+  arc(21, tk.jammed ? 1 : heat, hot, 2.5);
+  if (!tk.aligned) { // where the gun points now: the turret still swinging toward the cross
+    const a = state.aimP, p = toScreen(a.x, a.y + 0.2, a.z);
+    if (p.on && Math.hypot(p.x - MS.x, p.y - MS.y) > 26) { ctx.save(); ctx.strokeStyle = 'rgba(255,176,96,0.55)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(MS.x, MS.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.restore(); }
+  }
+  if (state.aimS && state.aimS.short) { const s = state.aimS, p = toScreen(s.x, s.y + 0.6, s.z); if (p.on) text('MG fuori portata', p.x, p.y - 12, 11, '#d8c8a8'); }
+}
+/**
  * The game's own cursor, drawn last so nothing covers it (the order menu opens right under it): the command
  * arrow in command mode or over the menu, the gun's cross while driving.
  */
@@ -393,8 +412,9 @@ function drawCursor() {
     if (state.arm) { const c = state.arm === 'attack' ? '#ff8a6a' : state.arm === 'cover' ? '#8fe36a' : HC.cyan; rrect(MS.x + 14, MS.y + 12, ctx.measureText(ARM[state.arm]).width + 18, 20, 4, 'rgba(10,14,12,0.85)', c); text(ARM[state.arm], MS.x + 23, MS.y + 22, 12, c, 'left'); }
   } else {
     ctx.strokeStyle = '#ffe6a0'; ctx.lineWidth = 2;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.beginPath(); ctx.moveTo(MS.x + dx * 5, MS.y + dy * 5); ctx.lineTo(MS.x + dx * 12, MS.y + dy * 12); ctx.stroke(); }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.beginPath(); ctx.moveTo(MS.x + dx * 4, MS.y + dy * 4); ctx.lineTo(MS.x + dx * 9, MS.y + dy * 9); ctx.stroke(); }
     ctx.fillStyle = '#ffe6a0'; ctx.fillRect(MS.x - 1, MS.y - 1, 2, 2);
+    drawGunnerArcs();
   }
 }
 

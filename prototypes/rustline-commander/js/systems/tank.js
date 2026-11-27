@@ -137,6 +137,10 @@ function updateTank(dt) {
     const ay = tk.aligned ? m.y : Math.max(world.WL - 0.2, Math.min(hAt(ax, az), 60));
     state.aimP = { x: ax, y: ay, z: az, dist: d };
     state.fireLine = lineOfFire(tk, S, state.aimP);
+    // the coax (right click): the same bearing, as far as its range reaches, a straight line (fireTankMG)
+    const sec = secWeapon(), d2 = Math.min(d, sec.range), bx = tk.x + Math.sin(tk.turretYaw) * d2, bz = tk.z + Math.cos(tk.turretYaw) * d2;
+    state.aimS = { x: bx, y: d2 < d ? Math.max(world.WL - 0.2, hAt(bx, bz)) : ay, z: bz, dist: d2, short: d > sec.range };
+    state.fireLine2 = lineOfFire(tk, S, state.aimS, true);
   }
   if (state.mode === 'tank' && MS.l && !state.menu && !state.menuBlock && tk.reload <= 0 && state.aimP) { if (S.wkind === 'bullet') fireTankMG(tk, S); else if (useRound()) fireCannon(tk, S); else tk.reload = 0.4; }
   tankSystems(tk, dt);
@@ -150,8 +154,8 @@ function updateTank(dt) {
  * muzzle along the shell's arc (straight for the machine gun), and the index of the first point
  * inside something solid (-1: a clear line). The HUD draws it red from there on.
  */
-function lineOfFire(tk, S, a) {
-  const bullet = S.wkind === 'bullet', off = bullet ? 2.2 : 1.2 + S.barrel;
+function lineOfFire(tk, S, a, asBullet) {
+  const bullet = asBullet || S.wkind === 'bullet', off = bullet ? 2.2 : 1.2 + S.barrel;
   const mx = tk.x + Math.sin(tk.turretYaw) * off, mz = tk.z + Math.cos(tk.turretYaw) * off, my = tk.vy + 1.95;
   const g = bullet ? 0 : tune.shell_gravity, D = Math.max(0.5, Math.hypot(a.x - mx, a.z - mz)), T = D / tune.shell_speed;
   const ty = (bullet ? a.y + 0.6 : a.y), vy = (ty - my + 0.5 * g * T * T) / T;
@@ -177,8 +181,10 @@ function vehicleBlocked(tk, x, z) {
 }
 function fireCannon(tk, S) {
   const a = state.aimP, R = tk.spread * a.dist;
-  const ang = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * R;
-  const tx = a.x + Math.cos(ang) * rr, tz = a.z + Math.sin(ang) * rr;
+  // the scatter: an ellipse spread_long times longer along the shot than across it, the circle's area (the HUD draws it)
+  const ang = rng() * Math.PI * 2, rr = Math.sqrt(rng()), k = Math.sqrt(tune.spread_long);
+  const al = Math.cos(ang) * rr * R * k, ac = Math.sin(ang) * rr * R / k, sy = Math.sin(tk.turretYaw), cy = Math.cos(tk.turretYaw);
+  const tx = a.x + sy * al + cy * ac, tz = a.z + cy * al - sy * ac;
   const ty = tk.aligned && rr < 1.2 ? a.y : Math.max(world.WL - 0.2, hAt(tx, tz));
   const mx = tk.x + Math.sin(tk.turretYaw) * (1.2 + S.barrel), mz = tk.z + Math.cos(tk.turretYaw) * (1.2 + S.barrel), my = tk.vy + 1.95;
   launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * SHELLS[state.shell].blast, shell: state.shell, vsHeavy: S.vsHeavy }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);

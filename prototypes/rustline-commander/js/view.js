@@ -85,9 +85,35 @@ function initView() {
   R3.aim2 = makeLoop(56, new THREE.LineBasicMaterial({ color: 0x1d1b1a, transparent: true, opacity: 0.5, fog: false }));
   R3.gunLine = makeLine(33, new THREE.LineBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.7, fog: false }));
   R3.gunRed = makeLine(33, new THREE.LineBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.9, fog: false, depthTest: false }));
-  R3.mouseMark = makeLoop(4, new THREE.LineBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.85, fog: false }));
+  // the coax's scatter (dashed), and a red cross where each weapon's round would hit something in the way
+  R3.aimS = makeLoop(40, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.45, gapSize: 0.35, transparent: true, opacity: 0.95, fog: false }));
+  R3.hitX = makeX(0xff3a2a); R3.hitX2 = makeX(0xff7a5a);
+  for (const l of [R3.aim, R3.aim2, R3.aimS]) { l.material.depthTest = false; l.renderOrder = 4; } // seen through trees and walls: they mark where the round goes
   R3.ready = true;
   fitGL();
+}
+/** A cross of two lines (where a round meets an obstacle), drawn over everything. */
+function makeX(col) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: col, transparent: true, fog: false, depthTest: false })); l.frustumCulled = false; l.renderOrder = 5; R3.scene.add(l); return l;
+}
+function placeX(l, x, y, z, r) {
+  const p = l.geometry.attributes.position;
+  p.setXYZ(0, x - r, y + r, z); p.setXYZ(1, x + r, y - r, z); p.setXYZ(2, x, y + r, z - r); p.setXYZ(3, x, y - r, z + r); p.needsUpdate = true;
+}
+/**
+ * An ellipse lying on the ground (or level at height y when y is given): half-axes ra along the bearing ang
+ * (radians, 0 = +z) and rb across it.
+ */
+function ellipsePoints(line, cx, cz, ra, rb, ang, lift, y, dashed) {
+  const a = line.geometry.attributes.position, n = a.count, s = Math.sin(ang), c = Math.cos(ang);
+  for (let i = 0; i < n; i++) {
+    const t = i / n * Math.PI * 2, u = Math.cos(t) * ra, v = Math.sin(t) * rb, x = cx + s * u + c * v, z = cz + c * u - s * v;
+    const h = y != null ? y : hAt(x, z);
+    a.setXYZ(i, x, (h < 99 ? Math.max(h, world.WL - 0.2) : world.WL) + lift, z);
+  }
+  a.needsUpdate = true;
+  if (dashed) line.computeLineDistances();
 }
 function makePool(name, make) { R3.pools[name] = { make, items: [], used: 0 }; }
 function poolGet(name) {
@@ -714,14 +740,29 @@ function renderWorld() {
   R3.radio.visible = show;
   R3.aim.visible = R3.aim2.visible = R3.gunLine.visible = show && state.mode === 'tank' && !!state.aimP;
   R3.gunRed.visible = R3.gunLine.visible && !!state.fireLine && state.fireLine.block >= 0;
-  R3.mouseMark.visible = R3.aim.visible && !!state.mouse3;
+  R3.aimS.visible = R3.aim.visible && !!state.aimS && !!state.fireLine2;
+  // (a block at the last point is the round landing where it was aimed, not something in the way)
+  R3.hitX.visible = R3.aim.visible && !!state.fireLine && state.fireLine.block >= 0 && state.fireLine.block < 32;
+  R3.hitX2.visible = R3.aimS.visible && state.fireLine2.block >= 0 && state.fireLine2.block < 32;
   if (show) {
     ringPoints(R3.radio, tk.x, tk.z, tankStats().radio, 0.35, true);
     R3.radio.material.opacity = state.mode === 'cmd' ? 1 : 0.6;
     if (R3.aim.visible) {
-      const a = state.aimP, r = Math.max(0.4, tk.spread * a.dist);
-      ringPoints(R3.aim, a.x, a.z, r, 0.2, false); ringPoints(R3.aim2, a.x, a.z, r + 0.14, 0.18, false);
-      R3.aim.material.color.setHex(tk.reload > 0 ? 0x9a9a9a : tk.aligned ? 0xffffff : 0xffa040);
+      // the main weapon's scatter where its round really lands: on the first thing in the way, or at the mouse;
+      // a shell's is an ellipse spread_long times longer along the shot (fireCannon), a bullet's a circle
+      const S = tankStats(), fl0 = state.fireLine, a = state.aimP, hit = fl0 && fl0.block >= 0 && fl0.block < 32 ? fl0.pts[fl0.block] : null;
+      const at = hit || a, dd = Math.hypot(at.x - tk.x, at.z - tk.z), R = Math.max(0.4, tk.spread * dd), kl = S.wkind === 'bullet' ? 1 : Math.sqrt(tune.spread_long);
+      ellipsePoints(R3.aim, at.x, at.z, R * kl, R / kl, tk.turretYaw, 0.2, hit ? hit.y : null); ellipsePoints(R3.aim2, at.x, at.z, R * kl + 0.14, R / kl + 0.14, tk.turretYaw, 0.18, hit ? hit.y : null);
+      R3.aim.material.color.setHex(tk.reload > 0 ? 0x9a9a9a : hit ? 0xff6a4a : tk.aligned ? 0xffffff : 0xffa040);
+      if (hit) placeX(R3.hitX, hit.x, hit.y, hit.z, 1.1);
+      // the coax: its own dashed circle, as far as its range, on what it would hit
+      if (R3.aimS.visible) {
+        const f2 = state.fireLine2, s = state.aimS, h2 = f2.block >= 0 && f2.block < 32 ? f2.pts[f2.block] : null, c2 = h2 || s;
+        const r2 = tk.spread * (1 + (tk.heat || 0) * tune.mg_heat_spread) * Math.hypot(c2.x - tk.x, c2.z - tk.z) + 0.25;
+        ellipsePoints(R3.aimS, c2.x, c2.z, r2, r2, 0, 0.25, h2 ? h2.y : null, true);
+        R3.aimS.material.color.setHex(tk.jammed ? 0xff3a2a : h2 ? 0xff9a7a : s.short ? 0xb0a090 : 0xfff0c0);
+        if (h2) placeX(R3.hitX2, h2.x, h2.y, h2.z, 0.7);
+      }
       // the line of fire: the round's real path, red from the first thing in the way to the mouse
       const fl = state.fireLine, gp = R3.gunLine.geometry.attributes.position, rp = R3.gunRed.geometry.attributes.position;
       if (fl) {
@@ -729,10 +770,6 @@ function renderWorld() {
         for (let k = 0; k <= end; k++) gp.setXYZ(k, fl.pts[k].x, fl.pts[k].y + 0.05, fl.pts[k].z);
         R3.gunLine.geometry.setDrawRange(0, end + 1); gp.needsUpdate = true;
         if (fl.block >= 0) { for (let k = fl.block; k <= 32; k++) rp.setXYZ(k - fl.block, fl.pts[k].x, fl.pts[k].y + 0.05, fl.pts[k].z); R3.gunRed.geometry.setDrawRange(0, 33 - fl.block); rp.needsUpdate = true; }
-      }
-      if (state.mouse3) {
-        const m = state.mouse3, mp = R3.mouseMark.geometry.attributes.position;
-        mp.setXYZ(0, m.x + 0.9, m.y + 0.2, m.z); mp.setXYZ(1, m.x, m.y + 0.2, m.z + 0.9); mp.setXYZ(2, m.x - 0.9, m.y + 0.2, m.z); mp.setXYZ(3, m.x, m.y + 0.2, m.z - 0.9); mp.needsUpdate = true;
       }
     }
   }

@@ -97,6 +97,7 @@ window.CONFIG = {
   spread_move: { value: 0.09, min: 0, max: 0.3, step: 0.005 },  // radians added at full speed
   spread_turn: { value: 0.05, min: 0, max: 0.3, step: 0.005 },  // radians added while hull or turret turns
   spread_fire: { value: 0.04, min: 0, max: 0.3, step: 0.005 },  // radians added by each shot
+  spread_long: { value: 1.6, min: 1, max: 3, step: 0.1 },       // the cannon's scatter is an ellipse this many times longer (along the shot) than wide, same area as the circle
   aim_time: { value: 1.1, min: 0.1, max: 4, step: 0.05 },       // seconds for the circle to close by ~63%
   aligned_deg: { value: 2, min: 0.2, max: 10, step: 0.2 },      // turret counts as "on target" under this
 
