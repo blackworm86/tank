@@ -1179,15 +1179,21 @@ function inCoverFrom(x, z, fx, fz) {
   const ux = dx / L, uz = dz / L;
   for (const a of [0, 0.7, -0.7]) {
     const c = Math.cos(a), s = Math.sin(a), rx = ux * c - uz * s, rz = ux * s + uz * c;
-    if (hAt(x + rx * 1.1, z + rz * 1.1) >= h + 1) return true;
+    if (coverQuality(Math.floor(x + rx * 1.1), Math.floor(z + rz * 1.1), h)) return true;
   }
   return false;
 }
-/** How good the cover in the cell beside (x,z) at height h is: 0 none, 1 light (low or soft), 2 heavy. */
+/**
+ * How good the cover in the cell beside (x,z) is for someone standing at height h: 0 none, 1 light, 2 heavy.
+ * Bare ground covers only as a wall: a step of map_cliff or more (a cliff, a terrace, a rock block); a ramp of
+ * 1 m is open ground (map rule M1). Something built covers from 1 above the feet: soft things (sandbags, junk,
+ * planks, trees) lightly, hard ones heavily.
+ */
 function coverQuality(x, z, h) {
-  const nh = hAt(x, z);
+  if (!inMap(x, z)) return 0;
+  const i = x + world.N * z, nh = world.hmap[i], g = world.groundRaw[i];
   if (nh < h + 1 || nh > h + 8) return 0;
-  if (nh >= h + 2) return 2;
+  if (nh <= g || world.road[i] === 2) return nh - h >= tune.map_cliff ? 2 : 0; // bare ground or a bridge deck
   return SOFTV.has(getV(x, nh - 1, z)) ? 1 : 2;
 }
 /**
