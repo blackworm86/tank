@@ -76,7 +76,10 @@ window.CONFIG = {
 
   // ---- Camera and orders menu (js/view.js, js/systems/play.js, js/systems/ordermenu.js) ----
   context_menu: { value: 1, min: 0, max: 1, step: 1 },          // 1: right-click opens the menu of orders; 0: right-click orders at once (move/attack/enter)
-  cam_pitch: { value: 55, min: 35, max: 75, step: 1 },          // degrees down from horizon
+  cam_pitch: { value: 56, min: 35, max: 75, step: 1 },          // degrees down from horizon, zoomed out (bird's eye)
+  cam_pitch_near: { value: 33, min: 15, max: 60, step: 1 },     // degrees down from horizon, zoomed in (over the tank's shoulders, RTS-style)
+  cam_ahead: { value: 4, min: 0, max: 30, step: 1 },            // metres the camera looks ahead of the tank, zoomed in (none zoomed out)
+  vox_jitter: { value: 0.05, min: 0, max: 0.2, step: 0.01 },   // per-voxel brightness variation (the larger, the more the surface looks gridded)
   cam_fov: { value: 32, min: 20, max: 60, step: 1 },            // degrees
   cam_dist: { value: 84, min: 30, max: 140, step: 1 },          // starting zoom distance
   cam_dist_min: { value: 35, min: 20, max: 80, step: 1 },

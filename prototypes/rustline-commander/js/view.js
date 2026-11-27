@@ -194,7 +194,7 @@ function buildChunkGeo(cx, cz) {
   let qx = 0, qz = 0;
   const quad = (t, y, n, pts, isTop) => { // one face of the drawn ground: corners [px, height, pz] of column (qx, qz)
     const bc = R3.vlin[t];
-    let k = 0.9 + hash2(qx * 7 + y * 3, qz * 13 - y, 77) * 0.16;
+    let k = 0.96 + hash2(qx * 7 + y * 3, qz * 13 - y, 77) * tune.vox_jitter; // a faint per-voxel shade, no checkerboard
     if (isTop) k *= 0.92 + vnoise(qx / 6, qz / 6, 5) * 0.16; else k *= 0.8 + 0.2 * Math.min(1, y / 14);
     for (let i = 0; i < 4; i++) {
       const [px, h, pz] = pts[i];
@@ -217,7 +217,7 @@ function buildChunkGeo(cx, cz) {
     for (let y = sm ? gtop : g0; y < top; y++) {
       const t = world.vox[base + y]; if (!t || t === V.TREE || world.fmark[base + y] === 1) continue; // a structure draws its own fine cells (js/structs.js)
       const bc = R3.vlin[t], snowTop = snowy && y === top - 1 && !GROUNDV.has(t); // snow on the roofs in the ice lands
-      const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
+      const v = 0.96 + hash2(x * 7 + y * 3, z * 13 - y, 77) * tune.vox_jitter;
       // voxel look: the lowest built voxel's sides reach down to the column's lowest ground corner, so no gap shows
       if (!sm && y === g0 && low > 0) skirt = low;
       else if (!sm) skirt = 0;
@@ -563,16 +563,21 @@ function modelFor(e) {
 }
 
 // ---- Per-frame drawing of the world -----------------------------------------------------------------
+/** Zoom fraction: 0 at cam_dist_min, 1 at cam_dist_max. */
+function camZoomT() { return Math.max(0, Math.min(1, (cam.dist - tune.cam_dist_min) / Math.max(1, tune.cam_dist_max - tune.cam_dist_min))); }
+/** Camera pitch in radians: cam_pitch_near close in (over the tank's shoulders), cam_pitch far out (bird's eye), eased. */
+function camPitch() { const t = Math.sqrt(camZoomT()); return (tune.cam_pitch_near + (tune.cam_pitch - tune.cam_pitch_near) * t) * Math.PI / 180; }
 function updateCamera() {
-  const p = tune.cam_pitch * Math.PI / 180;
+  const p = camPitch(), ah = tune.cam_ahead * (1 - camZoomT()); // close in, the camera looks ahead of the tank
   let dy = cam.yawT - cam.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
   cam.yaw += dy * 0.15;
   const c = R3.camera;
   c.fov = tune.cam_fov; c.aspect = W / H; c.updateProjectionMatrix();
   const f = Math.floor((state.t || 0) * 60);
   const sx = (hash2(f, 1, 3) - 0.5) * cam.shake, sz = (hash2(f, 2, 3) - 0.5) * cam.shake;
-  c.position.set(cam.x + Math.sin(cam.yaw) * Math.cos(p) * cam.dist + sx, cam.y + Math.sin(p) * cam.dist, cam.z + Math.cos(cam.yaw) * Math.cos(p) * cam.dist + sz);
-  c.lookAt(cam.x + sx, cam.y, cam.z + sz);
+  const lx = cam.x - Math.sin(cam.yaw) * ah, lz = cam.z - Math.cos(cam.yaw) * ah;
+  c.position.set(lx + Math.sin(cam.yaw) * Math.cos(p) * cam.dist + sx, cam.y + Math.sin(p) * cam.dist, lz + Math.cos(cam.yaw) * Math.cos(p) * cam.dist + sz);
+  c.lookAt(lx + sx, cam.y, lz + sz);
   c.updateMatrixWorld();
   R3.scene.fog.near = cam.dist * 1.3; R3.scene.fog.far = cam.dist * 3.4 + 60;
   const s = R3.sun;

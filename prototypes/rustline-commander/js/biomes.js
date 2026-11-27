@@ -517,7 +517,7 @@ function makeVoxAtlas() {
         for (let row = 0; row < 8; row++) for (let c = 0; c < 5; c++) { const bx2 = c * 8 - (row % 2) * 4; r(bx2 + 1, row * 4, 6, 3, (adobe ? 225 : 205) + hash2(row, c, k) * 45); }
         if (adobe) noise(40, 200, 250); break;
       }
-      case V.PLAST: r(0, 0, T, T, 238); noise(90, 212, 255); r(0, 29, T, 3, 196); break;
+      case V.PLAST: r(0, 0, T, T, 238); noise(90, 222, 255); break;
       case V.TILE: r(0, 0, T, T, 140); for (let row = 0; row < 4; row++) for (let c = 0; c < 5; c++) { const ox2 = c * 8 - (row % 2) * 4; r(ox2, row * 8, 7, 6, 205 + hash2(row, c, 9) * 50); r(ox2, row * 8 + 5, 7, 1, 170); } break;
       case V.METAL: for (let c = 0; c < 8; c++) { r(c * 4, 0, 2, T, 240); r(c * 4 + 2, 0, 1, T, 195); r(c * 4 + 3, 0, 1, T, 160); } noise(25, 150, 200); break;
       case V.GLASS: r(0, 0, T, T, 228); r(3, 3, T - 6, T - 6, 60); r(15, 3, 2, T - 6, 228); r(3, 15, T - 6, 2, 228); for (let i = 0; i < 8; i++) r(6 + i, 12 - i, 2, 1, 150); for (let i = 0; i < 6; i++) r(20 + i, 28 - i, 2, 1, 130); break;
@@ -525,11 +525,11 @@ function makeVoxAtlas() {
       case V.STRIPE: for (let i = -T; i < T * 2; i += 12) for (let j = 0; j < T; j++) r(i + j, j, 6, 1, 36); break;
       case V.HAY: r(0, 0, T, T, 230); for (let i = 0; i < 70; i++) r(Math.floor(hash2(i, 1, 9) * T), Math.floor(hash2(i, 2, 9) * T), 5, 1, 170 + hash2(i, 3, 9) * 80); r(0, 10, T, 2, 130); r(0, 22, T, 2, 130); break;
       case V.PLANK: case V.WOOD: for (let c = 0; c < 4; c++) { r(c * 8, 0, 1, T, 130); r(c * 8 + 1, 0, 7, T, 205 + hash2(c, k, 3) * 45); for (let j = 0; j < 4; j++) r(c * 8 + 2 + (hash2(c, j, 4) * 5 | 0), hash2(j, c, 5) * T | 0, 1, 5, 170); } break;
-      case V.CONC: r(0, 0, T, T, 232); noise(70, 170, 245); r(0, 15, T, 1, 192); r(15, 0, 1, T, 200); break;
+      case V.CONC: r(0, 0, T, T, 236); noise(70, 205, 250); break;
       case V.BAG: r(0, 0, T, T, 150); for (let row = 0; row < 4; row++) for (let c = 0; c < 3; c++) { const bx2 = c * 16 - (row % 2) * 8; r(bx2 + 1, row * 8 + 1, 14, 6, 228); r(bx2 + 7, row * 8 + 3, 1, 2, 175); } break;
-      case V.RUST: case V.JUNK: r(0, 0, T, T, 220); noise(140, 130, 255); r(0, 0, T, 1, 170); r(0, T - 1, T, 1, 170); for (const [a, b] of [[3, 3], [27, 3], [3, 27], [27, 27]]) r(a, b, 2, 2, 120); break;
+      case V.RUST: case V.JUNK: r(0, 0, T, T, 220); noise(140, 150, 255); break;
       case V.RAID: r(0, 0, T, T, 230); noise(60, 170, 255); r(0, 13, T, 6, 120); break;
-      default: r(0, 0, T, 1, 205); r(0, T - 1, T, 1, 205); r(0, 0, 1, T, 205); r(T - 1, 0, 1, T, 205); for (let i = 0; i < 9; i++) r(2 + ((i * 5) % 12) * 2, 2 + ((i * 7) % 12) * 2, 1, 1, 238);
+      default: noise(40, 232, 255);
     }
   }
   const tex = new THREE.CanvasTexture(cv);

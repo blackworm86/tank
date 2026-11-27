@@ -1018,15 +1018,14 @@ function structTex() {
   const c = document.createElement('canvas'); c.width = c.height = 32;
   const x = c.getContext('2d');
   for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-    const v = Math.round(232 + hash2(i, j, 3) * 23);
-    x.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.fillRect(i * 8, j * 8, 8, 8);
-    x.fillStyle = 'rgba(0,0,0,0.16)'; x.fillRect(i * 8, j * 8 + 7, 8, 1); x.fillRect(i * 8 + 7, j * 8, 1, 8);
+    const v = Math.round(243 + hash2(i, j, 3) * 12);
+    x.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.fillRect(i * 8, j * 8, 8, 8); // soft colour variation, no rim between cells
   }
   const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.colorSpace = THREE.SRGBColorSpace;
   R3.structTex = t;
   R3.structMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: t });
-  // the cutaway (updateStructCut): two capsules along the line of sight, from the tank and from the cursor toward the
+  // the cutaway (updateStructCut): a capsule along the line of sight, from the tank toward the
   // camera (a: the point, its cut height, the radius; b: the far end, the slope of the line of sight); what rises
   // above that line inside them is not drawn
   R3.cutU = { uCutA0: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB0: { value: new THREE.Vector4() }, uCutA1: { value: new THREE.Vector4(0, 1e9, 0, 0) }, uCutB1: { value: new THREE.Vector4() } };
@@ -1049,17 +1048,15 @@ bool cutAway(vec4 A, vec4 B) {
  * The cutaway, each frame: what of a structure rises between the camera and the tank is not drawn. A capsule cut_r
  * metres wide runs from the tank toward the camera; inside it, everything over the line of sight to the tank's foot
  * goes (cut_h metres over it right by the tank, so the tank's own cover stays), so a tall building never hides the tank and
- * its rooms show from above. The same from the cursor (two thirds as wide), so a spot inside a building shows.
+ * its rooms show from above.
  */
 function updateStructCut() {
   if (!R3.cutU || typeof state === 'undefined' || !state.tank) return;
   const tk = state.tank, r = tune.cut_r, on = r > 0 && (typeof scene === 'undefined' || scene === 'play');
-  const sl = Math.tan(tune.cam_pitch * Math.PI / 180), L = 70, dx = Math.sin(cam.yaw) * L, dz = Math.cos(cam.yaw) * L;
+  const sl = Math.tan(camPitch()), L = 70, dx = Math.sin(cam.yaw) * L, dz = Math.cos(cam.yaw) * L;
   const put = (A, B, x, y, z, rr) => { A.value.set(x, on ? y : 1e9, z, rr); B.value.set(x + dx, z + dz, sl, tune.cut_h); };
   put(R3.cutU.uCutA0, R3.cutU.uCutB0, tk.x, tk.y || hAt(Math.floor(tk.x), Math.floor(tk.z)), tk.z, r);
-  const m = state.mouse3;
-  if (m && inMap(Math.floor(m.x), Math.floor(m.z))) put(R3.cutU.uCutA1, R3.cutU.uCutB1, m.x, groundOf(Math.floor(m.x), Math.floor(m.z)), m.z, r * 0.66);
-  else R3.cutU.uCutA1.value.set(0, 1e9, 0, 0);
+  R3.cutU.uCutA1.value.set(0, 1e9, 0, 0); // only around the tank: nothing is cut around the cursor
 }
 /**
  * The structure's surface: for each axis and side, the faces between a cell and air merged greedily into rectangles.
@@ -1096,7 +1093,7 @@ function structGeo(S) {
         const e1 = [0, 0, 0], e2 = [0, 0, 0]; e1[u] = wq; e2[v] = hq;
         const corners = sgn > 0 ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [[0, 0], [0, 1], [1, 1], [1, 0]];
         const yb = o[1] * inv + S.yb;
-        let k = 0.9 + hash2(o[0] * 7 + o[1] * 3, o[2] * 13 + d, 77) * 0.12;
+        let k = 0.96 + hash2(o[0] * 7 + o[1] * 3, o[2] * 13 + d, 77) * tune.vox_jitter;
         if (d !== 1) k *= 0.82 + 0.18 * Math.min(1, yb / 14); else if (sgn < 0) k *= 0.7;
         for (const [a, bq] of corners) {
           const X = o[0] + e1[0] * a + e2[0] * bq, Y = o[1] + e1[1] * a + e2[1] * bq, Z = o[2] + e1[2] * a + e2[2] * bq;
