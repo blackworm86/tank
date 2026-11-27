@@ -248,6 +248,11 @@ window.CONFIG = {
   garrison_hurt: { value: 12, min: 0, max: 50, step: 1 },        // damage to each soldier thrown out by a collapse   // steepest smoothed rise between cells the tank takes (map report)
 
   // ---- Friendly vehicles: armoured car, anti-tank gun, support tank (js/systems/units.js, js/systems/entities.js) ----
+  veh_accel: { value: 4, min: 1, max: 20, step: 0.5 },          // every vehicle but the command tank: speed gained or lost a second (m/s2)
+  veh_lookahead: { value: 3.5, min: 1, max: 8, step: 0.5 },     // how far ahead along its path a driver steers (m): wider curves, no zigzag
+  veh_wheel_turn: { value: 0.35, min: 0, max: 1, step: 0.05 },  // a wheeled vehicle's turning at a standstill, of its full turn rate (tracks pivot: 1)
+  turret_scan: { value: 0.6, min: 0, max: 1.5, step: 0.05 },    // how far a vehicle's turret sweeps either side of its watch bearing with no target (rad)
+  car_turret: { value: 90, min: 20, max: 300, step: 5 },        // armoured car turret, degrees a second
   car_hp: { value: 160, min: 30, max: 600, step: 10 },          // armoured car
   car_speed: { value: 8, min: 2, max: 16, step: 0.5 },
   car_range: { value: 28, min: 5, max: 60, step: 1 },

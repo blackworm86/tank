@@ -28,7 +28,7 @@ function updateUnits(dt) {
     if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g; } // inside a building, at a window
     else {
       moveAlong(e, dt);
-      e.y = hAt(e.x, e.z);
+      e.y = e.veh ? surfaceY(e.x, e.z) : hAt(e.x, e.z); // a vehicle rides the drawn ground, ramps and all (as the command tank)
       if (e.y >= 99) e.y = 0;
       e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
       if (deepWater(e.x, e.z)) { dmgTo(e, 999, 'drown', null); continue; }
@@ -39,7 +39,8 @@ function updateUnits(dt) {
     if (t && t.alive) {
       const want = angTo(e, t);
       if (e.veh) {
-        e.turretYaw = turnToward(e.turretYaw, want, (e.kind === 'ltank' ? 70 : enemyTurret(ENEMY[e.kind])) * Math.PI / 180 * dt);
+        e.lastFoe = { a: want, t: state.t }; // the gunner keeps watching that way after it is gone
+        e.turretYaw = turnToward(e.turretYaw, want, turretRate(e) * dt);
         // a still hull turns its front to the enemy unless it was told which way to face
         if (!e.moving && e.face == null) e.heading = turnToward(e.heading, want, hullTurn(e) * Math.PI / 180 * dt);
       } else if (!e.moving) e.heading = turnToward(e.heading, want, (w.turn ? w.turn * Math.PI / 180 : 8) * dt);
@@ -56,9 +57,9 @@ function updateUnits(dt) {
         if (ps === 'hold' || (ps === 'return' && !hit) || (ps === 'stealth' && !hit && dist2(e, t) > (w.range * tune.stealth_trigger) ** 2)) aligned = false;
       }
       if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet' || w.move)) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
-    } else if (!e.moving) {
-      if (e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
-      if (e.veh) e.turretYaw = turnToward(e.turretYaw, e.heading, tune.turret_return * dt);
+    } else {
+      if (!e.moving && e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
+      if (e.veh && UT[e.kind].w) e.turretYaw = turnToward(e.turretYaw, watchYaw(e), Math.min(turretRate(e), tune.turret_return * 2) * dt);
     }
     if (e.kind === 'medic' || e.kind === 'eng') roleSkill(e, dt);
   }
@@ -86,7 +87,7 @@ function updateUnits(dt) {
 /** A vehicle's pitch and roll from the ground at its four corners (as the command tank's). */
 function tiltVehicle(e, dt) {
   const s = Math.sin(e.heading), c = Math.cos(e.heading), L = e.rad * 1.05, Wd = e.rad * 0.6;
-  const h = (lx, lz) => hAt(e.x + c * lx + s * lz, e.z - s * lx + c * lz);
+  const h = (lx, lz) => surfaceY(e.x + c * lx + s * lz, e.z - s * lx + c * lz);
   const f = (h(-Wd, L) + h(Wd, L)) / 2, b = (h(-Wd, -L) + h(Wd, -L)) / 2, l = (h(Wd, L) + h(Wd, -L)) / 2, r = (h(-Wd, L) + h(-Wd, -L)) / 2;
   const k = Math.min(1, dt * 6), cl = v => Math.max(-0.45, Math.min(0.45, v));
   e.pitch = (e.pitch || 0) + (cl(-(f - b) / (2 * L)) - (e.pitch || 0)) * k;
@@ -111,20 +112,65 @@ function nudge(e, dx, dz) {
   const nx = e.x + dx, nz = e.z + dz;
   if (walkable(Math.floor(nx), Math.floor(nz)) && Math.abs(hAt(nx, nz) - hAt(e.x, e.z)) <= 1) { e.x = nx; e.z = nz; }
 }
+/** A vehicle's turret speed, radians a second: the support tank's, the armoured car's, a raider's. */
+function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'car' ? tune.car_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
+/**
+ * Where a vehicle's gunner looks with no target: along the way it drives, the way it was told to face, or the
+ * last enemy seen, swept slowly turret_scan either side as the crew watches.
+ */
+function watchYaw(e) {
+  const k = e.id || 0, sweep = Math.sin(state.t * 0.45 + k * 1.7) * tune.turret_scan;
+  if (e.lastFoe && state.t - e.lastFoe.t < 12) return e.lastFoe.a + sweep * 0.4;
+  if (e.moving) return e.heading + sweep * 0.6;
+  return (e.face != null ? e.face : e.heading) + sweep;
+}
+/** Tracks turn on the spot; wheels need to roll to turn. */
+function tracked(e) { return e.kind === 'ltank' || e.kind === 'tank' || !!(ENEMY[e.kind] && ENEMY[e.kind].heavy); }
+/** Can a vehicle's centre go to (x, z) from where it is: no deep water, no hard wall, no cliff step (as tankFits). */
+function vehCanGo(e, x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz) || deepWater(x, z)) return false;
+  const i = ix + world.N * iz, top = world.hmap[i], g = world.groundRaw[i];
+  if (top - g > 1 && !SOFTV.has(world.vox[VH * i + top - 1]) && world.road[i] !== 2) return false;
+  return Math.abs(smoothH(x, z) - smoothH(e.x, e.z)) <= tune.tank_step_max;
+}
+/**
+ * A vehicle drives like the command tank: it steers its nose toward a point veh_lookahead along its path and
+ * moves only along its nose, speeding up and slowing down by veh_accel, slowing into a turn and to a stop at the
+ * end. Tracks pivot on the spot; wheels turn only as they roll.
+ */
+function driveAlong(e, dt) {
+  const P = e.path, last = P.length - 1, LA = tune.veh_lookahead + e.rad * 0.5;
+  while (e.pi < last && Math.hypot(P[e.pi].x - e.x, P[e.pi].z - e.z) < LA) e.pi++;
+  const wp = P[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz);
+  if (e.pi === last && d < 0.7) { e.pi = P.length; e.vs = 0; e.moving = false; return; }
+  let top = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1), want = Math.atan2(dx, dz), dir = 1;
+  // told which way to face and the way runs the other way: back up, front to the enemy
+  if (e.moveFace != null && Math.abs(angDiff(e.moveFace, want)) > 1.9) { want += Math.PI; top *= 0.55; dir = -1; }
+  const off = Math.abs(angDiff(e.heading, want)), sp0 = Math.abs(e.vs || 0);
+  const full = ((ENEMY[e.kind] && ENEMY[e.kind].hullTurnMove) || Math.max(60, hullTurn(e) * 1.4)) * Math.PI / 180;
+  const roll = tracked(e) ? 1 : Math.min(1, tune.veh_wheel_turn + sp0 / Math.max(0.1, top) * (1 - tune.veh_wheel_turn) * 1.5);
+  e.heading = turnToward(e.heading, want, full * roll * dt);
+  // the speed it wants: less into a turn, less near the end (tracks stop to pivot, wheels keep rolling)
+  let aim = top * Math.max(tracked(e) ? 0 : 0.35, Math.cos(Math.min(Math.PI / 2, off)));
+  if (e.pi === last) aim = Math.min(aim, 0.6 + d * 0.9);
+  const v = sp0 + Math.max(-tune.veh_accel * 2 * dt, Math.min(tune.veh_accel * dt, aim - sp0));
+  const nx = e.x + Math.sin(e.heading) * v * dir * dt, nz = e.z + Math.cos(e.heading) * v * dir * dt;
+  if (vehCanGo(e, nx, nz)) { e.x = nx; e.z = nz; e.vs = v * dir; } else e.vs = 0;
+  e.moving = true;
+  // no headway for a while (blocked): think again about the way
+  const now = Math.hypot(wp.x - e.x, wp.z - e.z);
+  e.stuckT = Math.max(0, (e.stuckT || 0) + (d - now < top * dt * 0.1 && off < 0.5 ? dt : -dt * 2));
+  if (e.stuckT > tune.unstick_time && e.dest) { const d0 = e.dest; e.stuckT = 0; setDest(e, d0.x + (rng() - 0.5) * 1.5, d0.z + (rng() - 0.5) * 1.5); }
+}
 function moveAlong(e, dt) {
-  if (!e.path || e.pi >= e.path.length) { e.moving = false; return; }
+  if (!e.path || e.pi >= e.path.length) { e.moving = false; if (e.veh) e.vs = 0; return; }
+  if (e.veh) { driveAlong(e, dt); return; }
   const wp = e.path[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz);
-  let sp = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1);
-  if (e.veh) {
-    let want = Math.atan2(dx, dz);
-    // told which way to face and the way runs the other way: back up, front to the enemy
-    if (e.moveFace != null && Math.abs(angDiff(e.moveFace, want)) > 1.9) { want += Math.PI; sp *= 0.55; }
-    e.heading = turnToward(e.heading, want, ((ENEMY[e.kind] && ENEMY[e.kind].hullTurnMove) || Math.max(60, hullTurn(e) * 1.4)) * Math.PI / 180 * dt);
-    if (Math.abs(angDiff(e.heading, want)) > 0.8) sp *= 0.15;
-  } else if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
+  const sp = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1);
+  if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
   const before = d;
   if (d <= sp * dt) { e.x = wp.x; e.z = wp.z; e.pi++; }
-  else if (!e.veh && e.pi < e.path.length - 1 && d < 0.6) e.pi++; /* a node others crowd is close enough: walk on */ else { e.x += dx / d * sp * dt; e.z += dz / d * sp * dt; }
+  else if (e.pi < e.path.length - 1 && d < 0.6) e.pi++; /* a node others crowd is close enough: walk on */ else { e.x += dx / d * sp * dt; e.z += dz / d * sp * dt; }
   e.moving = true;
   // no headway for a while (pushed, blocked): think again about the way
   const now = Math.hypot(wp.x - e.x, wp.z - e.z);
