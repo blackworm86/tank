@@ -17,6 +17,14 @@ function register(kind, id, def) {
   if (id in t) console.warn('register: ' + kind + ' ' + id + ' replaced');
   t[id] = def; return def;
 }
+/**
+ * Adds a tuning value for a content pack ({ value, min, max, step }), read like the others through
+ * tune.<key>. config.js keeps the game's own values and wins: a key it already has is left as it is.
+ */
+function registerTune(key, def) {
+  if (key in window.CONFIG) { console.warn('registerTune: ' + key + ' is in config.js, kept'); return window.CONFIG[key]; }
+  window.CONFIG[key] = def; return def;
+}
 /** All entries of a kind ({} when none). */
 function registry(kind) { return REG[kind] || (REG[kind] = {}); }
 /** Makes an existing catalogue the registry's table for a kind (its entries stay where they are). */

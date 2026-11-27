@@ -68,8 +68,11 @@
    geografie, forme), i moduli con il loro aspetto (`modules.js`) e le armi e i sistemi con il loro
    effetto (`arsenal.js`). I file dei sistemi tengono solo i registri; il registro dei nemici è in
    `js/systems/horde.js`. In `index.html` i pacchetti si caricano dopo tutti i sistemi.
-7. **La config divisa per sistema.** Le chiavi restano piatte, perché `tune` e il pannello le leggono
-   così, ma ogni sistema ha il suo file.
+7. **Fatto, iteration 25: la config ordinata per sistema.** Scelta: "Un file, per sistema". `config.js`
+   resta un file solo, perché il pannello delle regolazioni, i valori fissati nel brief e la crescita in
+   progetto web lo leggono intero (e la regola dei one-shot lo vuole così). Le 334 chiavi sono in 23
+   sezioni, una per sistema, e ogni sezione nomina i file che le leggono. Un pacchetto aggiunge i suoi
+   valori con `registerTune()`.
 
 ## Come aggiungere un nemico (dall'iteration 20)
 
@@ -187,3 +190,14 @@ scelte della campagna e le mappe cambiano per tutti i semi (vedi le avvertenze s
 Restano nominati per id nei file dei sistemi, e quindi non ancora estendibili da un pacchetto: i sistemi
 passivi (letti dove agiscono: `modOn('cage')`, `modOn('rack')`...), i tre tipi di colpo (`he`, `ap`,
 `frag`), gli scafi, gli achievement, le fazioni e i loro dialoghi (`js/factions.js`) e gli alleati (`UT`).
+
+## Come aggiungere un valore di regolazione (dall'iteration 25)
+
+- **Per il gioco**: una riga nella sezione del suo sistema in `config.js`, su una riga sola, con
+  `value`, `min`, `max` e `step`; il codice la legge con `tune.<chiave>`. Il pannello delle regolazioni la
+  vede e la può riscrivere.
+- **Per un pacchetto di contenuti**: nel file del pacchetto,
+  `registerTune('lancia_damage', { value: 6, min: 1, max: 20, step: 1 });` e poi `tune.lancia_damage`.
+  Se `config.js` ha già quella chiave, vince `config.js` (la console lo segnala). Il pannello delle
+  regolazioni non riscrive i valori di un pacchetto: per renderli regolabili, la riga va copiata in
+  `config.js`.
