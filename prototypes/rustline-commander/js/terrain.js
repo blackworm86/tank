@@ -100,7 +100,12 @@ const _w4 = [0, 0, 0, 0];
 function terrainY(px, pz) { wAt(px, pz, _w4); return baseH(px, pz) + grain(px, pz, _w4); }
 /** Where a figure's feet go at (x,z): on the drawn ground when the column is bare, else on top of the column. */
 function surfaceY(x, z) {
-  if (!TER.ground || !smoothLook() || TER.N !== world.N) return hAt(x, z);
+  if (!smoothLook()) { // the voxel look: bare ground is the sloped surface through its corners (world.cor)
+    const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz) || !world.cor) return hAt(x, z);
+    const i = ix + world.N * iz;
+    return world.hmap[i] === world.groundRaw[i] ? smoothH(x, z) : hAt(x, z);
+  }
+  if (!TER.ground || TER.N !== world.N) return hAt(x, z);
   const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz)) return hAt(x, z);
   const i = ix + world.N * iz;
   return world.hmap[i] === TER.ground[i] ? baseH(x, z) : hAt(x, z);

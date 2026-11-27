@@ -124,44 +124,87 @@ const FACES = [
   { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] },
 ];
 const UVS = [[0, 0], [0, 1], [1, 1], [1, 0]];
-/** Terrain whose 1-voxel steps are drawn as ramps (buildings and walls keep hard edges). */
-function rampTop(x, z) { if (!inMap(x, z)) return -1; const h = world.hmap[x + world.N * z]; return h > 0 && NATURAL.has(world.vox[VH * (x + world.N * z) + h - 1]) ? h : -1; }
-/** How far a column's top corner (cx,cz in 0..1) rises: 1 when a terrain column touching that corner is exactly one voxel taller. */
-function cornerRise(x, z, h, cx, cz) {
-  for (let dz = cz - 1; dz <= cz; dz++) for (let dx = cx - 1; dx <= cx; dx++) if ((dx || dz) && rampTop(x + dx, z + dz) === h + 1) return 1;
-  return 0;
-}
 const NATURAL = new Set([V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
+/**
+ * The voxel look's ground: each column's natural ground is one top surface through its four corner heights
+ * (cornerOf in world.js, the same surface the tank rides: a 1-voxel step is a slope, a cliff a wall), and side
+ * walls, layer by layer, wherever this column's edge stands above its neighbour's. gh(x, z) is the ground height.
+ */
+function pushGround(x, z, gh, quad) {
+  const g = gh(x, z); if (g <= 0) return;
+  const base = VH * (x + world.N * z), top = world.vox[base + g - 1];
+  const c = [cornerOf(gh, x, z, g, 0, 0), cornerOf(gh, x, z, g, 1, 0), cornerOf(gh, x, z, g, 0, 1), cornerOf(gh, x, z, g, 1, 1)];
+  const cov = world.vox[base + g]; // a built voxel on the ground hides its top
+  if (!cov || cov === V.TREE) {
+    const dx = ((c[1] - c[0]) + (c[3] - c[2])) / 2, dz = ((c[2] - c[0]) + (c[3] - c[1])) / 2, L = Math.hypot(dx, 1, dz);
+    quad(top, g - 1, [-dx / L, 1 / L, -dz / L], [[0, c[2], 1], [1, c[3], 1], [1, c[1], 0], [0, c[0], 0]], true);
+  }
+  // side walls: the edge between two corners (px, pz) of this column against the neighbour across it
+  for (const [nx, nz, e0, e1] of [[1, 0, [1, 0], [1, 1]], [-1, 0, [0, 1], [0, 0]], [0, 1, [1, 1], [0, 1]], [0, -1, [0, 0], [1, 0]]]) {
+    const xx = x + nx, zz = z + nz, inside = inMap(xx, zz), gn = inside ? gh(xx, zz) : 0;
+    const tops = [c[e0[0] + 2 * e0[1]], c[e1[0] + 2 * e1[1]]];
+    const bots = [e0, e1].map(([px, pz]) => inside ? Math.min(cornerOf(gh, xx, zz, gn, px - nx, pz - nz), gn) : 0);
+    if (tops[0] <= bots[0] + 1e-3 && tops[1] <= bots[1] + 1e-3) continue;
+    const lo = Math.floor(Math.min(bots[0], bots[1])), hi = Math.ceil(Math.max(tops[0], tops[1]));
+    for (let y = lo; y < hi; y++) {
+      const t0 = Math.min(Math.max(tops[0], y), y + 1), t1 = Math.min(Math.max(tops[1], y), y + 1);
+      const b0 = Math.min(Math.max(bots[0], y), y + 1), b1 = Math.min(Math.max(bots[1], y), y + 1);
+      if (t0 - b0 < 1e-3 && t1 - b1 < 1e-3) continue;
+      const t = y < g ? world.vox[base + y] || top : top;
+      quad(t, y, [nx, 0, nz], [[e0[0], b0, e0[1]], [e0[0], t0, e0[1]], [e1[0], t1, e1[1]], [e1[0], b1, e1[1]]], false);
+    }
+  }
+  return Math.min(c[0], c[1], c[2], c[3]);
+}
 function buildChunkGeo(cx, cz) {
   const N = world.N, x0 = cx * 16, z0 = cz * 16;
   const pos = [], nor = [], col = [], uv = [], idx = [];
   let vcount = 0;
   const sm = smoothLook(), snowy = !!BIOME().snow;
+  // the voxel look: the chunk's ground heights with a margin, read once
+  const GH = sm ? null : new Int16Array(20 * 20);
+  if (!sm) for (let b = 0; b < 20; b++) for (let a = 0; a < 20; a++) { const x = Math.min(N - 1, Math.max(0, x0 - 2 + a)), z = Math.min(N - 1, Math.max(0, z0 - 2 + b)); GH[a + 20 * b] = groundOf(x, z); }
+  const gh = (x, z) => { const a = x - x0 + 2, b = z - z0 + 2; if (a >= 0 && b >= 0 && a < 20 && b < 20) return GH[a + 20 * b]; return groundOf(Math.min(N - 1, Math.max(0, x)), Math.min(N - 1, Math.max(0, z))); };
+  let qx = 0, qz = 0;
+  const quad = (t, y, n, pts, isTop) => { // one face of the drawn ground: corners [px, height, pz] of column (qx, qz)
+    const bc = R3.vlin[t];
+    let k = 0.9 + hash2(qx * 7 + y * 3, qz * 13 - y, 77) * 0.16;
+    if (isTop) k *= 0.92 + vnoise(qx / 6, qz / 6, 5) * 0.16; else k *= 0.8 + 0.2 * Math.min(1, y / 14);
+    for (let i = 0; i < 4; i++) {
+      const [px, h, pz] = pts[i];
+      pos.push(qx + px, h, qz + pz); nor.push(n[0], n[1], n[2]);
+      const uu = isTop ? px : (n[0] ? pz : px), vv = isTop ? pz : h - y, au = atlasUV(t, n[0] < 0 || n[2] > 0 ? 1 - uu : uu, vv);
+      col.push(bc.r * k, bc.g * k, bc.b * k); uv.push(au[0], au[1]);
+    }
+    idx.push(vcount, vcount + 1, vcount + 2, vcount, vcount + 2, vcount + 3);
+    vcount += 4;
+  };
   // smooth look: a neighbour that is ground below the drawn surface, or a tree, counts as open
   const solidN = (x, y, z) => { const t = getV(x, y, z); if (!t || t === V.TREE) return false; if (!sm || !GROUNDV.has(t) || !inMap(x, z)) return true; return y >= TER.ground[x + N * z]; };
   for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
     if (!inMap(x, z)) continue;
     const top = world.hmap[x + N * z], base = VH * (x + N * z), gtop = sm ? TER.ground[x + N * z] : 0;
     // a building's walls reach down past the drawn ground so no gap shows under them
-    let skirt = 0;
+    let skirt = 0, g0 = 0, low = 0;
+    if (!sm) { qx = x; qz = z; g0 = gh(x, z); const m = pushGround(x, z, gh, quad); low = m === undefined ? g0 : g0 - m; } // the ground drawn as a surface; built voxels from its top
     if (sm && top > gtop) { let lo = gtop; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, z + dz)) lo = Math.min(lo, TER.gs[x + dx + N * (z + dz)]); skirt = gtop - lo + 0.6; }
-    for (let y = sm ? gtop : 0; y < top; y++) {
+    for (let y = sm ? gtop : g0; y < top; y++) {
       const t = world.vox[base + y]; if (!t || t === V.TREE) continue;
       const bc = R3.vlin[t], snowTop = snowy && y === top - 1 && !GROUNDV.has(t); // snow on the roofs in the ice lands
       const v = 0.9 + hash2(x * 7 + y * 3, z * 13 - y, 77) * 0.16;
-      // the surface voxel of natural ground bends its top corners up toward a 1-voxel step: a ramp
-      const ramp = !sm && y === top - 1 && NATURAL.has(t);
-      const rise = ramp ? [cornerRise(x, z, top, 0, 0), cornerRise(x, z, top, 1, 0), cornerRise(x, z, top, 0, 1), cornerRise(x, z, top, 1, 1)] : null;
+      // voxel look: the lowest built voxel's sides reach down to the column's lowest ground corner, so no gap shows
+      if (!sm && y === g0 && low > 0) skirt = low;
+      else if (!sm) skirt = 0;
       for (let f = 0; f < 6; f++) {
         const F = FACES[f];
-        if (f === 3 && (y === 0 || (sm && y === gtop))) continue;
+        if (f === 3 && (y === 0 || y === (sm ? gtop : g0))) continue;
         if (solidN(x + F.n[0], y + F.n[1], z + F.n[2])) continue;
         let k = v;
         if (f === 2 && NATURAL.has(t)) k *= 0.92 + vnoise(x / 6, z / 6, 5) * 0.16;
         if (f !== 2 && f !== 3) k *= 0.8 + 0.2 * Math.min(1, y / 14);
         for (let i = 0; i < 4; i++) {
           const c = F.c[i];
-          pos.push(x + c[0], y + c[1] + (rise && c[1] ? rise[c[0] + 2 * c[2]] : 0) - (skirt && y === gtop && !c[1] && f !== 2 ? skirt : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
+          pos.push(x + c[0], y + c[1] - (skirt && y === (sm ? gtop : g0) && !c[1] && f !== 2 ? skirt : 0), z + c[2]); nor.push(F.n[0], F.n[1], F.n[2]);
           const uu = F.n[0] ? c[2] : c[0], vv = F.n[1] ? c[2] : c[1], au = atlasUV(t, F.n[0] < 0 || F.n[2] > 0 ? 1 - uu : uu, vv);
           if (snowTop && f === 2) col.push(0.62 + bc.r * k * 0.3, 0.64 + bc.g * k * 0.3, 0.68 + bc.b * k * 0.3); else col.push(bc.r * k, bc.g * k, bc.b * k);
           uv.push(au[0], au[1]);

@@ -16,7 +16,7 @@ window.CONFIG = {
   map_size: { value: 192, min: 96, max: 256, step: 16 },        // voxels per side
   water_level: { value: 4, min: 2, max: 8, step: 1 },           // water surface height, voxels
   mountain_amount: { value: 1, min: 0, max: 2, step: 0.1 },     // how tall the ridges grow
-  terrain_look: { value: 1, min: 0, max: 1, step: 1 },          // 1 = smooth detailed ground (grass, mud, rock, asphalt), 0 = the old voxel blocks
+  terrain_look: { value: 0, min: 0, max: 1, step: 1 },          // 0 = voxel ground with sloped ramps (the test look), 1 = the smooth detailed ground (grass, mud, rock, asphalt)
   terrain_detail: { value: 3, min: 1, max: 4, step: 1 },        // ground mesh subdivisions per voxel: more = finer relief
   terrain_grain: { value: 0.16, min: 0, max: 0.6, step: 0.02 }, // small bumps in the ground, metres
   mud_patches: { value: 0.4, min: 0, max: 1, step: 0.05 },      // how much mud lies in hollows away from water
@@ -33,7 +33,8 @@ window.CONFIG = {
   ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
   rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
-  map_cliff: { value: 2.5, min: 1, max: 6, step: 0.5 },          // a ground step at least this high is a cliff: never smoothed into a slope
+  map_cliff: { value: 3, min: 2, max: 6, step: 1 },              // a ground step at least this high is a cliff wall: never a slope, never driven (M1)
+  ramp_run: { value: 2, min: 1, max: 4, step: 1 },               // cells a ramp takes to climb 1 voxel: 2 = 1 m every 2 m, about 27 degrees (M1)
   biome_force: { value: 0, min: 0, max: 4, step: 1 },          // 0 = the campaign's biome; 1 desert, 2 forest, 3 ice, 4 burnt lands (testing)
   layout_force: { value: 0, min: 0, max: 4, step: 1 },         // 0 = the campaign's layout; 1 open lands, 2 farmland, 3 villages, 4 ruined city (testing)
   site_markers: { value: 1, min: 0, max: 1, step: 1 },         // 1 = floating labels over the garage, the camps and the exit once explored
@@ -75,7 +76,8 @@ window.CONFIG = {
   tank_ground_climb: { value: 2.3, min: 1, max: 4, step: 0.1 }, // max step on natural ground (a slope, not a wall) for the tank and vehicle paths (voxels)
   tank_unstick_time: { value: 0.8, min: 0.2, max: 3, step: 0.1 }, // seconds pushing without moving before the hull slides free
   tank_climb: { value: 1.25, min: 0.5, max: 3, step: 0.05 },    // max step one point of the hull can climb at once (voxels)
-  tank_slope_span: { value: 5.5, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
+  tank_slope_span: { value: 3.5, min: 2, max: 10, step: 0.5 },  // max height difference across the hull footprint: steeper is impassable
+  tank_step_max: { value: 1.5, min: 0.5, max: 3, step: 0.1 },   // max rise between two neighbouring points of the hull on the ground: a cliff edge is more
   tank_glance: { value: 70, min: 0, max: 180, step: 5 },        // deg/s the hull steers itself off a corner it is caught on
   tank_hp: { value: 300, min: 50, max: 1500, step: 10 },        // base integrity
   tank_armor: { value: 0.3, min: 0, max: 0.9, step: 0.05 },     // fraction of heavy damage blocked

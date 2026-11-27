@@ -419,6 +419,7 @@ function drawTitle() {
   drawHullPicker(W / 2 + 20, 420);
   rrect(W / 2 - 200, H - 100, 400, 50, 8, 'rgba(60,40,22,0.92)', '#d9a35a');
   text('Invio per iniziare', W / 2, H - 75, 26, '#fff2d8');
+  button(W / 2 + 220, H - 96, 200, 42, 'Mappa di test  (T)', goTest, { size: 15 }); // no enemies: driving, orders, cover
   text(state.titleMsg || 'Fuggi per 8 settori fino all\'esercito e resisti all\'ultimo assalto dell\'Orda. Nuovi mezzi solo con gli achievement.', W / 2, H - 28, 15, state.titleMsg ? HC.gold : HC.text);
   // development only: wipes achievements and unlocked hulls
   button(W - 170, 16, 150, 32, 'RESET dati', resetMeta, { size: 13 });

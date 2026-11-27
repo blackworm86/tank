@@ -24,7 +24,8 @@ function crushColumn(ix, iz, g, px, pz, tk) {
 }
 /**
  * Can the tank stand at (x,z,h)? The hull rides the smoothed relief, the same ground that is drawn:
- * natural steps never stop it, only a footprint steeper than tank_slope_span does (a cliff). Built
+ * a ramp never stops it; a cliff does, where a hull point would jump more than tank_step_max, and so does a
+ * footprint steeper than tank_slope_span. Built
  * things stop it when they rise more than climb above the ground there; soft ones it crushes.
  * Returns the footprint or null.
  */
@@ -42,6 +43,7 @@ function tankFits(tk, x, z, h, climb) {
       // hard: a wall when it rises past climb above where this point of the hull rides now (a bridge deck does not)
       if (top > g && top - Math.min(rideH(now[k].x, now[k].z), tk.y + 3) > climb) return null;
     }
+    if (Math.abs(s - smoothH(now[k].x, now[k].z)) > tune.tank_step_max) return null; // a cliff wall, up or down: never driven (M1)
     const r = rideH(p.x, p.z), r0 = rideH(now[k].x, now[k].z);
     lo = Math.min(lo, r); hi = Math.max(hi, r); l0 = Math.min(l0, r0); h0 = Math.max(h0, r0);
   }

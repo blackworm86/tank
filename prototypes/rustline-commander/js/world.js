@@ -14,14 +14,18 @@ const VHARD = [0, 0, 1, 1, 0.55, 0.5, 0.95, 0.62, 0.78, 1.15, 1.15, 1.15, 0.78, 
 const SOFTV = new Set([V.BAG, V.JUNK, V.WOOD, V.TREE]);
 /** Voxel kinds that are natural ground (the drawn terrain), as opposed to walls, huts, junk and trees. */
 const GROUNDV = new Set([V.BED, V.SAND, V.DIRT, V.ROCK, V.RED, V.ROAD]);
-/** True when a hard built column (a wall, a post) taller than 1, deep water or a cliff edge lies in the 3x3 around (x,z): too tight for a hull. */
+/**
+ * True when a hard built column (a wall, a post) taller than 1 or deep water lies in the 3x3 around (x,z), or a
+ * cliff edge in the 5x5: too tight for a hull (the hull's corners reach past the cell beside it).
+ */
 function hardNear(x, z) {
   const c = inMap(x, z) ? world.groundRaw[x + world.N * z] : 0;
-  for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
+  for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
     const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
     const i = xx + world.N * zz, h = world.hmap[i];
+    if (Math.abs(world.groundRaw[i] - c) >= tune.map_cliff) return true; // a cliff edge, above or below (M7)
+    if (a < -1 || a > 1 || b < -1 || b > 1) continue;
     if (h < world.WL - 1) return true; // deep water beside: a hull would hang over it
-    if (Math.abs(world.groundRaw[i] - c) > tune.map_cliff) return true; // a cliff edge, above or below (M7)
     if (h - world.groundRaw[i] > 1 && !SOFTV.has(world.vox[VH * i + h - 1]) && world.road[i] !== 2) return true;
   }
   return false;
@@ -148,7 +152,7 @@ function wgFrame(G) {
   world.hmap = new Uint8Array(N * N);
   world.road = new Uint8Array(N * N);
   world.scorch = new Uint8Array(N * N);
-  world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N);
+  world.groundRaw = new Uint8Array(N * N); world.gsm = new Float32Array(N * N); world.cor = new Float32Array(N * N * 4);
   world.buildings = []; world.bld = new Int16Array(N * N); world.props = []; world.keep = new Uint8Array(N * N);
   world.dirty.clear(); world.gen++; world.mapDirty = true;
   const ns = Math.floor(rng() * 1e6);
@@ -337,6 +341,97 @@ function wgRoads(G) {
   relaxRoads(hi, N, placed);
   G.hi = hi;
 }
+/**
+ * The ramp and cliff rule (map rule M1), after the roads: natural ground climbs at most 1 voxel every ramp_run
+ * cells, and a step of map_cliff or more is a cliff wall, left as it is. Roads, bridges and site pads hold their
+ * heights: the land round them is cut down or banked up to meet them. Then no ledge (a
+ * step above 1 that is not a cliff) and no 1-cell pit or spike is left. A water bed climbs to its bank at the ramp.
+ */
+function wgSlopes(G) {
+  const { N, WL, hi, placed } = G, k = 1 / Math.max(1, tune.ramp_run), C = tune.map_cliff, D2 = Math.SQRT2 * k;
+  const fix = new Uint8Array(N * N), f = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) { if (world.road[i]) fix[i] = 1; f[i] = hi[i]; } // roads (graded at the ramp when carved) and bridges hold
+  for (const s of placed) { const r = padR(s); for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (inMap(s.x + dx, s.z + dz)) fix[s.x + dx + N * (s.z + dz)] = 1; }
+  const wet = i => hi[i] < WL && !fix[i];
+  const NB = [[1, 0, k], [-1, 0, k], [0, 1, k], [0, -1, k], [1, 1, D2], [-1, 1, D2], [1, -1, D2], [-1, -1, D2]];
+  const sweep = (fn) => { // forward then backward over the map, until nothing changes
+    for (let pass = 0; pass < 60; pass++) {
+      let ch = 0;
+      for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) ch += fn(x, z);
+      for (let z = N - 1; z >= 0; z--) for (let x = N - 1; x >= 0; x--) ch += fn(x, z);
+      if (!ch) break;
+    }
+  };
+  // 0. steep ground becomes terraces: where the land climbs 2 or more a cell, its height is rounded to steps of
+  // map_cliff + 1, so a mountain side or a gorge wall stays a stack of rock walls instead of being cut to a ramp
+  const T = C + 1, steep = new Uint8Array(N * N);
+  for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
+    const i = x + N * z; if (fix[i] || wet(i)) continue;
+    let g = 0; for (const j of [i - 1, i + 1, i - N, i + N]) if (!wet(j)) g = Math.max(g, Math.abs(hi[i] - hi[j]));
+    if (g >= 2) for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) steep[i + a + N * b] = 1;
+  }
+  for (let i = 0; i < N * N; i++) if (steep[i] && !fix[i] && !wet(i)) f[i] = Math.max(WL, WL + Math.round((f[i] - WL) / T) * T);
+  // 1. cut down: no free land higher than a neighbour plus the ramp (cliffs and water's edge excepted)
+  sweep((x, z) => {
+    const i = x + N * z; if (fix[i] || wet(i)) return 0;
+    let v = f[i];
+    for (const [a, b, d] of NB) {
+      const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
+      const j = xx + N * zz, q = wet(j) ? Math.max(f[j], WL - 1) : f[j]; // the bank meets the shallow bed at the ramp
+      if (Math.abs(f[i] - q) >= C) continue; // a cliff: the wall stays
+      if (q + d < v) v = q + d;
+    }
+    if (v < f[i] - 1e-4) { f[i] = v; return 1; }
+    return 0;
+  });
+  // 1b. shores: a water bed climbs to the bank at the ramp, so the land never drops more than a ramp into the water
+  sweep((x, z) => {
+    const i = x + N * z; if (!wet(i)) return 0;
+    let v = f[i];
+    for (const [a, b, d] of NB) {
+      const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
+      const j = xx + N * zz, q = wet(j) ? f[j] : Math.max(f[j], WL);
+      if (Math.abs(f[i] - q) >= C) continue; // a canyon wall into the river stays
+      if (q - d > v) v = q - d;
+    }
+    v = Math.min(v, WL - 1);
+    if (v > f[i] + 1e-4) { f[i] = v; return 1; }
+    return 0;
+  });
+  // 2. bank up: free land below a held cell (a road, a pad) rises to meet it at the ramp
+  const g = new Float32Array(N * N).fill(-1e9);
+  for (let i = 0; i < N * N; i++) if (fix[i]) g[i] = f[i];
+  sweep((x, z) => {
+    const i = x + N * z; if (fix[i] || wet(i)) return 0;
+    let v = g[i];
+    for (const [a, b, d] of NB) {
+      const xx = x + a, zz = z + b; if (!inMap(xx, zz)) continue;
+      const j = xx + N * zz; if (g[j] < -1e8) continue; // even across a cliff: a pad or a road never stands on a wall (M9)
+      if (g[j] - d > v) v = g[j] - d;
+    }
+    if (v > g[i] + 1e-4) { g[i] = v; return 1; }
+    return 0;
+  });
+  for (let i = 0; i < N * N; i++) if (!fix[i]) hi[i] = wet(i) ? Math.min(WL - 1, Math.round(f[i])) : Math.max(WL, Math.round(Math.max(f[i], g[i])));
+  // 3. clean up, on whole voxels: ledges become ramps, 1-cell pits fill, 1-cell spikes go
+  for (let pass = 0; pass < 20; pass++) {
+    let ch = 0;
+    for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
+      const i = x + N * z; if (fix[i] || wet(i)) continue;
+      const n4 = [i - 1, i + 1, i - N, i + N];
+      let lo = 1e9, hiN = -1e9;
+      for (const j of n4) { lo = Math.min(lo, hi[j]); hiN = Math.max(hiN, hi[j]); }
+      if (hi[i] < lo) { hi[i] = lo; ch++; continue; }
+      if (hi[i] > hiN) { hi[i] = hiN; ch++; continue; }
+      for (const j of n4) {
+        const d = hi[i] - hi[j];
+        if (d >= 2 && d < C) { hi[i] = hi[j] + 1; ch++; break; } // a ledge above a neighbour: cut it to a ramp
+        if (-d >= 2 && -d < C && fix[j] && hi[j] >= WL) { hi[i] = hi[j] - 1; ch++; break; } // below a held cell: bank it up
+      }
+    }
+    if (!ch) break;
+  }
+}
 /** The voxel columns: bedrock, strata, dirt and sand, roads and bridges. */
 function wgColumns(G) {
   const { N, WL, ns, hi } = G;
@@ -394,7 +489,7 @@ function wgFirstWall(G) {
   const { S, sites } = G;
   // the old raider wall across the road, a short drive from the start
   const rm = sites.roadMain;
-  if (rm.length > 30 && !S.final) { // (not in the army's camp)
+  if (rm.length > 30 && !S.final && !S.test) { // (not in the army's camp, nor on the test map)
     const iw = Math.min(rm.length - 8, Math.max(padR(sites.start) + 12, Math.floor(rm.length * 0.3))), ir = Math.floor(rm.length * 0.5), ip = Math.floor(rm.length * 0.72); // the wall stands past the start's pad
     const a = rm[iw], b = rm[iw + 4];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
@@ -471,6 +566,7 @@ registerWorldStep('water', { order: 20, run: wgWater });
 registerWorldStep('relief', { order: 30, run: wgRelief });
 registerWorldStep('sites', { order: 40, run: wgSites });
 registerWorldStep('roads', { order: 50, run: wgRoads });
+registerWorldStep('slopes', { order: 55, run: wgSlopes });
 registerWorldStep('columns', { order: 60, run: wgColumns });
 registerWorldStep('structures', { order: 70, run: wgStructures });
 registerWorldStep('firstWall', { order: 80, run: wgFirstWall });
@@ -513,32 +609,41 @@ function groundOf(x, z) {
   let y = 0; while (y < VH && GROUNDV.has(world.vox[base + y])) y++;
   return y;
 }
-const BIN5 = [1, 4, 6, 4, 1];
-/** Recomputes ground heights and the 5x5 binomial blur of them (world.gsm) for the box, plus a margin. */
+/**
+ * The height of one corner of a column's top (cx, cz in 0..1): the mean of the columns that share that corner
+ * and are not a cliff away from this one (map_cliff). A step of 1 becomes a slope, a cliff stays a wall.
+ * h(x, z) gives a column's height. The drawn ground (view.js) and the ridden ground (world.cor) both use it.
+ */
+function cornerOf(h, x, z, c, cx, cz) {
+  let s = 0, n = 0;
+  for (let b = cz - 1; b <= cz; b++) for (let a = cx - 1; a <= cx; a++) { const v = h(x + a, z + b); if (Math.abs(v - c) < tune.map_cliff) { s += v; n++; } }
+  return s / n;
+}
+/**
+ * Recomputes, for the box plus a margin, the ground heights (world.groundRaw: natural ground, or a bridge deck),
+ * the four corner heights of each column's top (world.cor: the surface the ground is drawn and ridden as)
+ * and the column's mean height (world.gsm).
+ */
 function updateGround(x0, z0, x1, z1) {
-  const N = world.N, R = world.groundRaw, S = world.gsm;
+  const N = world.N, R = world.groundRaw, S = world.gsm, K = world.cor;
   const cl = v => v < 0 ? 0 : v >= N ? N - 1 : v;
   for (let z = cl(z0 - 2); z <= cl(z1 + 2); z++) for (let x = cl(x0 - 2); x <= cl(x1 + 2); x++) {
     const i = x + N * z; // a bridge deck is ridden like ground (map rule M9)
     R[i] = world.road[i] === 2 ? Math.max(groundOf(x, z), world.hmap[i]) : groundOf(x, z);
   }
-  const cliff = tune.map_cliff;
-  for (let z = cl(z0); z <= cl(z1); z++) for (let x = cl(x0); x <= cl(x1); x++) {
-    const c = R[x + N * z]; let t = 0, ws = 0;
-    for (let b = 0; b < 5; b++) for (let a = 0; a < 5; a++) {
-      const v = R[cl(x + a - 2) + N * cl(z + b - 2)]; if (Math.abs(v - c) > cliff) continue; // a cliff is not blurred into a slope (M1)
-      const k = BIN5[a] * BIN5[b]; t += k * v; ws += k;
-    }
-    S[x + N * z] = t / ws;
+  const at = (x, z) => R[cl(x) + N * cl(z)];
+  for (let z = cl(z0 - 1); z <= cl(z1 + 1); z++) for (let x = cl(x0 - 1); x <= cl(x1 + 1); x++) {
+    const i = x + N * z, c = R[i], k = i * 4;
+    K[k] = cornerOf(at, x, z, c, 0, 0); K[k + 1] = cornerOf(at, x, z, c, 1, 0); K[k + 2] = cornerOf(at, x, z, c, 0, 1); K[k + 3] = cornerOf(at, x, z, c, 1, 1);
+    S[i] = (K[k] + K[k + 1] + K[k + 2] + K[k + 3]) / 4;
   }
 }
-/** The smoothed ground height at a point (bilinear over column centres): the relief as drawn, without bumps. */
+/** The ground height at a point: the column's top, bilinear between its four corners (as drawn: ramps slope, cliffs are walls). */
 function smoothH(x, z) {
-  const N = world.N, u = x - 0.5, v = z - 0.5;
-  const ix = Math.floor(u), iz = Math.floor(v), fx = u - ix, fz = v - iz;
-  const at = (a, b) => world.gsm[(a < 0 ? 0 : a >= N ? N - 1 : a) + N * (b < 0 ? 0 : b >= N ? N - 1 : b)];
-  const p = at(ix, iz), q = at(ix + 1, iz), r = at(ix, iz + 1), s = at(ix + 1, iz + 1);
-  return (p + (q - p) * fx) * (1 - fz) + (r + (s - r) * fx) * fz;
+  const N = world.N, ix = Math.floor(x), iz = Math.floor(z);
+  const i = (ix < 0 ? 0 : ix >= N ? N - 1 : ix) + N * (iz < 0 ? 0 : iz >= N ? N - 1 : iz), K = world.cor, k = i * 4;
+  const fx = Math.min(1, Math.max(0, x - ix)), fz = Math.min(1, Math.max(0, z - iz));
+  return (K[k] + (K[k + 1] - K[k]) * fx) * (1 - fz) + (K[k + 2] + (K[k + 3] - K[k + 2]) * fx) * fz;
 }
 function recomputeAll() { for (let z = 0; z < world.N; z++) for (let x = 0; x < world.N; x++) recomputeColumn(x, z); world.mapDirty = true; }
 
@@ -578,8 +683,9 @@ function carveRoad(hi, N, WL, path) {
   for (let i = 0; i < n; i++) th[i] = hi[path[i][0] + N * path[i][1]];
   const sm = new Float32Array(n);
   for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let k = -3; k <= 3; k++) { const j = i + k; if (j >= 0 && j < n) { s += th[j]; c++; } } sm[i] = Math.max(WL, s / c); }
-  for (let i = 1; i < n; i++) { sm[i] = Math.min(sm[i], sm[i - 1] + 0.75); sm[i] = Math.max(sm[i], sm[i - 1] - 0.75); }
-  for (let i = n - 2; i >= 0; i--) { sm[i] = Math.min(sm[i], sm[i + 1] + 0.75); sm[i] = Math.max(sm[i], sm[i + 1] - 0.75); }
+  const gr = 1 / Math.max(1, tune.ramp_run); // a road climbs no steeper than a ramp (M1)
+  for (let i = 1; i < n; i++) { sm[i] = Math.min(sm[i], sm[i - 1] + gr); sm[i] = Math.max(sm[i], sm[i - 1] - gr); }
+  for (let i = n - 2; i >= 0; i--) { sm[i] = Math.min(sm[i], sm[i + 1] + gr); sm[i] = Math.max(sm[i], sm[i + 1] - gr); }
   for (let i = 0; i < n; i++) {
     const [x, z] = path[i], h = Math.max(WL, Math.round(sm[i]));
     const RW = Math.round(tune.road_half_width);
@@ -796,21 +902,22 @@ function buildRuin(s) {
     }
   }
 }
-/** A rounded mound of rock (natural ground): cover for infantry, a hill a tank drives round or over. */
+/** A rock outcrop (natural ground): a rounded block with cliff sides, at least map_cliff + 1 tall: cover for infantry, an obstacle a tank drives round. */
 function rockOutcrop(x0, z0, r, h) {
   const ns = Math.floor(rng() * 9999), R = Math.ceil(r) + 1;
   for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
     const x = x0 + dx, z = z0 + dz; if (!inMap(x, z)) continue;
     const d = Math.hypot(dx, dz) / (r * (0.85 + vnoise(x * 0.5, z * 0.5, ns) * 0.3));
     if (d >= 1) continue;
-    const g = colTop(x, z), top = Math.round(h * Math.sqrt(1 - d * d));
+    const g = colTop(x, z), top = Math.max(tune.map_cliff + 1, h); // a rock is a flat-topped block with cliff sides (M1): never a 1-2 m ledge
     for (let y = 0; y < top; y++) put(x, g + y, z, ((g + y) % 4 < 2) ? V.RED : V.ROCK);
   }
 }
 /**
  * The map rules applied after everything is placed (the brief's Map rules):
  * M4 a road and 2 cells either side hold nothing built or grown (bridges and the first raider wall excepted);
- * M5 no natural spike: a column more than 3 voxels above all four neighbours comes down to 1 above the highest.
+ * M5 no natural spike: a column more than 3 voxels above all four neighbours comes down to 1 above the highest;
+ * M1 bare ground keeps no ledge and no 1-cell pit after everything is built.
  */
 function applyMapRules(sites) {
   const N = world.N, keep = sites.firstWall;
@@ -838,6 +945,21 @@ function applyMapRules(sites) {
     const i = x + N * z, h = world.hmap[i]; if (!natTop(i)) continue;
     const m = Math.max(world.hmap[i - 1], world.hmap[i + 1], world.hmap[i - N], world.hmap[i + N]);
     if (h - m > 3) { for (let y = m + 1; y < h; y++) world.vox[VH * i + y] = 0; recomputeColumn(x, z); }
+  }
+  // M1 again, after the buildings, rocks and wrecks: bare ground keeps no ledge (a step of 2 up to map_cliff - 1)
+  // and no 1-cell pit; the higher bare column comes down to 1 above its neighbour, a pit fills with dirt
+  const C = tune.map_cliff, bare = i => natTop(i) && !world.bld[i] && world.road[i] !== 2 && world.hmap[i] === groundOf(i % N, (i / N) | 0);
+  for (let pass = 0; pass < 10; pass++) {
+    let ch = 0;
+    for (let z = 1; z < N - 1; z++) for (let x = 1; x < N - 1; x++) {
+      const i = x + N * z; if (!bare(i)) continue;
+      const h = world.hmap[i], n4 = [i - 1, i + 1, i - N, i + N];
+      let lo = 99, cut = h;
+      for (const j of n4) { const g = world.hmap[j]; lo = Math.min(lo, g); if (natTop(j) && h - g >= 2 && h - g < C) cut = Math.min(cut, g + 1); }
+      if (h < lo && h >= world.WL) { for (let y = h; y < lo; y++) world.vox[VH * i + y] = V.DIRT; recomputeColumn(x, z); ch++; continue; }
+      if (cut < h) { for (let y = cut; y < h; y++) world.vox[VH * i + y] = 0; world.vox[VH * i + cut - 1] = world.vox[VH * i + cut - 1] || V.DIRT; recomputeColumn(x, z); ch++; }
+    }
+    if (!ch) break;
   }
 }
 /**
