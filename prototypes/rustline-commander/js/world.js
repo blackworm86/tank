@@ -1126,8 +1126,9 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxSte
   if (PF.N !== N) { PF.N = N; PF.g = new Float32Array(N * N); PF.from = new Int32Array(N * N); PF.stamp = new Uint32Array(N * N); PF.closed = new Uint32Array(N * N); PF.cur = 0; }
   PF.cur++;
   const ax = Math.floor(sx), az = Math.floor(sz);
-  let bx = Math.floor(tx), bz = Math.floor(tz);
-  if (!inMap(ax, az) || !inMap(bx, bz)) return [];
+  // a goal off the map: the nearest point on its edge (not no way at all, which leaves a unit standing there)
+  let bx = Math.max(1, Math.min(N - 2, Math.floor(tx))), bz = Math.max(1, Math.min(N - 2, Math.floor(tz)));
+  if (!inMap(ax, az)) return [];
   if (!walkable(bx, bz) || perch(bx, bz)) { // nearest ground cell to the goal
     let best = null, bd = 1e9;
     for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) if (walkable(bx + dx, bz + dz) && !perch(bx + dx, bz + dz) && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = [bx + dx, bz + dz]; }

@@ -73,6 +73,19 @@ function updateUnits(dt) {
     const a = inf[i], b = inf[j], dx = b.x - a.x, dz = b.z - a.z, d2 = dx * dx + dz * dz;
     if (d2 > 0.0001 && d2 < 0.64) { const d = Math.sqrt(d2), p = (0.8 - d) * 0.25; nudge(a, -dx / d * p, -dz / d * p); nudge(b, dx / d * p, dz / d * p); }
   }
+  // hulls never sit inside one another: overlapping vehicles push apart (the command tank and practice targets stand firm)
+  const hulls = state.ents.filter(e => e.alive && e.veh && !e.inside);
+  for (const a of hulls) {
+    if (a.kind === 'tank' || a.dummy || a.fixed) continue;
+    for (const b of hulls) {
+      if (a === b) continue;
+      const dx = a.x - b.x, dz = a.z - b.z, d = Math.hypot(dx, dz), ov = a.rad + b.rad - d;
+      if (ov <= 0) continue;
+      const share = b.kind === 'tank' || b.dummy || b.fixed ? 1 : 0.5, ux = d > 0.01 ? dx / d : Math.sin(a.id || 1), uz = d > 0.01 ? dz / d : Math.cos(a.id || 1);
+      const nx = a.x + ux * Math.min(ov * share, 0.15), nz = a.z + uz * Math.min(ov * share, 0.15);
+      if (vehCanGo(a, nx, nz)) { a.x = nx; a.z = nz; }
+    }
+  }
   for (const e of inf) { // and out from under vehicles
     for (const v of state.ents) {
       if (!v.alive || !v.veh) continue;
@@ -138,47 +151,117 @@ function vehCanGo(e, x, z) {
   return Math.abs(smoothH(x, z) - smoothH(e.x, e.z)) <= tune.tank_step_max;
 }
 /**
- * A vehicle drives like the command tank: it steers its nose toward a point veh_lookahead along its path and
- * moves only along its nose, speeding up and slowing down by veh_accel, slowing into a turn and to a stop at the
- * end. Tracks pivot on the spot; wheels turn only as they roll.
+ * The whole hull at (x,z) turned to hd: the centre may go there (vehCanGo) and its four corners stand on no wall,
+ * no deep water and no step much taller than the centre's.
+ */
+function vehFits(e, x, z, hd) {
+  if (!vehCanGo(e, x, z)) return false;
+  const s = Math.sin(hd), c = Math.cos(hd), L = e.rad * 0.85, Wd = e.rad * 0.5, h0 = smoothH(x, z);
+  for (const [lx, lz] of [[-Wd, L], [Wd, L], [-Wd, -L], [Wd, -L]]) {
+    const px = x + c * lx + s * lz, pz = z - s * lx + c * lz, ix = Math.floor(px), iz = Math.floor(pz);
+    if (!inMap(ix, iz) || deepWater(px, pz)) return false;
+    const i = ix + world.N * iz, top = world.hmap[i], g = world.groundRaw[i];
+    if (top - g > 1 && !SOFTV.has(world.vox[VH * i + top - 1]) && world.road[i] !== 2) return false;
+    if (Math.abs(smoothH(px, pz) - h0) > tune.tank_step_max + 0.5) return false;
+  }
+  return true;
+}
+/** False when moving vehicle e to (x,z) would push its hull further into another vehicle's. */
+function hullFree(e, x, z) {
+  for (const o of state.ents) {
+    if (o === e || !o.alive || !o.veh || o.inside) continue;
+    const R = e.rad + o.rad - 0.1, dn = (o.x - x) ** 2 + (o.z - z) ** 2;
+    if (dn < R * R && dn < (o.x - e.x) ** 2 + (o.z - e.z) ** 2) return false;
+  }
+  return true;
+}
+/** True when the hull can drive straight from where it is to (x,z). */
+function vehLine(e, x, z) {
+  const dx = x - e.x, dz = z - e.z, L = Math.hypot(dx, dz), n = Math.ceil(L / 0.7), hd = Math.atan2(dx, dz);
+  for (let k = 1; k <= n; k++) if (!vehFits(e, e.x + dx * k / n, e.z + dz * k / n, hd)) return false;
+  return true;
+}
+/**
+ * A vehicle drives like the command tank: it steers its nose toward the farthest point of its path, up to
+ * veh_lookahead ahead, that it can reach in a straight line with its whole hull (so it never cuts a corner into a
+ * wall), and moves only along its nose, speeding up and slowing down by veh_accel, slowing into a turn and to a
+ * stop at the end. Tracks pivot on the spot; wheels turn only as they roll. Blocked, it slides along the obstacle;
+ * still blocked, it backs up and looks for another way. It gives way to the vehicle ahead (veh_gap).
  */
 function driveAlong(e, dt) {
   const P = e.path, last = P.length - 1, LA = tune.veh_lookahead + e.rad * 0.5;
-  while (e.pi < last && Math.hypot(P[e.pi].x - e.x, P[e.pi].z - e.z) < LA) e.pi++;
+  if (e.backT > 0) { // backing out of a jam, then a new way
+    e.backT -= dt; const v = 1.6, nx = e.x - Math.sin(e.heading) * v * dt, nz = e.z - Math.cos(e.heading) * v * dt;
+    if (vehCanGo(e, nx, nz)) { e.x = nx; e.z = nz; e.vs = -v; } else e.backT = 0;
+    e.moving = true;
+    if (e.backT <= 0 && e.dest) { e.vs = 0; const d0 = e.dest; setDest(e, d0.x, d0.z); }
+    return;
+  }
+  // (a point it is already on is always passed: steering at a point under the hull only spins it)
+  while (e.pi < last && (Math.hypot(P[e.pi].x - e.x, P[e.pi].z - e.z) < 1 || (Math.hypot(P[e.pi].x - e.x, P[e.pi].z - e.z) < LA && vehLine(e, P[e.pi + 1].x, P[e.pi + 1].z)))) e.pi++;
   const wp = P[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz);
-  if (e.pi === last && d < 0.7) { e.pi = P.length; e.vs = 0; e.moving = false; return; }
   let top = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1), want = Math.atan2(dx, dz), dir = 1;
   // told which way to face and the way runs the other way: back up, front to the enemy
   if (e.moveFace != null && Math.abs(angDiff(e.moveFace, want)) > 1.9) { want += Math.PI; top *= 0.55; dir = -1; }
   const off = Math.abs(angDiff(e.heading, want)), sp0 = Math.abs(e.vs || 0);
+  // there, or so near that turning round to reach the very point would only spin it on the spot
+  if (e.pi === last && (d < Math.max(0.7, e.rad * 0.5) || (d < e.rad + 1.2 && off > 1.2))) { e.pi = P.length; e.vs = 0; e.moving = false; e.stuckT = 0; return; }
   const full = ((ENEMY[e.kind] && ENEMY[e.kind].hullTurnMove) || Math.max(60, hullTurn(e) * 1.4)) * Math.PI / 180;
   const roll = tracked(e) ? 1 : Math.min(1, tune.veh_wheel_turn + sp0 / Math.max(0.1, top) * (1 - tune.veh_wheel_turn) * 1.5);
   e.heading = turnToward(e.heading, want, full * roll * dt);
   // the speed it wants: less into a turn, less near the end (tracks stop to pivot, wheels keep rolling)
   let aim = top * Math.max(tracked(e) ? 0 : 0.35, Math.cos(Math.min(Math.PI / 2, off)));
   if (e.pi === last) aim = Math.min(aim, 0.6 + d * 0.9);
+  // give way: a hull just ahead stops it (a standing one, the command tank, or a moving one with the lower id); one a little further slows it
+  const hs = Math.sin(e.heading) * dir, hc = Math.cos(e.heading) * dir;
+  for (const o of state.ents) {
+    if (o === e || !o.alive || !o.veh || o.inside) continue;
+    const ox = o.x - e.x, oz = o.z - e.z, od = Math.hypot(ox, oz), Rr = e.rad + o.rad + tune.veh_gap;
+    const fw = ox * hs + oz * hc, lat = Math.abs(ox * hc - oz * hs); // ahead, and how far off its line
+    if (od > Rr + 3 || fw <= 0 || lat > e.rad + o.rad) continue; // not in the lane it is about to drive
+    // a standing hull is a thing in the way like a wall (the path goes round it, the hull cannot enter it: hullFree);
+    // a moving one is traffic: the one with the higher id waits
+    const going = o.kind === 'tank' ? Math.abs(o.speed || 0) > 0.3 : o.moving && Math.abs(o.vs || 0) > 0.2;
+    if (!going) continue;
+    if (od < Rr) { if (o.kind === 'tank' || (o.id || 0) < (e.id || 0)) aim = 0; }
+    else aim = Math.min(aim, top * (0.3 + (od - Rr) / 3 * 0.7));
+  }
   const v = sp0 + Math.max(-tune.veh_accel * 2 * dt, Math.min(tune.veh_accel * dt, aim - sp0));
-  const nx = e.x + Math.sin(e.heading) * v * dir * dt, nz = e.z + Math.cos(e.heading) * v * dir * dt;
-  if (vehCanGo(e, nx, nz)) { e.x = nx; e.z = nz; e.vs = v * dir; } else e.vs = 0;
+  // the hull must fit where it goes (only the centre while it is still wedged in somewhere); blocked, it slides along
+  const strict = vehFits(e, e.x, e.z, e.heading), fits = (x, z) => (strict ? vehFits(e, x, z, e.heading) : vehCanGo(e, x, z)) && hullFree(e, x, z);
+  const side = angDiff(e.heading, want) > 0 ? 1 : -1;
+  let went = v < 1e-4;
+  for (const [da, k] of [[0, 1], [0.6 * side, 0.6], [-0.6 * side, 0.6]]) {
+    if (went) break;
+    const a = e.heading + da, nx = e.x + Math.sin(a) * v * k * dir * dt, nz = e.z + Math.cos(a) * v * k * dir * dt;
+    if (fits(nx, nz)) { e.x = nx; e.z = nz; went = true; }
+  }
+  if (went) { e.vs = v * dir; e.blockT = Math.max(0, (e.blockT || 0) - dt); }
+  else { e.vs = 0; e.blockT = (e.blockT || 0) + dt; if (e.blockT > 0.6) { e.blockT = 0; e.backT = 0.9; } } // wedged: back up, then a new way
   e.moving = true;
-  // no headway for a while (blocked): think again about the way
+  // no headway for a while (giving way, or circling): think again about the way, round the standing hulls
   const now = Math.hypot(wp.x - e.x, wp.z - e.z);
-  e.stuckT = Math.max(0, (e.stuckT || 0) + (d - now < top * dt * 0.1 && off < 0.5 ? dt : -dt * 2));
+  e.stuckT = Math.max(0, (e.stuckT || 0) + (d - now < top * dt * 0.1 && (off < 0.5 || aim === 0) ? dt : -dt * 2));
+  // held up a few metres short of the end (a hull parked there): close enough, it stops here
+  if (e.stuckT > tune.unstick_time && e.dest && Math.hypot(e.dest.x - e.x, e.dest.z - e.z) < 5) { e.pi = P.length; e.vs = 0; e.moving = false; e.stuckT = 0; return; }
   if (e.stuckT > tune.unstick_time && e.dest) { const d0 = e.dest; e.stuckT = 0; setDest(e, d0.x + (rng() - 0.5) * 1.5, d0.z + (rng() - 0.5) * 1.5); }
 }
 function moveAlong(e, dt) {
   if (!e.path || e.pi >= e.path.length) { e.moving = false; if (e.veh) e.vs = 0; return; }
   if (e.veh) { driveAlong(e, dt); return; }
-  const wp = e.path[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz);
+  const wp = e.path[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz), lastN = e.pi === e.path.length - 1;
   const sp = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1);
   if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
   const before = d;
-  if (d <= sp * dt) { e.x = wp.x; e.z = wp.z; e.pi++; }
+  if (d <= sp * dt || (lastN && d < 0.35)) { if (d <= sp * dt) { e.x = wp.x; e.z = wp.z; } e.pi++; }
   else if (e.pi < e.path.length - 1 && d < 0.6) e.pi++; /* a node others crowd is close enough: walk on */ else { e.x += dx / d * sp * dt; e.z += dz / d * sp * dt; }
   e.moving = true;
   // no headway for a while (pushed, blocked): think again about the way
   const now = Math.hypot(wp.x - e.x, wp.z - e.z);
   e.stuckT = Math.max(0, (e.stuckT || 0) + (before - now < sp * dt * 0.25 && e.pi < e.path.length ? dt : -dt * 2));
+  // the end of the way crowded by others (they shove him round it): here is close enough, he stops
+  e.endT = lastN && now < 2.5 ? (e.endT || 0) + dt : 0;
+  if (e.endT > 1.2) { e.pi = e.path.length; e.moving = false; e.stuckT = 0; e.endT = 0; return; }
   if (e.stuckT > tune.unstick_time && e.dest) { const d0 = e.dest; e.stuckT = 0; setDest(e, d0.x + (rng() - 0.5) * 1.5, d0.z + (rng() - 0.5) * 1.5); }
 }
 /** The best enemy this unit can shoot now: its ordered target first, then the nearest it can see. */

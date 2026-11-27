@@ -80,9 +80,14 @@ function inRadio(sq) { return state.tank.alive && alive(sq).some(heardAt); }
 function setDest(m, x, z) {
   if (m.fixed || m.rideOn) return; // a rider goes where its jeep goes
   // paths go around the vehicles standing still (the command tank above all)
-  const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && dist2(v, m) > (v.rad + 1.2) ** 2 && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)));
-  PF.avoid = (px, pz) => { for (const v of vs) { const r = v.rad + 0.7; if ((px - v.x) ** 2 + (pz - v.z) ** 2 < r * r) return true; } return false; };
-  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 6000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null;
+  // (a vehicle keeps its own hull's width more: the lane it gives way in, driveAlong)
+  const mr = m.veh ? m.rad + 0.6 : 0.7;
+  // a vehicle goes round every standing hull, even one it touches (never closer to it than it already is);
+  // a soldier round those not already beside him
+  const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && (m.veh || dist2(v, m) > (v.rad + mr) ** 2) && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)))
+    .map(v => ({ x: v.x, z: v.z, r: Math.min(v.rad + mr, Math.sqrt(dist2(v, m)) - 0.4) }));
+  PF.avoid = (px, pz) => { for (const v of vs) if ((px - v.x) ** 2 + (pz - v.z) ** 2 < v.r * v.r) return true; return false; };
+  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 12000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null;
   if ((!m.path || m.path.length < 2) && !m.veh && raised(m)) { // stranded on a roof with no way down: he climbs down beside it
     const p = spotNear(m.x, m.z, m.id % 6); m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z);
     m.path = findPath(m.x, m.z, x, z, 1, 6000, 3, 1);
@@ -161,6 +166,45 @@ function nearestEnemyTo(x, z, team, maxD) {
  * for cover), 'none' (straight there). face: the bearing to hold there (null: none given); it is
  * also where the threat is when choosing cover. Returns how many found cover.
  */
+/** Where the other friendly units are or are going (each with the room it needs), but for those in skip. */
+function takenSpots(skip) {
+  const out = [];
+  for (const o of state.ents) {
+    if (!o.alive || o.team !== 0 || o.inside || o.rideOn || o.garrison || skip.has(o)) continue;
+    const p = o.path && o.pi < o.path.length && o.dest ? o.dest : o;
+    out.push({ x: p.x, z: p.z, gap: o.veh ? o.rad + tune.veh_gap / 2 : 0.65, veh: !!o.veh });
+  }
+  return out;
+}
+/**
+ * The free spot nearest (x,z) for unit m: ground it can stand on (a vehicle: clear of walls and cliffs), not where
+ * another unit is or is going. Claims it in taken.
+ */
+function claimSpot(m, x, z, taken) {
+  const me = m.veh ? m.rad + tune.veh_gap / 2 : 0.65, step = m.veh ? 1.2 : 0.7;
+  // a vehicle's spot: the hull fits there (judged at that spot, not from where the vehicle is now) and it drives
+  // there straight from the point given, so the spot is on the same side of every wall; it minds only other hulls
+  const hullAt = (px, pz, hd) => vehFits({ x: px, z: pz, rad: m.rad }, px, pz, hd);
+  const reach = (px, pz) => {
+    const dx = px - x, dz = pz - z, L = Math.hypot(dx, dz), n = Math.ceil(L / 0.8), hd = Math.atan2(dx, dz);
+    for (let k = 1; k < n; k++) if (!hullAt(x + dx * k / n, z + dz * k / n, hd)) return false;
+    return true;
+  };
+  const ok = (px, pz) => {
+    const cx = Math.floor(px), cz = Math.floor(pz);
+    if (!walkable(cx, cz) || deepWater(px, pz) || (m.veh ? hardNear(cx, cz) || !hullAt(px, pz, m.heading) || !reach(px, pz) : perch(cx, cz))) return false;
+    for (const t of taken) if ((!m.veh || t.veh) && (t.x - px) ** 2 + (t.z - pz) ** 2 < (t.gap + me) ** 2) return false;
+    return true;
+  };
+  for (let r = 0; r <= 14; r += step) {
+    const n = r ? Math.ceil(2 * Math.PI * r / step) : 1;
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2 + r * 0.7, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      if (ok(px, pz)) { taken.push({ x: px, z: pz, gap: me, veh: !!m.veh }); return { x: px, z: pz }; }
+    }
+  }
+  return { x, z };
+}
 function goTo(sq, x, z, how, face) {
   const ms = alive(sq); if (!ms.length) return 0;
   let threat = null;
@@ -173,11 +217,17 @@ function goTo(sq, x, z, how, face) {
   // a line across the facing (or a loose ring without one) for whoever finds no cover
   const px = face != null ? Math.cos(face) : 0, pz = face != null ? -Math.sin(face) : 0;
   let k = 0;
+  const taken = takenSpots(new Set(ms));
+  for (const sp of spots) taken.push({ x: sp.x, z: sp.z, gap: 0.65 });
   ms.forEach((m, i) => {
     let d;
     if (!m.veh && spots[k]) d = spots[k++];
-    else if (face != null) { const o = (i - (ms.length - 1) / 2) * (m.veh ? 3.2 : 1.7), back = m.veh ? 1.5 : 0; d = { x: x + px * o - Math.sin(face) * back, z: z + pz * o - Math.cos(face) * back }; }
-    else { const a = i * 2.1, r = m.veh ? 0 : 1.6; d = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r }; }
+    else {
+      // a line across the facing, or a loose ring (each man his own place: no two sent to one spot), then the nearest free spot
+      if (face != null) { const o = (i - (ms.length - 1) / 2) * (m.veh ? 3.2 : 1.7), back = m.veh ? 1.5 : 0; d = { x: x + px * o - Math.sin(face) * back, z: z + pz * o - Math.cos(face) * back }; }
+      else { const a = i / Math.max(1, ms.length) * Math.PI * 2, r = m.veh || ms.length === 1 ? 0 : 1.6; d = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r }; }
+      d = claimSpot(m, d.x, d.z, taken);
+    }
     setDest(m, d.x, d.z); m.pref = null;
     m.face = face; m.moveFace = face;
   });
