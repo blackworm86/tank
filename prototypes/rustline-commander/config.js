@@ -559,6 +559,7 @@ window.CONFIG = {
   final_prep: { value: 60, min: 10, max: 300, step: 5 },          // seconds to set up before the first wave of the last stand
   final_gap: { value: 70, min: 20, max: 200, step: 5 },           // seconds between last-stand waves (sooner once a wave is beaten)
   max_squads: { value: 4, min: 1, max: 9, step: 1 },
+  vet_squad_chance: { value: 0.3, min: 0, max: 1, step: 0.05 },   // chance a checkpoint of the 4th offers its squad of veterans (iteration 76: whole squads are rare)
   geo_combo: { value: 0.4, min: 0, max: 1, step: 0.05 },         // chance a sector has a second geography
   cache_bonus: { value: 15, min: 0, max: 200, step: 5 },        // extra scrap in a mission's cache
 

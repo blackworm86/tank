@@ -61,7 +61,7 @@ registerMission('rescue', {
   update(M) {
     if (!M.target.cleared) return;
     M.done = true;
-    joinSquad(['rifle', 'rifle', rng() < 0.5 ? 'mg' : 'medic'], 'Ex prigionieri', M.target.x + 0.5, M.target.z + 0.5);
+    joinSquad(['recruit', 'recruit'], 'Ex prigionieri', M.target.x + 0.5, M.target.z + 0.5);
     say('Ex prigionieri', 'Grazie, comandante! Siamo con te.', '#9fe3a0');
     missionDoneSay();
   },
@@ -129,7 +129,7 @@ registerMission('escort', {
     if (alive.every(c => Math.hypot(c.x - ex.x, c.z - ex.z) < tune.exit_radius + 6)) {
       M.done = true; const n = alive.length, v = n * tune.escort_pay; state.scrap += v; addRep('coloni', n * 3); sfx('coin');
       say('Profughi', 'Siamo salvi! Grazie, comandante. (' + n + '/' + M.n0 + ' vivi, +' + v + ' rottami)', '#9fe3a0');
-      if (n >= 3) joinSquad(['rifle', 'rifle'], 'Profughi armati', tk.x - 4, tk.z - 4);
+      if (n >= 3) joinSquad(['recruit'], 'Profugo armato', tk.x - 4, tk.z - 4);
     }
   },
   leave(M) { for (const c of M.civs || []) c.gone = true; }, // the refugees who made it go their way
@@ -222,7 +222,7 @@ function sideDone(S) {
     return;
   }
   ch.done = true; const tk = state.tank;
-  if (C.reward === 'colonel') { const sq = joinSquad(['radio', 'mg', 'rifle', 'rifle'], 'Scorta del colonnello', tk.x - 4, tk.z - 4); if (sq) promote(sq, 2); state.scrap += 60; say('Colonnello Brandi', 'Vi devo la vita. La mia scorta è vostra, e conosco questi posti. (+60 rottami)', '#9fe3a0'); }
+  if (C.reward === 'colonel') { const sq = joinSquad(['radio', 'mg', 'rifle', 'rifle'], 'Scorta del colonnello', tk.x - 4, tk.z - 4, true); if (sq) promote(sq, 2); state.scrap += 60; say('Colonnello Brandi', 'Vi devo la vita. La mia scorta è vostra, e conosco questi posti. (+60 rottami)', '#9fe3a0'); }
   if (C.reward === 'depot') { tk.hp = tk.maxhp; for (const k of SHELL_IDS) addAmmo(k, 99); const r = randomSystem(); state.scrap += 80; say('Pista', 'La mappa porta a un deposito dell\'esercito: riparazioni, rastrelliere piene, 80 rottami' + (r ? ' e ' + giveSystem(r) : '') + '.', '#9fe3a0'); }
   if (C.reward === 'butcher') { state.scrap += 140; for (const f of FACTION_IDS) addRep(f, 10); const r = randomSystem(true) || randomSystem(); say('Pista', 'Il Macellaio è morto: tutte le fazioni ne parlano. +140 rottami' + (r ? ', ' + giveSystem(r) : '') + '.', '#9fe3a0'); }
 }

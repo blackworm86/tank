@@ -278,11 +278,30 @@ function finalUpdate(dt) {
 }
 
 // ---- Help for the events -----------------------------------------------------------------------------
-/** New men join as a squad of their own near (x,z); with no room left they bring scrap instead. */
-function joinSquad(kinds, name, x, z) {
+/**
+ * New men join near (x,z). Iteration 76: a few men (own false) fill a squad of ours with room first, the one with
+ * the most Recruits; otherwise, or for a squad that comes whole (own), they are a squad of their own; with no room
+ * left they bring scrap instead. rank: the newcomers' level (an expert), the others' stays. Returns their squad.
+ */
+function joinSquad(kinds, name, x, z, own, rank) {
+  const lift = m => { if (rank) { m.rank = rank; m.xp = tune['rank_xp_' + rank]; m.maxhp = unitHp(m); m.hp = m.maxhp; } };
+  if (!own) {
+    const foot = sq => alive(sq).filter(m => !m.veh), recr = sq => foot(sq).filter(m => m.kind === 'recruit').length;
+    const room = state.squads.filter(sq => foot(sq).length && foot(sq).length + kinds.length <= tune.squad_max_size).sort((a, b) => recr(b) - recr(a))[0];
+    if (room) {
+      kinds.forEach((k, i) => {
+        const p = spotNear(x, z, i), m = spawn(k, p.x, p.z);
+        m.squad = room; m.heading = m.turretYaw = state.tank ? state.tank.heading : 0; room.slots.push(k); room.members.push(m); lift(m);
+      });
+      if (!room.named) room.name = squadName(room.slots);
+      say('Radio', name + ': ' + (kinds.length > 1 ? kinds.length + ' uomini entrano' : 'entra') + ' nella squadra ' + room.name + '.', '#9fe3a0');
+      return room;
+    }
+  }
   if (state.squads.length >= maxSquads()) { const v = 10 * kinds.length; state.scrap += v; say('Radio', 'Non abbiamo posto per altre squadre: ci lasciano ' + v + ' rottami.', '#ffd36a'); return null; }
   const sq = addSquad(kinds, x, z); if (!sq) return null;
   sq.order = { t: 'follow' }; sq.name = name; sq.named = true;
+  for (const m of sq.members) lift(m);
   return sq;
 }
 /** A random module for free (modules.js); returns its name (or null if there is none left to give). */
@@ -297,15 +316,15 @@ function promote(sq, r) { if (sq) for (const m of alive(sq)) { m.rank = r; m.xp 
  * line shown as its outcome. fac: the faction it comes with (null: anyone); fig: their figure.
  */
 const EVENTS = [
-  { id: 'disertori', fac: null, fig: 'r_rifle', title: 'Disertori dell\'Orda', text: 'Tre uomini con le insegne dell\'Orda strappate alzano le mani. "Ne abbiamo abbastanza del Capo. Prendeteci con voi, sappiamo sparare."',
+  { id: 'disertori', fac: null, fig: 'r_rifle', title: 'Disertori dell\'Orda', text: 'Due uomini con le insegne dell\'Orda strappate alzano le mani. "Ne abbiamo abbastanza del Capo. Prendeteci con voi, sappiamo sparare."',
     choices: [
-      { label: 'Accoglili nel gruppo', act: () => { if (state.node.col > 0 && rng() < 0.2) { ambush(5); return 'Era una trappola! Altri predoni escono dai cespugli.'; } joinSquad(['rifle', 'rifle', 'mg'], 'Disertori', state.tank.x - 4, state.tank.z - 4); return 'Si mettono in fila dietro al carro. Una squadra in più.'; } },
+      { label: 'Accoglili nel gruppo', act: () => { if (state.node.col > 0 && rng() < 0.2) { ambush(5); return 'Era una trappola! Altri predoni escono dai cespugli.'; } joinSquad(['recruit', 'recruit'], 'Disertori', state.tank.x - 4, state.tank.z - 4); return 'Si mettono in fila dietro al carro: due reclute in più.'; } },
       { label: 'Prendi le loro armi e mandali via (+20 rottami)', act: () => { state.scrap += 20; return 'Lasciano fucili e munizioni e spariscono tra le rovine.'; } },
       { label: 'Tira dritto', act: () => 'Li lasci al loro destino.' },
     ] },
   { id: 'cecchino', fac: null, fig: 'sniper', figs: 1, title: 'Il cecchino solitario', text: 'Un tiratore scelto ti osserva da un tetto. "Ho una buona canna e la mira ferma. Per 60 rottami lavoro per te fino alla fine."',
     choices: [
-      { label: 'Paga 60 rottami', need: () => state.scrap >= 60, act: () => { state.scrap -= 60; promote(joinSquad(['sniper'], 'Occhio di Falco', state.tank.x - 3, state.tank.z - 3), 2); return 'Un veterano in più: scende dal tetto e si unisce a te.'; } },
+      { label: 'Paga 60 rottami', need: () => state.scrap >= 60, act: () => { state.scrap -= 60; joinSquad(['sniper'], 'Occhio di Falco', state.tank.x - 3, state.tank.z - 3, false, 2); return 'Un veterano in più: scende dal tetto e si unisce a te.'; } },
       { label: 'Non ci serve', act: () => 'Alza le spalle e torna a guardare l\'orizzonte.' },
     ] },
   { id: 'affamati', fac: 'coloni', fig: 'medic', title: 'Coloni affamati', text: 'Una famiglia di coloni accanto a un fuoco spento. "Non mangiamo da giorni. Se ci aiutate, mio figlio viene con voi: è sveglio e sa curare."',
@@ -315,14 +334,14 @@ const EVENTS = [
     ] },
   { id: 'capovillaggio', fac: 'coloni', fig: 'rifle', title: 'Il capo villaggio', text: '"I predoni del campo qui vicino ci portano via tutto. Distruggetelo e vi pagheremo, e i nostri giovani vi seguiranno."',
     choices: [
-      { label: 'Accetta l\'incarico', need: () => !!nearestCamp(), act: () => { const c = nearestCamp(); state.quests.push({ kind: 'camp', site: c, scrap: 45, recruits: ['rifle', 'rifle'], giver: 'Capo villaggio', text: 'Distruggi ' + c.name }); return 'Incarico: distruggi ' + c.name + '. Ricompensa: 45 rottami e due volontari.'; } },
+      { label: 'Accetta l\'incarico', need: () => !!nearestCamp(), act: () => { const c = nearestCamp(); state.quests.push({ kind: 'camp', site: c, scrap: 45, recruits: ['recruit', 'recruit'], giver: 'Capo villaggio', text: 'Distruggi ' + c.name }); return 'Incarico: distruggi ' + c.name + '. Ricompensa: 45 rottami e due volontari.'; } },
       { label: 'Non abbiamo tempo', act: () => 'Il vecchio abbassa lo sguardo.' },
     ] },
   { id: 'mercante', fac: 'mercanti', fig: 'rifle', title: 'La carovana dei mercanti', text: 'Camion carichi di ferraglia e un mercante dal sorriso d\'oro. "Pezzi buoni, comandante. Prezzi onesti... quasi."',
     choices: [
       { label: 'Paga un miglioramento a sorpresa (90 rottami)', need: () => state.scrap >= 90, act: () => { state.scrap -= 90; const p = freeUpgrade(); if (p) return 'Il meccanico lavora sul carro: ' + p + '.'; state.scrap += 90; return 'Non ha niente di meglio di quello che hai: ti rende i rottami.'; } },
       { label: 'Riparazioni (50 rottami, +50% integrità)', need: () => state.scrap >= 50 && state.tank.hp < state.tank.maxhp, act: () => { state.scrap -= 50; state.tank.hp = Math.min(state.tank.maxhp, state.tank.hp + state.tank.maxhp * 0.5); return 'Saldature fresche sullo scafo.'; } },
-      { label: 'Assolda le sue guardie (80 rottami)', need: () => state.scrap >= 80, act: () => { state.scrap -= 80; joinSquad(['mg', 'rifle'], 'Guardie della carovana', state.tank.x - 4, state.tank.z - 4); return 'Due guardie armate passano al tuo servizio.'; } },
+      { label: 'Assolda una sua guardia (80 rottami)', need: () => state.scrap >= 80, act: () => { state.scrap -= 80; joinSquad(['mg'], 'Guardia della carovana', state.tank.x - 4, state.tank.z - 4, false, 1); return 'Una guardia esperta, con la sua mitragliatrice, passa al tuo servizio.'; } },
     ] },
   { id: 'contrabbando', fac: 'mercanti', fig: 'rifle', title: 'Il contrabbandiere', text: '"Ho una cassa di munizioni speciali e nessuno a cui venderla. 40 rottami e la cassa è tua. Garantito... più o meno."',
     choices: [
@@ -331,13 +350,18 @@ const EVENTS = [
     ] },
   { id: 'ferito', fac: null, fig: 'rifle', figs: 1, title: 'Un soldato ferito', text: 'Un soldato del tuo vecchio battaglione, ferito a una gamba. "Comandante... pensavo foste tutti morti. Portatemi con voi."',
     choices: [
-      { label: 'Caricalo e curalo (20 rottami)', need: () => state.scrap >= 20, act: () => { state.scrap -= 20; promote(joinSquad(['rifle'], 'Sopravvissuto', state.tank.x - 3, state.tank.z - 3), 1); return 'Un veterano esperto torna in servizio.'; } },
+      { label: 'Caricalo e curalo (20 rottami)', need: () => state.scrap >= 20, act: () => { state.scrap -= 20; joinSquad(['rifle'], 'Sopravvissuto', state.tank.x - 3, state.tank.z - 3, false, 1); return 'Un veterano esperto torna in servizio.'; } },
       { label: 'Lascialo all\'ombra con dell\'acqua', act: () => 'Ti saluta con la mano mentre ti allontani.' },
     ] },
   { id: 'deposito', fac: null, fig: 'rifle', figs: 1, title: 'Il deposito sepolto', text: 'Un vecchio indica una botola mezza sepolta. "Roba dell\'esercito, prima della fine. Io non ci scendo: potrebbe essere minata."',
     choices: [
       { label: 'Apri la botola', act: () => { if (rng() < 0.6) { state.scrap += 35; return 'Casse intatte: 35 rottami.'; } hurtTank(0.18); return 'Una mina! Il carro è danneggiato.'; } },
       { label: 'Lascia stare', act: () => 'Meglio non rischiare.' },
+    ] },
+  { id: 'sopravvissuti', fac: null, fig: 'recruit', figs: 2, title: 'Sopravvissuti', text: 'Due figure magre escono da un rudere con le mani alzate. "Non abbiamo niente, solo queste gambe e la voglia di farla pagare all\'Orda. Prendeteci con voi."',
+    choices: [
+      { label: 'Prendili con te', act: () => { const n = rng() < 0.5 ? 1 : 2; joinSquad(n > 1 ? ['recruit', 'recruit'] : ['recruit'], 'Sopravvissuti', state.tank.x - 3, state.tank.z - 3); return n > 1 ? 'Si uniscono tutti e due: reclute, ma vive.' : 'Uno dei due è troppo debole per seguirvi; l\'altro sale dietro al carro.'; } },
+      { label: 'Indica loro la strada per i pozzi', act: () => { addRep('coloni', 5); return 'Ti ringraziano e si incamminano verso i pozzi.'; } },
     ] },
   { id: 'segnale', fac: null, fig: 'rifle', figs: 1, title: 'Il radioamatore', text: 'Un uomo con un\'antenna fatta di rottami. "Ascolto le frequenze dell\'Orda da mesi. Per 30 rottami vi dico dove sono i loro campi."',
     choices: [

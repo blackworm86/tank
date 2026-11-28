@@ -161,7 +161,7 @@ function factionUpdate(dt) {
     if (q.kind === 'deliver' && state.atExit) { q.done = true; state.scrap += q.scrap; sfx('coin'); say(q.giver, 'La cassa è arrivata. Eccovi ' + q.scrap + ' rottami.', '#ffd36a'); addRep(q.fac, 20); }
     if (q.kind === 'defend') {
       if (!q.g && state.t >= q.at) { q.g = raidOn(q.site, Math.round(4 + state.node.col * 0.8)); say('Coloni', 'Arrivano! I predoni sono al borgo!', '#ff9a7a'); }
-      if (q.g && q.g.members.every(m => !m.alive)) { q.done = true; state.scrap += q.scrap; sfx('coin'); joinSquad(['rifle', 'rifle'], 'Milizia dei pozzi', q.site.x, q.site.z); tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); say('Coloni', 'Il borgo è salvo! ' + q.scrap + ' rottami, riparazioni e due dei nostri con voi.', '#9fe3a0'); addRep('coloni', 25); }
+      if (q.g && q.g.members.every(m => !m.alive)) { q.done = true; state.scrap += q.scrap; sfx('coin'); joinSquad(['recruit', 'recruit'], 'Milizia dei pozzi', q.site.x, q.site.z); tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); say('Coloni', 'Il borgo è salvo! ' + q.scrap + ' rottami, riparazioni e due dei nostri con voi.', '#9fe3a0'); addRep('coloni', 25); }
     }
   }
   if (f === 'culto') for (const p of state.pickups) if (p.wreck && p.taken && !p.was) {
@@ -213,7 +213,7 @@ function factionEvent(p) {
     const pr = fprice(f, 30);
     C.push({ label: 'Lascia loro delle scorte (30 rottami)', need: () => state.scrap >= 30, act: () => { state.scrap -= 30; addRep(f, 15); if (once('medic')) { mark('medic'); joinSquad(['medic'], 'Medico dei pozzi', tk.x - 3, tk.z - 3); return 'Ti ringraziano. Il loro medico viene con te.'; } return 'Ti ringraziano con le lacrime agli occhi.'; } });
     if (once('def')) C.push({ label: 'Incarico: difendi il borgo dalla prossima razzia', act: () => { mark('def'); state.quests.push({ kind: 'defend', site: { x: p.x, z: p.z }, at: state.t + tune.raid_delay, scrap: tune.job_scrap, giver: F.short, text: 'Difendi il borgo dei coloni' }); return 'I predoni arriveranno tra poco. Prepara le difese attorno al borgo.'; } });
-    if (friend && once('vol')) C.push({ label: 'Chiedi dei volontari', act: () => { mark('vol'); joinSquad(['rifle', 'rifle', 'scout'], 'Volontari dei pozzi', tk.x - 4, tk.z - 4); return 'Tre giovani prendono i fucili e salgono dietro al carro.'; } });
+    if (friend && once('vol')) C.push({ label: 'Chiedi dei volontari', act: () => { mark('vol'); joinSquad(['recruit', 'recruit'], 'Volontari dei pozzi', tk.x - 4, tk.z - 4); return 'Due giovani prendono i fucili e salgono dietro al carro.'; } });
     C.push({ label: 'I fabbri del borgo: +30% integrità (' + pr + ')', need: () => state.scrap >= pr && tk.hp < tk.maxhp, act: () => { state.scrap -= pr; tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.3); return 'Lamiere battute a mano, ma reggono.'; } });
     C.push({ label: 'Requisisci le provviste (+30 rottami, li tradisci)', act: () => { state.scrap += 30; addRep(f, -45); return 'Prendi tutto. Ti guardano andare via in silenzio.'; } });
   } else if (f === 'disertori') {
@@ -221,7 +221,8 @@ function factionEvent(p) {
     text = friend ? '"Passa pure, comandante. Chi combatte l\'Orda è dei nostri."' : 'Sacchetti di sabbia, una sbarra a strisce e mitragliatrici puntate. "Posto di blocco della 4ª. Si paga, o si torna indietro."';
     C.push({ label: toll ? 'Paga il pedaggio (' + toll + ' rottami)' : 'Passa (sei un amico)', need: () => state.scrap >= toll, act: () => { state.scrap -= toll; liftBarrier(); addRep(f, 5); return 'La sbarra si alza. "Buona strada."'; } });
     const pv = fprice(f, 140);
-    if (once('vet')) C.push({ label: 'Assolda una squadra di veterani (' + pv + ')', need: () => state.scrap >= pv, act: () => { state.scrap -= pv; mark('vet'); promote(joinSquad(['rifle', 'mg', 'at'], 'Veterani della 4ª', tk.x - 4, tk.z - 4), 2); addRep(f, 5); return 'Tre veterani salgono a bordo. Sanno il fatto loro.'; } });
+    if (p.vetOk == null) p.vetOk = rng() < tune.vet_squad_chance; // iteration 76: a whole squad is rare
+    if (once('vet') && p.vetOk) C.push({ label: 'Assolda una squadra di veterani (' + pv + ')', need: () => state.scrap >= pv, act: () => { state.scrap -= pv; mark('vet'); promote(joinSquad(['rifle', 'mg', 'at'], 'Veterani della 4ª', tk.x - 4, tk.z - 4, true), 2); addRep(f, 5); return 'Tre veterani salgono a bordo. Sanno il fatto loro.'; } });
     if (friend && once('ap')) C.push({ label: 'Colpi perforanti dal loro deposito (8 AP, 25)', need: () => state.scrap >= 25 && ammoTotal() < ammoMax(), act: () => { state.scrap -= 25; mark('ap'); return addAmmo('ap', 8) + ' colpi AP caricati.'; } });
     const half = Math.round(WEAPONS.c75.cost / 2);
     if (friend && once('gun') && !state.weaponsOwned.includes('c75')) C.push({ label: 'Cannone 75mm a metà prezzo (' + half + ')', need: () => state.scrap >= half, act: () => { state.scrap -= half; mark('gun'); state.weaponsOwned.push('c75'); return 'Il cannone è tuo: montalo all\'officina, all\'uscita dal settore (Arma e colpi).'; } });
