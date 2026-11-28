@@ -57,10 +57,10 @@ function menuItems(g, append) {
     items.push({ key: 'Q', label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
     items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } }); }
   if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', desc: 'Escono dalla porta e si fermano fuori.', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
-  const rv = !g.tgt ? rideAt(p) : null; // a jeep under the mouse: climb on it
-  if (rv && ms.some(m => canRide(m) && !m.inside && m.squad !== rv.squad)) items.unshift({ key: 'J', label: 'Sali sulla jeep (' + Math.max(0, rideFree(rv)) + ' posti liberi)', col: '#4fe3e0', desc: DESC.ride, off: rideFree(rv) <= 0, act: all(sq => { if (alive(sq).some(m => canRide(m))) orderRide(sq, rv); }) });
+  const rv = !g.tgt ? rideAt(p) : null; // a transport under the mouse: climb on it (the squad's own too)
+  if (rv && ms.some(m => canRide(m) && !m.inside)) items.unshift({ key: 'J', label: 'Sali su ' + UT[rv.kind].name + ' (' + Math.max(0, rideFree(rv)) + ' posti liberi)', col: '#4fe3e0', desc: DESC.ride, off: rideFree(rv) <= 0, act: all(sq => { if (alive(sq).some(m => canRide(m))) orderRide(sq, rv); }) });
   const rodeV = sel.flatMap(sq => alive(sq)).filter(m => seatsOf(m) > 0 && ridersOf(m).length);
-  if (ms.some(m => m.rideOn) || rodeV.length) items.push({ key: 'U', label: 'Scendi dalla jeep', col: '#4fe3e0', desc: DESC.getoff, act: all(sq => { dismountSquad(sq); for (const v of alive(sq)) if (seatsOf(v) > 0) unloadVehicle(v); }) });
+  if (ms.some(m => m.rideOn) || rodeV.length) items.push({ key: 'U', label: 'Scendi dal mezzo', col: '#4fe3e0', desc: DESC.getoff, act: all(sq => { dismountSquad(sq); for (const v of alive(sq)) if (seatsOf(v) > 0) unloadVehicle(v); }) });
   if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', desc: 'Chi è a bordo scende accanto al carro comando.', act: () => unloadSelected() });
   return items;
 }
@@ -80,8 +80,8 @@ const DESC = {
   attack: 'Si avvicinano finché il bersaglio è a tiro e in vista, poi gli sparano anche se le regole d\'ingaggio dicono di non sparare. Abbattuto, si fermano.',
   suppress: 'Se serve si portano appena a tiro, poi restano lì e tengono il bersaglio sotto fuoco continuo, anche senza vederlo: ogni colpo, a segno o no, lo sopprime (mira e passo peggiori). Abbattuto, smettono.',
   board: 'La fanteria sale nel carro comando: viaggia al sicuro e scende dove serve.',
-  ride: 'La fanteria raggiunge la jeep e sale finché ci sono posti. A bordo va dove va la jeep e spara con le sue armi (meno precisa in corsa), allo scoperto. La mitragliatrice la usa l\'equipaggio.',
-  getoff: 'Chi è sulla jeep scende accanto a lei e si ferma lì. Un ordine dato alla squadra a bordo la fa scendere e andare a piedi; per portarla in giro, dai gli ordini alla jeep.',
+  ride: 'La fanteria raggiunge il mezzo (jeep, half track) e sale finché ci sono posti. A bordo va dove va il mezzo e spara con le sue armi dai finestrini, meno precisa in corsa. Sul mezzo della sua squadra, gli ordini alla squadra li porta il mezzo.',
+  getoff: 'Chi è a bordo scende accanto al mezzo e si ferma lì.',
   enter: 'Entrano e sparano dalle finestre: l\'edificio li protegge finché non crolla.',
 };
 /** Opens the menu at the mouse for the order gesture g (its point, its dragged bearing, its enemy). */

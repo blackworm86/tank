@@ -33,7 +33,7 @@ function dmgProfile(kind, hit) {
 function armourClass(e) {
   const D = typeof ENEMY !== 'undefined' && ENEMY[e.kind];
   if ((D && D.heavy) || e.kind === 'tank') return 'heavy';
-  if (e.kind === 'ltank' || e.kind === 'truck' || e.kind === 'r_spg' || e.kind === 'depot') return 'medium';
+  if (e.kind === 'ltank' || e.kind === 'td' || e.kind === 'htrack' || e.kind === 'truck' || e.kind === 'r_spg' || e.kind === 'depot') return 'medium';
   return 'light';
 }
 /** The thickness in mm of a vehicle's face (front, side, rear, top). */

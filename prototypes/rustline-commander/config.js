@@ -327,7 +327,7 @@ window.CONFIG = {
   jeep_hp: { value: 90, min: 20, max: 400, step: 5 },            // jeep: open, fast, thin-skinned (rifles hurt it)
   jeep_speed: { value: 10.5, min: 2, max: 18, step: 0.5 },
   jeep_turret: { value: 160, min: 20, max: 400, step: 5 },       // its pintle machine gun, degrees a second
-  jeep_seats: { value: 3, min: 0, max: 4, step: 1 },             // soldiers it carries in the open: they fire their own weapons from it
+  jeep_seats: { value: 4, min: 0, max: 4, step: 1 },             // soldiers it carries in the open: they fire their own weapons from it
   jeep_acc: { value: 0.55, min: 0.05, max: 1, step: 0.01 },
   at_range: { value: 34, min: 10, max: 90, step: 1 },          // the Anti-tank soldier's rocket
   at_damage: { value: 95, min: 10, max: 400, step: 5 },
@@ -338,6 +338,16 @@ window.CONFIG = {
   ltank_range: { value: 38, min: 10, max: 80, step: 1 },
   ltank_damage: { value: 60, min: 5, max: 300, step: 5 },
   ltank_reload: { value: 4, min: 0.5, max: 15, step: 0.25 },
+  htrack_hp: { value: 200, min: 30, max: 800, step: 10 },        // the half-track (iteration 64)
+  htrack_speed: { value: 8, min: 2, max: 16, step: 0.5 },
+  htrack_seats: { value: 6, min: 0, max: 6, step: 1 },
+  hmg_k: { value: 1.6, min: 0.5, max: 4, step: 0.1 },             // its heavy machine gun's damage against a machine gun's
+  td_hp: { value: 300, min: 50, max: 1200, step: 10 },            // the tank destroyer
+  td_speed: { value: 5, min: 1, max: 14, step: 0.5 },
+  td_range: { value: 55, min: 10, max: 90, step: 1 },
+  td_damage: { value: 170, min: 10, max: 600, step: 10 },
+  td_reload: { value: 6, min: 1, max: 20, step: 0.5 },
+  td_traverse: { value: 18, min: 5, max: 120, step: 1 },          // degrees a second its casemate gun turns
 
   // ---- Damage types and armour thickness (js/damage.js, js/systems/combat.js) ----
   pen_ac25: { value: 30, min: 0, max: 300, step: 5 },             // mm a piercing round of the 25mm gets through at point blank
@@ -400,6 +410,8 @@ window.CONFIG = {
   hull_turn_enemy: { value: 90, min: 5, max: 300, step: 5 },      // the Horde's other vehicles (bikes and buggies turn on the spot, tanks slowly: see enemies.js)
   hull_turn_jeep: { value: 130, min: 5, max: 300, step: 5 },
   hull_turn_ltank: { value: 45, min: 5, max: 200, step: 5 },
+  hull_turn_td: { value: 40, min: 5, max: 200, step: 5 },
+  hull_turn_htrack: { value: 80, min: 5, max: 300, step: 5 },
   mg_arc: { value: 40, min: 10, max: 180, step: 5 },           // half-angle, degrees
   mg_turn: { value: 70, min: 10, max: 360, step: 5 },          // deg/s
 
@@ -504,6 +516,8 @@ window.CONFIG = {
   cost_jeep: { value: 140, min: 0, max: 1000, step: 10 },
   cost_at: { value: 110, min: 0, max: 500, step: 5 },
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
+  cost_td: { value: 360, min: 0, max: 1500, step: 10 },
+  cost_htrack: { value: 220, min: 0, max: 1000, step: 10 },
   squad_max_size: { value: 6, min: 1, max: 8, step: 1 },
 
   // ---- Effects (js/systems/combat.js, js/systems/tank.js) ----

@@ -6,13 +6,14 @@
 
 // ---- Squads and orders --------------------------------------------------------------------------------
 function squadName(slots) {
+  if (slots.some(k => !UT[k].veh)) slots = slots.filter(k => !TRANSPORTS.includes(k)); // a squad is named for its soldiers, not its transport
   const k = new Set(slots);
   if (k.size === 1) {
     const t = slots[0], n = slots.length;
     return { rifle: n > 1 ? 'Fucilieri' : 'Fuciliere', sniper: n > 1 ? 'Team cecchini' : 'Cecchino solitario', mg: n > 1 ? 'Mitraglieri' : 'Mitragliere',
       medic: n > 1 ? 'Medici' : 'Medico', recruit: n > 1 ? 'Reclute' : 'Recluta',
       eng: n > 1 ? 'Genieri' : 'Geniere', radio: n > 1 ? 'Operatori radio' : 'Operatore radio', scout: n > 1 ? 'Esploratori' : 'Esploratore',
-      at: n > 1 ? 'Squadra anticarro' : 'Anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto', jeep: 'Jeep' }[t];
+      at: n > 1 ? 'Squadra anticarro' : 'Anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro leggero', td: 'Cacciacarri', jeep: 'Jeep', htrack: 'Half Track' }[t];
   }
   const tr = traitsOf(slots).find(t => t.squad);
   return tr ? tr.squad : 'Squadra';
@@ -577,7 +578,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     }
     if (leaveBuilding(sq)) say(sq.name, 'Usciamo!');
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
-    if (dismountSquad(sq, true)) say(sq.name, 'Giù dalla jeep, ci andiamo a piedi.'); // riders given an order of their own walk it
+    { let n = 0; for (const m of alive(sq)) if (m.rideOn && m.rideOn.squad !== sq) { dismount(m); n++; } if (n) say(sq.name, 'Giù dal mezzo, ci andiamo a piedi.'); } // riders on another squad's vehicle walk; on their own, it drives them
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
     else if (kind === 'suppress') orderSuppress(sq, tgt);
     else if (tgt) orderAttack(sq, tgt);

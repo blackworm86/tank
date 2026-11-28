@@ -42,6 +42,8 @@ function unitHp(e) {
     case 'tank': return tankStats().hp;
     case 'jeep': return tune.jeep_hp;
     case 'ltank': return tune.ltank_hp;
+    case 'td': return tune.td_hp;
+    case 'htrack': return tune.htrack_hp;
     default: if (ENEMY[e.kind]) return enemyHp(e); // the enemy registry (content/horde.js)
       return e.team ? tune.raider_hp * k : tune.inf_hp * rankK(e, 'rank_hp');
   }
@@ -55,12 +57,14 @@ function baseSpeed(e) {
   switch (e.kind) {
     case 'jeep': return tune.jeep_speed;
     case 'ltank': return tune.ltank_speed;
+    case 'td': return tune.td_speed;
+    case 'htrack': return tune.htrack_speed;
     case 'mg': return tune.inf_speed * 0.85;
     case 'scout': return tune.inf_speed * tune.scout_speed;
     default: return tune.inf_speed * (e.team ? 0.92 : 1);
   }
 }
-function eyeH(e) { return e.kind === 'tank' ? 2.7 : ENEMY[e.kind] && ENEMY[e.kind].eye ? ENEMY[e.kind].eye : e.kind === 'ltank' ? 2.2 : e.veh ? 2.0 : (e.inCover && !e.moving ? 1.15 : 1.5); }
+function eyeH(e) { return e.kind === 'tank' ? 2.7 : ENEMY[e.kind] && ENEMY[e.kind].eye ? ENEMY[e.kind].eye : e.kind === 'ltank' || e.kind === 'td' ? 2.2 : e.veh ? 2.0 : (e.inCover && !e.moving ? 1.15 : 1.5); }
 /** How fast a vehicle's hull turns, deg/s. */
 function hullTurn(e) { const k = 'hull_turn_' + e.kind; return (k in CONFIG ? tune[k] : ENEMY[e.kind] && ENEMY[e.kind].veh ? tune.hull_turn_enemy : 0) || 90; }
 function chestH(e) { return e.veh ? 1.3 : 1.15; }

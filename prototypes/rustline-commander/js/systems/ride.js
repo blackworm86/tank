@@ -7,7 +7,10 @@
 'use strict';
 
 /** The open seats of each vehicle that carries riders: [metres right, metres forward] from its centre. */
-const RIDE_SEATS = { jeep: [[0.42, 0.15], [-0.48, -1.15], [0.48, -1.15], [-0.42, 0.15]] };
+const RIDE_SEATS = { jeep: [[0.42, 0.15], [-0.48, -1.15], [0.48, -1.15], [-0.42, 0.15]],
+  htrack: [[-0.55, -0.2], [0.55, -0.2], [-0.55, -1.0], [0.55, -1.0], [-0.55, -1.8], [0.55, -1.8]] };
+/** A squad's own transport (jeep or half-track), or null. */
+function transportOf(sq) { return (sq && sq.members.find(m => m && m.alive && TRANSPORTS.includes(m.kind))) || null; }
 /** How many soldiers the vehicle carries (config <kind>_seats, at most its drawn seats). */
 function seatsOf(v) { return v && RIDE_SEATS[v.kind] ? Math.min(tune[v.kind + '_seats'] || 0, RIDE_SEATS[v.kind].length) : 0; }
 function ridersOf(v) { return state.ents.filter(e => e.alive && e.rideOn === v); }
@@ -36,7 +39,7 @@ function dismount(m) {
 /** The squad's riders get down; returns how many. */
 function dismountSquad(sq, quiet) {
   let n = 0; for (const m of alive(sq)) if (m.rideOn) { dismount(m); n++; }
-  if (n && !quiet) { sq.order = { t: 'hold' }; say(sq.name, 'Giù dalla jeep!'); }
+  if (n && !quiet) { sq.order = { t: 'hold' }; say(sq.name, 'Giù dal mezzo!'); }
   return n;
 }
 /** Everyone riding v gets down. */
@@ -46,12 +49,12 @@ function unloadVehicle(v) { const sqs = new Set(ridersOf(v).map(m => m.squad)); 
 function orderRide(sq, v) {
   const ms = alive(sq).filter(m => canRide(m) && !m.inside && !m.rideOn);
   if (!ms.length) { say(sq.name, 'Non possiamo salire.', '#e0a070'); return false; }
-  if (rideFree(v) <= 0) { say(sq.name, 'La jeep è piena.', '#e0a070'); return false; }
+  if (rideFree(v) <= 0) { say(sq.name, 'Il mezzo è pieno.', '#e0a070'); return false; }
   if (leaveBuilding(sq)) say(sq.name, 'Usciamo!');
   if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
   for (const m of ms) m.pref = null;
   sq.order = { t: 'ride', veh: v, done: false }; sq.tick = 0;
-  say(sq.name, 'Saliamo sulla jeep!');
+  say(sq.name, v.squad === sq ? 'A bordo!' : 'Saliamo sul mezzo!');
   mark(v.x, v.z, 0x4fe3e0);
   return true;
 }
@@ -67,5 +70,5 @@ function rideUpkeep(sq, ms) {
     walking++;
     if (!m.path || m.pi >= m.path.length || state.t - m.pathT > 1.5) setDest(m, v.x, v.z);
   }
-  if (!walking && !o.done) { o.done = true; say(sq.name, left ? 'Sulla jeep. Posti finiti: ' + left + ' a terra.' : 'Tutti sulla jeep!'); }
+  if (!walking && !o.done) { o.done = true; say(sq.name, left ? 'A bordo. Posti finiti: ' + left + ' a terra.' : 'Tutti a bordo!'); }
 }

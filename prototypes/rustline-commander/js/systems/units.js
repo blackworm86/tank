@@ -17,11 +17,15 @@ const UT = {
   radio: { name: 'Operatore radio', team: 0, w: 'carbine', cost: 'cost_radio' },
   scout: { name: 'Esploratore', team: 0, w: 'scout', cost: 'cost_scout', climb: true },
   at: { name: 'Anticarro', team: 0, w: 'bazooka', cost: 'cost_at' },
-  ltank: { name: 'Carro di supporto', team: 0, veh: true, rad: 1.9, w: 'ltgun', cost: 'cost_ltank' },
+  ltank: { name: 'Carro leggero', team: 0, veh: true, rad: 1.9, w: 'ltgun', cost: 'cost_ltank' },
+  td: { name: 'Cacciacarri', team: 0, veh: true, rad: 2.0, w: 'tdgun', cost: 'cost_td' },
   jeep: { name: 'Jeep', team: 0, veh: true, rad: 1.4, w: 'jeepmg', cost: 'cost_jeep' },
+  htrack: { name: 'Half Track', team: 0, veh: true, rad: 1.9, w: 'hmg', cost: 'cost_htrack' },
 };
 const INF_KINDS = ['recruit', 'rifle', 'scout', 'medic', 'eng', 'mg', 'sniper', 'radio', 'at'];
-const VEH_KINDS = ['ltank', 'jeep'];
+const VEH_KINDS = ['ltank', 'td', 'jeep', 'htrack'];
+/** The transports a squad may have, one each, beside its soldiers: they take no squad slot (iteration 64). */
+const TRANSPORTS = ['jeep', 'htrack'];
 /** Vehicles whose hull shrugs off rifle fire. */
 const HEAVY = new Set(['tank', 'ltank']); // and every enemy entry marked heavy
 /** A weapon's numbers, read live from config. */
@@ -36,6 +40,8 @@ function weapon(k) {
     case 'carbine': return { kind: 'bullet', range: tune.rifle_range * 0.85, dmg: tune.rifle_damage * 0.8, rate: tune.rifle_rate * 0.9, acc: tune.rifle_acc * 0.95 };
     case 'scout': return { kind: 'bullet', range: tune.rifle_range * 0.95, dmg: tune.rifle_damage * 0.85, rate: tune.rifle_rate, acc: tune.rifle_acc };
     case 'pistol': return { kind: 'bullet', range: 14, dmg: 4, rate: 1.4, acc: 0.45 };
+    case 'hmg': return { kind: 'bullet', heavy: true, range: tune.mg_range * 1.1, dmg: tune.mg_damage * tune.hmg_k, rate: tune.mg_rate, acc: tune.jeep_acc, snd: 'mg', chip: 0.5 }; // the half-track's heavy machine gun
+    case 'tdgun': return { kind: 'ap', range: tune.td_range, dmg: tune.td_damage, rate: tune.td_reload, blast: 0.6 }; // the tank destroyer's long gun: hulls, not men
     case 'jeepmg': return { kind: 'bullet', range: tune.mg_range, dmg: tune.mg_damage, rate: tune.mg_rate, acc: tune.jeep_acc, snd: 'mg', chip: 0.5 }; // the mounted machine gun: no tripod arc, it turns on its post
   }
   const W = registry('weapon')[k]; return W ? W() : null; // the Horde's weapons (content/horde.js, enemies.js)

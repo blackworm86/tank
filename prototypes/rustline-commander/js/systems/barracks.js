@@ -36,7 +36,16 @@ function recruitRoster() {
   const s = state.shopSite, sq = addSquad(r, s.x + 0.5, s.z + 0.5); sq.order = { t: 'follow' };
   state.shopMsg = sq.name + ' arruolata.'; state.roster = []; sfx('coin');
 }
-/** Buys a support vehicle (jeep or support tank) as a squad of its own. */
+/** Gives squad sq a transport of kind k (jeep or half-track): beside its soldiers, no squad slot (iteration 64). */
+function buyTransport(sq, k) {
+  const c = tune[UT[k].cost]; if (transportOf(sq)) return;
+  if (state.scrap < c) { state.shopMsg = 'Servono ' + c + ' rottami.'; return; }
+  state.scrap -= c;
+  const s = state.shopSite, p = spotNear(s.x + 0.5, s.z + 0.5, sq.slots.length), m = spawn(k, p.x, p.z);
+  m.squad = sq; sq.slots.push(k); sq.members.push(m);
+  state.shopMsg = sq.name + ': ' + UT[k].name + ' assegnato.'; sfx('coin');
+}
+/** Buys a combat vehicle (light tank or tank destroyer) as a squad of its own. */
 function buyVehicle(kind) {
   const cost = tune[UT[kind].cost];
   if (state.squads.length >= maxSquads()) { state.shopMsg = 'Massimo ' + maxSquads() + ' squadre.'; return; }
@@ -67,6 +76,7 @@ registerShopTab('barracks', {
       sq.slots.concat(sq.fallen || []).forEach((k, j) => { const m = sq.members[j]; unitIcon(k, x0 + 44 + j * 24, yy + 36, 18, m && m.alive ? '#a8d870' : '#5a3a32'); }); // the fallen after the living
       squadMod(sq); text((sq.traits || []).map(t => t.name).join(' · '), x0 + 40 + (sq.slots.length + (sq.fallen || []).length) * 24, yy + 37, 11, '#b6d77a', 'left'); // past the icons
       if (miss) button(x0 + 300, yy + 8, 194, 34, 'Rimpiazza ' + miss + ' (' + c + ')', () => reinforce(sq), { off: state.scrap < c, size: 14 });
+      else if (!transportOf(sq) && alive(sq).some(m => !m.veh)) [['jeep', 'Jeep'], ['htrack', 'Half Track']].forEach(([k, d], j) => { const c = tune[UT[k].cost]; button(x0 + 300 + j * 98, yy + 8, 94, 34, d + ' ' + c, () => buyTransport(sq, k), { off: state.scrap < c, size: 12 }); }); // a transport for the squad
       else text('Al completo', x0 + 494, yy + 25, 14, HC.ok, 'right');
     });
     if (!state.squads.length) text('Nessuna squadra.', x0 + 24, cy + 40, 15, HC.dim, 'left');
@@ -79,14 +89,15 @@ registerShopTab('barracks', {
     button(rx + 206, cy + 86, 44, 40, '+', () => { state.recruitN = Math.min(tune.squad_max_size, n + 1); }, { off: n >= tune.squad_max_size });
     button(rx + 260, cy + 86, 196, 40, 'Arruola ' + n + ' (' + rc + ')', () => { state.roster = Array(n).fill('recruit'); recruitRoster(); }, { off: state.scrap < rc || state.squads.length >= maxSquads() });
     const ry = cy + 140;
-    text('Mezzi di supporto (una squadra ciascuno)', rx, ry, 15, '#ffd9a0', 'left');
-    [['jeep', 'Jeep'], ['ltank', 'Carro supporto']].forEach(([k, d], i) => {
+    text('Mezzi da combattimento (una squadra ciascuno)', rx, ry, 15, '#ffd9a0', 'left');
+    [['ltank', 'Carro leggero'], ['td', 'Cacciacarri']].forEach(([k, d], i) => {
       const c = tune[UT[k].cost], bx0 = rx + i * 154;
       button(bx0, ry + 14, 148, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
       unitIcon(k, bx0 + 20, ry + 37, 22, '#a8d870');
       text(d, bx0 + 40, ry + 29, 13, HC.text, 'left'); text(c + ' rottami', bx0 + 40, ry + 47, 12, HC.gold, 'left');
     });
     text('Squadre: ' + state.squads.length + ' / ' + maxSquads() + '   ·   al massimo ' + tune.squad_max_size + ' soldati per squadra', rx, ry + 80, 14, HC.dim, 'left');
+    wrap('Jeep (4 posti) e Half Track (6 posti, mitragliatrice pesante) si assegnano a una squadra dalla sua riga a sinistra: non occupano uno slot. Chi è a bordo spara dai finestrini.', 456, 12).forEach((l, k) => text(l, rx, ry + 104 + k * 16, 12, HC.dim, 'left'));
   },
 });
 registerShopTab('repair', {

@@ -295,6 +295,10 @@ function scatterCrates() {
 // ---- The soldiers' trades -------------------------------------------------------------------------------------
 /** What each kind of soldier does, for the barracks. */
 const ROLE_DESC = {
+  ltank: 'Carro leggero: cannone esplosivo contro la fanteria e le coperture.',
+  td: 'Cacciacarri: cannone lungo e perforante contro carri e mezzi; torretta fissa, lento a girarsi.',
+  jeep: 'Jeep: veloce, 4 soldati a bordo sparano dai finestrini, mitragliatrice.',
+  htrack: 'Half Track: 6 soldati a bordo sparano dai finestrini, mitragliatrice pesante, scafo leggero.',
   recruit: 'Poco efficace, nessun bonus. Con l\'esperienza sceglie un incarico.',
   rifle: 'Fucile affidabile: la spina dorsale della squadra.',
   mg: 'Più lento; sopprime di più; da fermo alza un nido di mitragliatrice (cadenza e soppressione).',

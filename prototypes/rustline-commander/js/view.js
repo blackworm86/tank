@@ -486,6 +486,36 @@ function makeBossModel() {
   return g;
 }
 /** The support tank: a smaller tank in the player's paint, short gun, no commander. */
+/** The half-track (iteration 64): wheels in front, tracks behind, an open armoured bed with six seats and a heavy machine gun on a ring. */
+function makeHalfTrackModel() {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+  for (const s of [-1, 1]) { bx(b, 0.38, 0.8, 0.8, PC.track, s * 1.0, 0.4, 1.5); bx(b, 0.5, 0.7, 2.6, PC.track, s * 0.95, 0.35, -0.9); }
+  bx(b, 1.9, 0.7, 4.4, PC.olive, 0, 0.9, -0.1); bx(b, 1.7, 0.45, 1.2, PC.olive2, 0, 1.2, 1.55, -0.12);
+  for (const s of [-1, 1]) bx(b, 0.1, 0.55, 3.0, PC.olive2, s * 0.95, 1.5, -0.9);
+  bx(b, 1.9, 0.55, 0.1, PC.olive2, 0, 1.5, -2.35); // the bed's walls
+  bx(b, 1.6, 0.5, 0.08, PC.glass, 0, 1.6, 0.85); bx(b, 1.92, 0.08, 0.3, PC.stripe, 0, 1.25, 0.4);
+  const tur = new THREE.Group(); tur.position.set(0, 1.5, 0.55); g.add(tur);
+  bx(tur, 0.7, 0.1, 0.7, PC.metal, 0, 0.2, 0); bx(tur, 0.12, 0.6, 0.12, PC.metal, 0, 0.45, 0);
+  const gun = new THREE.Group(); gun.position.set(0, 0.75, 0.1); tur.add(gun);
+  bx(gun, 0.18, 0.2, 1.4, PC.black, 0, 0, 0.6); bx(gun, 0.5, 0.36, 0.06, PC.grey, 0, 0.1, 0.05);
+  bx(b, 0.05, 1.3, 0.05, PC.black, -0.8, 2.0, -2.2); bx(b, 0.1, 0.1, 0.1, PC.cyan, -0.8, 2.65, -2.2);
+  g.userData = { turret: tur, gun, hull: b, gunZ: 0.1 };
+  selRing(g, 2.8);
+  return g;
+}
+/** The tank destroyer (iteration 64): a low sloped hull, a long gun in a casemate that turns little. */
+function makeTDModel(L = 3.6) {
+  const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
+  for (const s of [-1, 1]) { bx(hull, 0.8, 0.8, 4.6, PC.track, s * 1.25, 0.4, 0); for (let i = -2; i <= 2; i++) bx(hull, 0.84, 0.4, 0.4, PC.wheel, s * 1.25, 0.32, i * 0.95); }
+  bx(hull, 2.0, 0.7, 4.4, PC.drab, 0, 0.7, 0); bx(hull, 2.6, 0.25, 4.0, PC.olive, 0, 1.12, -0.2);
+  bx(hull, 2.2, 0.8, 2.0, PC.olive, 0, 1.6, 0.3, -0.25); bx(hull, 2.22, 0.08, 0.4, PC.stripe, 0, 1.95, -0.4);
+  const tur = new THREE.Group(); tur.position.set(0, 1.55, 1.25); g.add(tur);
+  const gun = new THREE.Group(); tur.add(gun);
+  bx(tur, 0.7, 0.6, 0.5, PC.drab, 0, 0, 0); bx(gun, 0.26, 0.26, L, PC.metal, 0, 0, L / 2); bx(gun, 0.4, 0.4, 0.4, PC.black, 0, 0, L);
+  g.userData = { turret: tur, gun, hull, gunZ: 0 };
+  selRing(g, 3.1);
+  return g;
+}
 function makeLightTankModel(L = 2.0) {
   const g = new THREE.Group(), hull = new THREE.Group(); g.add(hull);
   for (const s of [-1, 1]) {
@@ -549,6 +579,8 @@ function modelFor(e) {
   if (e.kind === 'apc') return makeAPCModel();
   if (e.kind === 'jeep') return makeJeepModel();
   if (e.kind === 'ltank') return makeLightTankModel();
+  if (e.kind === 'td') return makeTDModel();
+  if (e.kind === 'htrack') return makeHalfTrackModel();
   const mk = registry('model')[e.kind]; if (mk) return mk(); // each registered kind's own figure (content/horde.js, enemies.js, missions.js)
   return makeSoldier(e.kind);
 }

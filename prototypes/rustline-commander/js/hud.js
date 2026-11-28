@@ -39,6 +39,12 @@ function unitIcon(kind, x, y, s, col) {
   if (kind === 'jeep') {
     ctx.fillRect(-9, -1, 18, 5); ctx.fillRect(1, -5, 2, 4); ctx.fillRect(-6, -8, 2, 7); ctx.fillRect(-6, -9, 8, 2);
     ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-8, 4, 4, 4); ctx.fillRect(4, 4, 4, 4);
+  } else if (kind === 'htrack') {
+    ctx.fillRect(-10, -2, 20, 6); ctx.fillRect(4, -6, 6, 4); ctx.fillRect(-2, -7, 2, 5);
+    ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-10, 4, 12, 4); ctx.fillRect(5, 4, 4, 4);
+  } else if (kind === 'td') {
+    ctx.fillRect(-10, -1, 20, 6); ctx.beginPath(); ctx.moveTo(-6, -1); ctx.lineTo(4, -1); ctx.lineTo(1, -6); ctx.lineTo(-6, -6); ctx.closePath(); ctx.fill(); ctx.fillRect(2, -5, 11, 2);
+    ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-10, 5, 20, 3);
   } else if (kind === 'ltank') {
     ctx.fillRect(-10, -1, 20, 6); ctx.fillRect(-5, -6, 9, 5); ctx.fillRect(4, -5, 8, 2);
     ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-10, 5, 20, 3);

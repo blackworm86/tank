@@ -133,7 +133,7 @@ function nudge(e, dx, dz) {
   if (walkable(Math.floor(nx), Math.floor(nz)) && Math.abs(hAt(nx, nz) - hAt(e.x, e.z)) <= 1) { e.x = nx; e.z = nz; }
 }
 /** A vehicle's turret speed, radians a second: the support tank's, the armoured car's, a raider's. */
-function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'jeep' ? tune.jeep_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
+function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'td' ? tune.td_traverse : e.kind === 'jeep' || e.kind === 'htrack' ? tune.jeep_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
 /**
  * Where a vehicle's gunner looks with no target: along the way it drives, the way it was told to face, or the
  * last enemy seen, swept slowly turret_scan either side as the crew watches.
@@ -145,7 +145,7 @@ function watchYaw(e) {
   return (e.face != null ? e.face : e.heading) + sweep;
 }
 /** Tracks turn on the spot; wheels need to roll to turn. */
-function tracked(e) { return e.kind === 'ltank' || e.kind === 'tank' || !!(ENEMY[e.kind] && ENEMY[e.kind].heavy); }
+function tracked(e) { return e.kind === 'ltank' || e.kind === 'td' || e.kind === 'htrack' || e.kind === 'tank' || !!(ENEMY[e.kind] && ENEMY[e.kind].heavy); }
 /** Can a vehicle's centre go to (x, z) from where it is: no deep water, no hard wall, no cliff step (as tankFits). */
 function vehCanGo(e, x, z) {
   const ix = Math.floor(x), iz = Math.floor(z); if (!inMap(ix, iz) || deepWater(x, z)) return false;
