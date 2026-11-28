@@ -87,14 +87,19 @@ function roleOpts(m, sq, threats) {
  * a spot is clearly better than where he is.
  */
 function soldierPosition(m, sq) {
-  if (state.t - (m.coverT || -99) < tune.cover_rethink) return;
+  // experience (iteration 66): the higher on the ladder (jobs.js, 0-9), the sooner he looks again, the smaller gain moves him,
+  // the farther he looks and the more he wants height; a Recruit moves only once he is shot at
+  const lv = soldierLevel(m);
+  if (state.t - (m.coverT || -99) < tune.cover_rethink * Math.max(0.5, 1.5 - lv * tune.ai_exp_k)) return;
+  if (m.kind === 'recruit' && !(m.shotBy && state.t - (m.shotT || -99) < 3)) return;
   const threats = threatsFor(m, tune.sight_range + 12); if (!threats.length) return;
   m.coverT = state.t;
   const o = roleOpts(m, sq, threats), t = threats[0];
+  o.R += Math.floor(lv / 3); o.highK = (o.highK || 0) + lv * tune.ai_high_k;
   let cx = m.x, cz = m.z;
   if (o.minD > 10) { const dx = t.x - m.x, dz = t.z - m.z, L = Math.hypot(dx, dz) || 1; if (L < o.minD) { cx -= dx / L * (o.minD - L); cz -= dz / L * (o.minD - L); } } // support men drop back
   const here = scoreSpot(m, m.x, m.z, threats, o), sp = bestSpot(m, cx, cz, o.R, threats, o);
-  if (!sp || sp.s < here + tune.cover_margin || Math.hypot(sp.x - m.x, sp.z - m.z) < 1) return;
+  if (!sp || sp.s < here + tune.cover_margin * Math.max(0.4, 1.4 - lv * tune.ai_exp_k) || Math.hypot(sp.x - m.x, sp.z - m.z) < 1) return;
   setDest(m, sp.x, sp.z); m.face = Math.atan2(t.x - sp.x, t.z - sp.z);
   if (state.t - (sq.coverMsgT || -99) > 15) { sq.coverMsgT = state.t; say(sq.name, m.kind === 'mg' ? 'Mitragliatrice in posizione sul fianco!' : m.kind === 'at' && o.flankV ? 'Anticarro: lo prendo di fianco!' : 'Al riparo!'); }
 }
@@ -201,4 +206,39 @@ function circleTarget(e) {
     if (x > 6 && z > 6 && x < world.N - 6 && z < world.N - 6 && walkable(Math.floor(x), Math.floor(z)) && !shallow(x, z) && !hardNear(Math.floor(x), Math.floor(z))) { setDest(e, x, z); return true; }
   }
   return false;
+}
+
+// ---- The squad's sense (iteration 66): a building to hold, or back to the tank when it is lost ----------------
+/** The squad's level: its soldiers' average place on the ladder (jobs.js, 0-9). */
+function squadLevel(ms) { const inf = ms.filter(m => !m.veh); return inf.length ? inf.reduce((a, m) => a + soldierLevel(m), 0) / inf.length : 0; }
+/**
+ * Every squad tick, in a fight, on its own (a hold or a finished move): an experienced squad (ai_bld_level)
+ * takes a free building close by; any squad that is losing badly (few left, hurt, outnumbered) falls back
+ * behind the command tank. Each at most every ai_sense_cd seconds.
+ */
+function squadSense(sq, ms) {
+  const tk = state.tank, inf = ms.filter(m => !m.veh && !m.inside && !m.rideOn); if (!inf.length || !tk.alive) return;
+  const fighting = inf.some(m => state.t - (m.combatT || -99) < 6 || state.t - (m.shotT || -99) < 6 || (m.target && m.target.alive)); if (!fighting) return;
+  const own = sq.order.t === 'hold' || (sq.order.t === 'move' && sq.order.done) || sq.order.t === 'follow';
+  if (!own || state.t - (sq.senseT || -99) < tune.ai_sense_cd) return;
+  const c = inf.reduce((a, m) => ({ x: a.x + m.x / inf.length, z: a.z + m.z / inf.length }), { x: 0, z: 0 });
+  const foes = state.ents.filter(o => o.alive && o.team === 1 && !hiddenFoe(o) && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 30 * 30);
+  const n0 = sq.slots.filter(k => !UT[k].veh).length || 1, hpF = inf.reduce((a, m) => a + m.hp / m.maxhp, 0) / inf.length;
+  const lost = (inf.length / n0 <= tune.ai_retreat_alive && hpF < 0.6) || foes.reduce((a, o) => a + (o.veh ? 3 : 1), 0) >= inf.length * tune.ai_retreat_odds;
+  if (lost && Math.hypot(c.x - tk.x, c.z - tk.z) > tk.rad + 8) { // back behind the tank, away from the enemy
+    sq.senseT = state.t;
+    const f = foes.length ? foes.reduce((a, o) => ({ x: a.x + o.x / foes.length, z: a.z + o.z / foes.length }), { x: 0, z: 0 }) : c;
+    const dx = tk.x - f.x, dz = tk.z - f.z, L = Math.hypot(dx, dz) || 1, p = spotNear(tk.x + dx / L * 6, tk.z + dz / L * 6, 0);
+    orderMove(sq, p.x, p.z, 'none'); sq.order.retreat = true;
+    say(sq.name, 'Non reggiamo! Ripieghiamo sul carro!', '#ff9a7a');
+    return;
+  }
+  if (squadLevel(inf) >= tune.ai_bld_level && foes.length) { // a building with room, close by, toward cover
+    let best = null, bd = tune.ai_bld_range ** 2;
+    for (const b of world.buildings) {
+      if (b.ruined || b.cap - b.occ.length < inf.length) continue;
+      const d = (b.out.x - c.x) ** 2 + (b.out.z - c.z) ** 2; if (d < bd) { bd = d; best = b; }
+    }
+    if (best) { sq.senseT = state.t; orderGarrison(sq, best); say(sq.name, "Prendiamo quell'edificio!", '#ffd36a'); }
+  }
 }

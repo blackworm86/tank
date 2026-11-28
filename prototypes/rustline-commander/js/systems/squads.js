@@ -483,6 +483,7 @@ function squadUpkeep(sq, dt) {
   }
   if (sq.order.t === 'inside') return;
   if (sq.order.t === 'ride') { rideUpkeep(sq, ms); sq.tick = 0.3; return; } // ride.js
+  squadSense(sq, ms); // tactics.js: a building to hold, or back to the tank (iteration 66)
   if (sq.order.t === 'garrison') {
     const b = sq.order.b; let left = 0;
     for (const m of ms) {

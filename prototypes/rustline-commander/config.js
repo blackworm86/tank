@@ -463,6 +463,13 @@ window.CONFIG = {
   bounding: { value: 1, min: 0, max: 1, step: 1 },              // 1 = squads ordered to move under fire advance in bounds, half covering
   cover_rethink: { value: 3, min: 1, max: 8, step: 0.5 },       // seconds between a unit's looks for a better position
   cover_margin: { value: 4, min: 0, max: 15, step: 1 },         // how much better a spot must score before a unit moves to it
+  ai_exp_k: { value: 0.1, min: 0, max: 0.2, step: 0.01 },         // per level (0-9): how much sooner and readier a soldier repositions (iteration 66)
+  ai_high_k: { value: 0.25, min: 0, max: 1, step: 0.05 },         // per level: how much he wants height
+  ai_sense_cd: { value: 20, min: 2, max: 120, step: 1 },          // seconds between a squad's own decisions (a building, a retreat)
+  ai_retreat_alive: { value: 0.5, min: 0, max: 1, step: 0.05 },   // share of the squad left, hurt, that makes it fall back
+  ai_retreat_odds: { value: 2.5, min: 1, max: 6, step: 0.5 },     // or enemies near it (vehicles x3) per soldier
+  ai_bld_level: { value: 4, min: 0, max: 9, step: 1 },            // squad level that takes buildings on its own
+  ai_bld_range: { value: 14, min: 4, max: 40, step: 1 },          // how far it looks for one
   flank_share: { value: 0.34, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
   flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
   reinforce_loss: { value: 0.3, min: 0.1, max: 0.9, step: 0.05 }, // losses at which a raider group calls the nearest calm group
