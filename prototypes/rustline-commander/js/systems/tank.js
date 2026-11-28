@@ -149,7 +149,8 @@ function updateTank(dt) {
     state.aimS = { x: bx, y: d2 < d ? Math.max(world.WL - 0.2, hAt(bx, bz)) : ay, z: bz, dist: d2, short: d > sec.range };
     state.fireLine2 = lineOfFire(tk, S, state.aimS, true);
   }
-  if (state.mode === 'tank' && MS.l && !state.menu && !state.menuBlock && tk.reload <= 0 && state.aimP) { if (S.wkind === 'bullet') fireTankMG(tk, S); else if (useRound()) fireCannon(tk, S); else tk.reload = 0.4; }
+  if (state.mode === 'tank' && MS.l && !state.menu && !state.menuBlock && tk.reload <= 0 && state.aimP) { if (S.wkind === 'bullet') fireTankMG(tk, S); else if (S.wkind === 'flame') fireFlame(tk, S); else if (useRound()) fireCannon(tk, S); else tk.reload = 0.4; }
+  if (S.wkind === 'flame' && state.t - (tk.flameT ?? -9) > tune.flamer_wait) state.fuel = Math.min(tune.flamer_fuel, (state.fuel ?? tune.flamer_fuel) + tune.flamer_regen * dt); // the flamethrower's fuel comes back
   tankSystems(tk, dt);
   // tutorial: the first moves
   if (state.tut === 0 && Math.hypot(tk.x - state.startPos.x, tk.z - state.startPos.z) > 6) {
@@ -162,9 +163,9 @@ function updateTank(dt) {
  * inside something solid (-1: a clear line). The HUD draws it red from there on.
  */
 function lineOfFire(tk, S, a, asBullet) {
-  const bullet = asBullet || S.wkind === 'bullet', off = bullet ? 2.2 : 1.2 + S.barrel;
+  const bullet = asBullet || S.wkind === 'bullet' || S.wkind === 'flame', off = bullet ? 2.2 : 1.2 + S.barrel;
   const mx = tk.x + Math.sin(tk.turretYaw) * off, mz = tk.z + Math.cos(tk.turretYaw) * off, my = tk.vy + 1.95;
-  const g = bullet ? 0 : tune.shell_gravity, D = Math.max(0.5, Math.hypot(a.x - mx, a.z - mz)), T = D / tune.shell_speed;
+  const g = bullet ? 0 : S.shotG || tune.shell_gravity, D = Math.max(0.5, Math.hypot(a.x - mx, a.z - mz)), T = D / (S.shotSpeed || tune.shell_speed);
   const ty = (bullet ? a.y + 0.6 : a.y), vy = (ty - my + 0.5 * g * T * T) / T;
   const pts = []; let block = -1;
   for (let k = 0; k <= 32; k++) {
@@ -196,7 +197,7 @@ function fireCannon(tk, S) {
   const mx = tk.x + Math.sin(tk.turretYaw) * (1.2 + S.barrel), mz = tk.z + Math.cos(tk.turretYaw) * (1.2 + S.barrel), my = tk.vy + 1.95;
   const dt = S.dtype || SHELLS[state.shell].dtype || state.shell; // a rocket launcher fires its own kind; a gun the round loaded (incendiary: fire)
   const own = S.dtype ? null : state.shell; // the round's reach on men, its crater and its strength on walls (iteration 74)
-  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * (own ? shellK(own, 'unit') : 1), groundR: own ? S.blast * shellK(own, 'ground') : undefined, bldK: own ? shellK(own, 'bld') : undefined, shell: state.shell, dtype: dt, pen: dt === 'ap' || dt === 'heat' ? S.pen : undefined }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);
+  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * (own ? shellK(own, 'unit') : 1), groundR: own ? S.blast * shellK(own, 'ground') : undefined, bldK: own ? shellK(own, 'bld') : undefined, shell: state.shell, dtype: dt, pen: dt === 'ap' || dt === 'heat' ? S.pen : undefined }, mx, my, mz, tx, ty, tz, S.shotSpeed || tune.shell_speed, S.shotG || tune.shell_gravity);
   tk.reload = S.reload; tk.recoil = state.weapon === 'c75' || state.weapon === 'c105' ? 1 : 0.35; tk.spread += S.fireSpread;
   state.lastShot = state.t;
   muzzle(mx, my, mz, 1.3); sfx('cannon', tk.x, tk.z); cam.shake = Math.max(cam.shake, tune.shake * 0.6);
@@ -207,7 +208,7 @@ function fireCannon(tk, S) {
  * near the line that the gun can see is hit (cover makes it miss more); a miss chews soft cover.
  */
 function fireTankMG(tk, S, sec) {
-  const W = sec || { dmg: S.dmg, range: S.range, heavy: state.weapon === 'hmg' };
+  const W = sec || { dmg: S.dmg, range: S.range, heavy: false };
   const a = state.aimP, d = Math.min(a.dist, W.range), R = tk.spread * d + 0.25;
   const ang = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * R;
   const ex = tk.x + Math.sin(tk.turretYaw) * d + Math.cos(ang) * rr, ez = tk.z + Math.cos(tk.turretYaw) * d + Math.sin(ang) * rr;
@@ -247,4 +248,34 @@ function launch(p, x, y, z, tx, ty, tz, speed, g) {
   Object.assign(p, { x, y, z, ox: x, oz: z, vx: dx / t, vz: dz / t, vy: (ty - y + 0.5 * g * t * t) / t, g, life: t + 2 });
   if (!p.dtype) p.dtype = DTYPE_OF_KIND[p.kind] || 'he'; // js/damage.js
   state.proj.push(p);
+}
+
+/**
+ * The flamethrower (iteration 75), each tick the trigger is held: a straight stream out to flamer_range or the first
+ * solid cell; every raider in its cone burns (fire type, cover or not) and is pinned, where it ends the ground and what
+ * burns there catch. It runs on fuel that comes back when it rests (state.fuel, seconds).
+ */
+function fireFlame(tk, S) {
+  if (state.fuel == null) state.fuel = tune.flamer_fuel;
+  if (state.fuel <= 0) { tk.reload = 0.3; return; }
+  const dt = S.reload; state.fuel = Math.max(0, state.fuel - dt); tk.flameT = state.t; tk.reload = dt;
+  const yaw = tk.turretYaw, sx = Math.sin(yaw), cz = Math.cos(yaw), my = tk.vy + 1.6;
+  let L = S.range;
+  for (let d = 2; d <= S.range; d += 0.5) if (solidF(tk.x + sx * d, my - d * 0.05, tk.z + cz * d)) { L = d; break; }
+  const half = tune.flamer_cone * Math.PI / 180;
+  for (const e of state.ents) {
+    if (!e.alive || e.team !== 1 || e.inside) continue;
+    const dx = e.x - tk.x, dz = e.z - tk.z, d = Math.hypot(dx, dz);
+    if (d < 1 || d > L + (e.veh ? e.rad : 0.5)) continue;
+    if (Math.abs(angDiff(yaw, Math.atan2(dx, dz))) > half + (e.veh ? e.rad / d : 0.4 / d)) continue;
+    dmgTo(e, S.dmg * dt, 'fire', tk, { dtype: 'fire', x: tk.x, z: tk.z });
+    if (!e.veh) e.supT = state.t + tune.suppress_time;
+  }
+  const ex = tk.x + sx * L, ez = tk.z + cz * L;
+  if (state.t - (tk.igniteT ?? -9) > tune.flamer_ignite) { tk.igniteT = state.t; igniteArea(ex, hAt(ex, ez) + 0.5, ez, 1.6, tk); }
+  for (let i = 0; i < 6; i++) { // the stream: tongues of fire that widen out along it, smoke where it ends
+    const f = 1.5 + (i + rng()) / 6 * (L - 1.5);
+    state.fx.push({ kind: 'flash', x: tk.x + sx * f + (rng() - 0.5) * f * 0.18, y: my - 0.4 - f * 0.04 + rng() * 0.5, z: tk.z + cz * f + (rng() - 0.5) * f * 0.18, t: 0, life: 0.3, s: 0.35 + f * 0.09, rise: 1, col: 0xff7a20 });
+  }
+  if (rng() < 0.3) state.fx.push({ kind: 'smoke', x: ex, y: hAt(ex, ez) + 0.8, z: ez, t: 0, life: 1.4, s: 0.9, rise: 2, col: 0x3a2a20 });
 }

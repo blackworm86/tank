@@ -60,8 +60,9 @@ function tankStats() {
   // the main weapon
   const wid = state.weapon || HULLS[h].weapon, W = weaponStats(wid);
   s.wname = WEAPONS[wid].name; s.wkind = W.kind;
-  if (W.kind === 'bullet') { s.dmg = W.dmg; s.reload = W.reload; s.range = W.range; s.fireSpread = tune.spread_fire * 0.06; }
+  if (W.kind === 'bullet' || W.kind === 'flame') { s.dmg = W.dmg; s.reload = W.reload; s.range = W.range; s.fireSpread = W.kind === 'flame' ? 0 : tune.spread_fire * 0.06; if (W.barrel) s.barrel = W.barrel; }
   else { s.dmg = W.dmg; s.reload = W.reload; s.blast = W.blast; s.fireSpread = tune.spread_fire * W.spreadK; s.barrel = W.barrel; s.pen = W.pen; s.dtype = W.dtype || null; }
+  s.moveSpread *= W.moveK || 1; s.shotSpeed = tune.shell_speed * (W.speedK || 1); s.shotG = tune.shell_gravity * (W.gK || 1); // iteration 75: each gun its own way
   s.dmg *= G.dmg; s.reload *= G.reload; s.fireSpread *= G.spread; s.barrel *= G.barrel; // the gun's own modules
   const wk = W.weight * HULLS[h].weightK; s.speed = Math.max(2, s.speed - wk); s.reverse = Math.max(1, s.reverse - wk * 0.5);
   applyMods(s);

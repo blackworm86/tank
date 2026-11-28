@@ -190,7 +190,9 @@ function drawDetail(x, y, w, h, live) {
   } else if (it.startsWith('w:')) {
     const id = it.slice(2), W0 = WEAPONS[id], st = weaponStats(id);
     title = W0.name + (state.weapon === id ? ' · montata' : ''); desc = W0.desc;
-    L.push('Danno ' + Math.round(st.dmg) + ' · ' + (st.kind === 'bullet' ? 'un colpo ogni ' + st.reload.toFixed(2) + ' s' : 'ricarica ' + st.reload.toFixed(1) + ' s') + (st.ammo ? ' · ' + st.ammo + ' colpi' : ' · colpi infiniti') + (st.weight ? ' · pesa (meno velocità)' : ''));
+    if (st.kind === 'flame') L.push(Math.round(st.dmg) + ' danni al secondo · portata ' + Math.round(st.range) + ' m · ' + tune.flamer_fuel + ' s di carburante che torna da solo');
+    else L.push('Danno ' + Math.round(st.dmg) + ' · ' + (st.kind === 'bullet' ? 'un colpo ogni ' + st.reload.toFixed(2) + ' s' : 'ricarica ' + st.reload.toFixed(1) + ' s') + (st.ammo ? ' · ' + st.ammo + ' colpi' : ' · colpi infiniti') + (st.weight ? ' · pesa (meno velocità)' : ''));
+    if (st.moveK) L.push('In movimento: dispersione x' + st.moveK + (st.gK ? ' · tiro a parabola alta, scavalca i ripari' : ''));
     if (!state.weaponsOwned.includes(id) && !state.sandbox) { foot = 'Costa ' + W0.cost + ' rottami (poi si cambia gratis).'; footCol = HC.gold; }
   } else if (it.startsWith('s:')) {
     const k = it.slice(2), S0 = SHELLS[k];

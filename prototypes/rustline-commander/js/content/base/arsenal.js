@@ -5,12 +5,12 @@
 'use strict';
 
 // ---- Main weapons ------------------------------------------------------------------------------------------
-registerWeapon('ac25', { name: 'Cannoncino 25mm', cost: 0, desc: 'Raffiche rapide: ottimo sui mezzi leggeri, quasi inutile sui carri.' });
-registerWeapon('hmg', { name: 'Mitragliatrice pesante', cost: 90, desc: 'Colpi infiniti, solo contro fanteria e tecniche.' });
-registerWeapon('gl', { name: 'Lanciagranate a tamburo', cost: 180, desc: 'Granate rapide ad arco: fanteria e coperture.' });
-registerWeapon('c75', { name: 'Cannone 75mm', cost: 280, desc: 'Un vero cannone: buca anche i carri. Pesa sullo scafo.' });
-registerWeapon('c105', { name: 'Cannone 105mm', cost: 460, desc: 'Il colpo più duro. Lento a ricaricare, pesante.' });
-registerWeapon('rl', { name: 'Lanciarazzi a carica cava', cost: 380, desc: 'Razzi HEAT: bucano qualsiasi corazza a ogni distanza, poco scoppio.' });
+registerWeapon('ac25', { name: 'Cannoncino 25mm', cost: 0, desc: 'Raffiche rapide e precise anche in corsa: per chi non si ferma mai. Buono su fanteria e mezzi leggeri, quasi inutile sui carri.' });
+registerWeapon('gl', { name: 'Lanciagranate a tamburo', cost: 180, desc: 'Granate a parabola alta: scavalcano muri e ripari e cadono dietro. Per stanare chi si nasconde, restando al coperto.' });
+registerWeapon('c75', { name: 'Cannone 75mm', cost: 280, desc: 'Il cannone equilibrato: buca anche i carri, ricarica svelto e si usa bene in movimento.' });
+registerWeapon('c105', { name: 'Cannone 105mm', cost: 460, desc: 'Il colpo più duro: distrugge tutto, ma ricarica lento, in corsa sbaglia molto e pesa sullo scafo. Fermati e spara.' });
+registerWeapon('rl', { name: 'Lanciarazzi a carica cava', cost: 380, desc: 'Razzi HEAT: bucano qualsiasi corazza a ogni distanza. Il cacciacarri: poco scoppio, debole sulla fanteria.' });
+registerWeapon('flamer', { name: 'Lanciafiamme', cost: 200, desc: 'Getto di fuoco a 16 m: brucia la fanteria anche dietro i ripari, incendia legno e fieno e la fa fuggire. Carburante che torna da solo; quasi nulla sui mezzi.' });
 
 // ---- Advanced systems (passive ones are read where they act, by id: modOn('cage')...) ---------------------
 registerSystem('cage', { name: 'Gabbia antirazzo', short: 'Gabbia', desc: 'Passivo: -45% danni da razzi.' });

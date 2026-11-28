@@ -293,7 +293,7 @@ function drawHUD() {
   bar(24, 40, 210, 13, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
   text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), 129, 47, 11, '#10140c');
   bar(24, 58, 210, 13, 1 - tk.reload / S.reload, tk.reload > 0 ? '#c9a35a' : '#ffe08a');
-  const st = tk.reload > 0 && S.wkind !== 'bullet' ? 'RICARICA' : cmd ? S.wname : S.wname + (tk.aligned ? ' · IN LINEA' : ' · ALLINEA');
+  const st = tk.reload > 0 && S.wkind !== 'bullet' && S.wkind !== 'flame' ? 'RICARICA' : cmd ? S.wname : S.wname + (tk.aligned ? ' · IN LINEA' : ' · ALLINEA');
   text(st, 129, 65, 11, '#1a120c');
   // the rounds by type (X changes the loaded one), the coax on the right button
   if (countedGun()) {
@@ -305,6 +305,8 @@ function drawHUD() {
       text(s, tx, 86, 12, on ? '#ffe08a' : state.ammo[k] ? HC.text : '#7a6a58', 'left'); tx += tw + 10;
     }
     text('Tab', tx + 2, 86, 11, HC.dim, 'left');
+  } else if (S.wkind === 'flame') { // the flamethrower's fuel (iteration 75)
+    const f = (state.fuel ?? tune.flamer_fuel) / tune.flamer_fuel; text('Carburante', 24, 86, 12, f > 0.05 ? '#ffb070' : '#ff7a5a', 'left'); bar(96, 81, 80, 9, f, '#ff8a3a');
   } else text('Colpi non contati', 24, 86, 12, '#ffe08a', 'left');
   const ht = tk.heat || 0; // the coax's heat: it locks when full
   text(tk.jammed ? 'COASS. CALDA' : 'Dx coass.', 234, 82, 10, tk.jammed ? '#ff7a5a' : '#8fe0ff', 'right');

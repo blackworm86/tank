@@ -186,6 +186,24 @@ window.CONFIG = {
   ammo_rl: { value: 14, min: 1, max: 100, step: 1 },
   rl_weight: { value: 0.4, min: 0, max: 3, step: 0.1 },
   gl_reload: { value: 1.1, min: 0.2, max: 5, step: 0.1 },
+  // iteration 75: each main weapon its own way of fighting. *_move: its scatter while moving (times the hull's);
+  // the grenade launcher lobs (speed and gravity of its grenades, times a shell's): over walls and cover
+  ac25_move: { value: 0.6, min: 0.2, max: 3, step: 0.05 },        // the 25mm: steady on the move, for a tank that never stops
+  gl_move: { value: 1, min: 0.2, max: 3, step: 0.05 },
+  gl_speed_k: { value: 0.45, min: 0.2, max: 1, step: 0.05 },
+  gl_g_k: { value: 3, min: 1, max: 6, step: 0.1 },
+  c75_move: { value: 0.85, min: 0.2, max: 3, step: 0.05 },        // the 75mm: the balanced gun
+  c105_move: { value: 1.6, min: 0.2, max: 3, step: 0.05 },        // the 105mm: stop and shoot
+  rl_move: { value: 1.1, min: 0.2, max: 3, step: 0.05 },
+  flamer_dps: { value: 60, min: 5, max: 300, step: 5 },           // the flamethrower: damage a second to whoever is in the stream (fire type: dk_fire_*), cover or not
+  flamer_range: { value: 16, min: 4, max: 40, step: 1 },          // metres the stream reaches
+  flamer_cone: { value: 12, min: 2, max: 45, step: 1 },           // half the stream's width, degrees
+  flamer_fuel: { value: 7, min: 1, max: 30, step: 0.5 },          // seconds of stream in the tank
+  flamer_regen: { value: 0.7, min: 0, max: 5, step: 0.05 },       // seconds of fuel back each second it is not firing
+  flamer_wait: { value: 0.8, min: 0, max: 5, step: 0.1 },         // seconds after a stream before the fuel comes back
+  flamer_ignite: { value: 0.25, min: 0.05, max: 2, step: 0.05 },  // seconds between the fires the stream lights where it ends
+  flamer_move: { value: 1, min: 0.2, max: 3, step: 0.05 },
+  flamer_weight: { value: 0.3, min: 0, max: 3, step: 0.1 },
   gl_weight: { value: 0.2, min: 0, max: 3, step: 0.1 },           // speed the weapon costs the hull (APC x1, light x0.5, MBT x0.15)
   c75_weight: { value: 0.7, min: 0, max: 3, step: 0.1 },
   c105_weight: { value: 1.3, min: 0, max: 3, step: 0.1 },
