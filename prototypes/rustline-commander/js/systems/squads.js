@@ -76,6 +76,30 @@ function addSquad(slots, x, z, force) {
   return sq;
 }
 function alive(sq) { return sq.members.filter(m => m && m.alive); }
+/**
+ * The fallen leave their squad fallen_show seconds after they die (the card shows them crossed out till then);
+ * what they were stays in sq.fallen for the barracks to replace. A squad with nobody left goes from the cards
+ * and the rest are numbered again (iteration 58).
+ */
+function pruneFallen() {
+  let any = false;
+  for (const sq of state.squads) {
+    let out = false;
+    for (let i = sq.members.length - 1; i >= 0; i--) {
+      const m = sq.members[i]; if (m && m.alive) continue;
+      if (m && state.t - (m.deathT || 0) < tune.fallen_show) continue;
+      (sq.fallen || (sq.fallen = [])).push(sq.slots[i]);
+      sq.members.splice(i, 1); sq.slots.splice(i, 1); out = true;
+    }
+    if (out) { any = true; if (sq.slots.length && !sq.named) sq.name = squadName(sq.slots); }
+  }
+  if (!any) return;
+  const n = state.squads.length;
+  state.squads = state.squads.filter(q => q.members.length);
+  if (state.squads.length === n) return;
+  state.squads.forEach((q, i) => { q.id = i; });
+  if (state.rename && !state.squads.includes(state.rename.sq)) state.rename = null;
+}
 function inRadio(sq) { return state.tank.alive && alive(sq).some(heardAt); }
 function setDest(m, x, z) {
   if (m.fixed || m.rideOn) return; // a rider goes where its jeep goes

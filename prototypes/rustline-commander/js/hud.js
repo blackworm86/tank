@@ -270,8 +270,15 @@ function drawHUD() {
 
   // tank panel: integrity, the gun, the scrap (the armour shows for a few seconds after a hit)
   if (tk.lastHit && state.t - tk.lastHit.t < 4) drawArmor(252, 14, tk);
-  const nsys = state.systems.length;
-  panel(14, 14, 230, nsys ? 110 : 88);
+  const nsys = state.systems.length, pb = nsys ? 110 : 88; // pb: the panel's height before the pace row
+  panel(14, 14, 230, pb + 18);
+  { // the pace (iteration 58): infantry or full speed; Caps Lock switches, Shift held gives the other
+    const fast = tankFast(), py = 14 + pb + 6;
+    text('Andatura', 24, py, 11, HC.dim, 'left');
+    rrect(80, py - 8, 78, 16, 4, fast ? 'rgba(90,60,20,0.85)' : 'rgba(40,70,30,0.85)', fast ? '#ffb040' : '#a8d870');
+    text(fast ? 'MASSIMA' : 'FANTERIA', 119, py, 10, fast ? '#ffd27a' : '#cfeeb0');
+    text('Bloc Maiusc', 234, py, 10, HC.dim, 'right');
+  }
   text(HULLS[state.hull || 'apc'].short.toUpperCase(), 24, 29, 12, HC.dim, 'left');
   plateStatus().forEach((p, i) => { rrect(86 + i * 18, 24, 14, 10, 2, p.cond > 0.5 ? '#8fd86a' : p.cond > 0 ? '#e0a050' : 'rgba(0,0,0,0.3)', p.cond > 0 ? null : '#e0503a'); }); // modules.js: one pip a plate
   gearIcon(184, 29, 6, HC.gold); text(String(state.scrap), 194, 29, 13, HC.gold, 'left');
@@ -317,7 +324,7 @@ function drawHUD() {
   text(state.mission ? missionLine() : ob.site.name + ' · ' + Math.round(ob.d) + ' m', W - MSZ / 2 - 20, MSZ + 40, 12, HC.dim);
 
   // squad cards
-  let y = nsys ? 134 : 112; UI.cards = [];
+  let y = (nsys ? 134 : 112) + 18; UI.cards = []; // below the tank panel and its pace row
   const dragging = state.dragSoldier && state.dragSoldier.moved ? state.dragSoldier : null;
   state.squads.forEach((sq, i) => {
     squadMod(sq);
@@ -343,6 +350,12 @@ function drawHUD() {
       const lifted = dragging && m && (dragging.m === m || (pk && state.picked.has(dragging.m)));
       unitIcon(k, ix, iy, 17, lifted ? 'rgba(168,216,112,0.25)' : m && m.alive ? '#a8d870' : '#5a3a32');
       if (m && m.alive && m.rank) chevrons(ix, iy - 11, m.rank, 0.7);
+      if (m && !m.alive) { // fallen: crossed out till he leaves the card (pruneFallen), fading in the last second
+        ctx.globalAlpha = Math.max(0.2, Math.min(1, tune.fallen_show - (state.t - (m.deathT || 0))));
+        ctx.strokeStyle = '#ff4a3a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ix - 7, iy - 8); ctx.lineTo(ix + 7, iy + 8); ctx.moveTo(ix + 7, iy - 8); ctx.lineTo(ix - 7, iy + 8); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+      }
       card.icons.push({ m, x: ix, y: iy });
     });
     UI.cards.push(card);
@@ -391,7 +404,7 @@ function drawHUD() {
   // controls
   const lines = cmd
     ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'Trascina un soldato su un\'altra squadra']
-    : ['WASD: guida il carro', 'Mouse: punta   Click: fuoco', 'Spazio o Tab: pausa tattica (ordini)', 'Q/E: ruota camera   Rotella: zoom'];
+    : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio o Tab: pausa tattica (ordini)', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
   else {

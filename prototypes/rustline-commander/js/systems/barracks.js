@@ -5,7 +5,8 @@
 'use strict';
 
 // ---- The workshop and the barracks ------------------------------------------------------------------
-function missingIn(sq) { return sq.slots.map((k, i) => (!sq.members[i] || !sq.members[i].alive) ? k : null).filter(Boolean); }
+/** What the squad lost: the fallen still on its card, and those who already left it (sq.fallen: pruneFallen). */
+function missingIn(sq) { return sq.slots.map((k, i) => (!sq.members[i] || !sq.members[i].alive) ? k : null).filter(Boolean).concat(sq.fallen || []); }
 function reinforceCost(sq) { return missingIn(sq).reduce((a, k) => a + tune[UT[k].cost], 0); }
 function reinforce(sq) {
   const miss = missingIn(sq); if (!miss.length) { state.shopMsg = 'Squadra al completo.'; return; }
@@ -16,6 +17,11 @@ function reinforce(sq) {
     if (sq.members[i] && sq.members[i].alive) return;
     const p = spotNear(s.x + 0.5, s.z + 0.5, i); const m = spawn(k, p.x, p.z); m.squad = sq; sq.members[i] = m;
   });
+  for (const k of sq.fallen || []) { // those who left the card come back as new slots
+    const i = sq.slots.length, p = spotNear(s.x + 0.5, s.z + 0.5, i), m = spawn(k, p.x, p.z);
+    m.squad = sq; sq.slots.push(k); sq.members.push(m);
+  }
+  sq.fallen = []; if (!sq.named) sq.name = squadName(sq.slots);
   sq.order = { t: 'follow' };
   state.shopMsg = sq.name + ': rimpiazzi arruolati (' + miss.length + ').'; sfx('coin');
 }
@@ -57,7 +63,7 @@ registerShopTab('barracks', {
       const yy = cy + 24 + i * 56, miss = missingIn(sq).length, c = reinforceCost(sq);
       rrect(x0 + 24, yy, 480, 50, 5, 'rgba(0,0,0,0.3)', '#5a4030');
       text((i + 1) + '. ' + sq.name, x0 + 36, yy + 15, 15, HC.text, 'left');
-      sq.slots.forEach((k, j) => { const m = sq.members[j]; unitIcon(k, x0 + 44 + j * 24, yy + 36, 18, m && m.alive ? '#a8d870' : '#5a3a32'); });
+      sq.slots.concat(sq.fallen || []).forEach((k, j) => { const m = sq.members[j]; unitIcon(k, x0 + 44 + j * 24, yy + 36, 18, m && m.alive ? '#a8d870' : '#5a3a32'); }); // the fallen after the living
       squadMod(sq); text((sq.traits || []).map(t => t.name).join(' · '), x0 + 150, yy + 37, 11, '#b6d77a', 'left');
       if (miss) button(x0 + 300, yy + 8, 194, 34, 'Rimpiazza ' + miss + ' (' + c + ')', () => reinforce(sq), { off: state.scrap < c, size: 14 });
       else text('Al completo', x0 + 494, yy + 25, 14, HC.ok, 'right');

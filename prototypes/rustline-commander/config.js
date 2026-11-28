@@ -113,6 +113,7 @@ window.CONFIG = {
 
   // ---- Command tank: hull (js/systems/vehicle.js, js/systems/tank.js) ----
   tank_speed: { value: 7, min: 2, max: 16, step: 0.5 },         // forward units/s
+  march_speed: { value: 3.8, min: 2, max: 8, step: 0.1 },        // the tank's infantry pace (the default; Caps Lock: full speed, Shift held: the other one)
   tank_reverse: { value: 3.5, min: 1, max: 10, step: 0.5 },     // reverse units/s
   tank_accel: { value: 6, min: 1, max: 20, step: 0.5 },         // units/s^2
   tank_turn: { value: 60, min: 20, max: 140, step: 5 },         // hull degrees/s
@@ -229,6 +230,7 @@ window.CONFIG = {
   // ---- Friendly soldiers (js/systems/units.js, js/systems/entities.js, js/systems/unitstep.js) ----
   turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front
   inf_speed: { value: 4.2, min: 1, max: 10, step: 0.1 },        // units/s
+  fallen_show: { value: 4, min: 0, max: 15, step: 0.5 },          // seconds a fallen soldier stays crossed out on his squad's card before he leaves it
   inf_hp: { value: 30, min: 5, max: 150, step: 1 },
   rifle_range: { value: 22, min: 5, max: 60, step: 1 },
   rifle_damage: { value: 6, min: 1, max: 50, step: 1 },

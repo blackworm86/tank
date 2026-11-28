@@ -78,8 +78,7 @@ function kill(e, src, kind) {
     state.result = 'lose'; state.endT = state.t + 3;
     say('Radio', 'Il carro comando è distrutto...', '#ff7a6a');
   } else if (e.squad) {
-    const sq = e.squad, i = sq.members.indexOf(e);
-    if (i >= 0) sq.members[i] = null;
+    const sq = e.squad; // he stays on the card, crossed out, till pruneFallen takes him off (squads.js)
     say(sq.name, alive(sq).length ? (kind === 'drown' ? 'Uomo in acqua, l\'abbiamo perso!' : 'Uomo a terra!') : 'Squadra annientata.', '#ff7a6a');
     if (!alive(sq).length) sq.selected = false;
   }

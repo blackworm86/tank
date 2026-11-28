@@ -5,6 +5,13 @@
 'use strict';
 
 // ---- The command tank ------------------------------------------------------------------------------------
+/**
+ * The pace (iteration 58): the tank drives at the infantry's pace (march_speed) so the squads keep up; Caps Lock
+ * switches to full speed and back, Shift held gives the other pace while it is down. Kept over the whole run.
+ */
+let tankFastPref = false;
+function toggleTankPace() { tankFastPref = !tankFastPref; }
+function tankFast() { return tankFastPref !== (down.has('ShiftLeft') || down.has('ShiftRight')); }
 function tankFootprint(x, z, h, dense) {
   const s = Math.sin(h), c = Math.cos(h), out = [];
   for (const lx of [-1.3, 0, 1.3]) for (const lz of dense ? [-2.3, -1.15, 0, 1.15, 2.3] : [-2.3, 0, 2.3]) out.push({ x: x + c * lx + s * lz, z: z - s * lx + c * lz, lx, lz });
@@ -59,7 +66,7 @@ function updateTank(dt) {
   const fwd = drive ? (down.has('KeyW') || down.has('ArrowUp') ? 1 : 0) - (down.has('KeyS') || down.has('ArrowDown') ? 1 : 0) : 0;
   const turn = drive ? (down.has('KeyA') || down.has('ArrowLeft') ? 1 : 0) - (down.has('KeyD') || down.has('ArrowRight') ? 1 : 0) : 0;
   const wet = shallow(tk.x, tk.z) ? 0.6 : 1;
-  const target = fwd > 0 ? S.speed * wet : fwd < 0 ? -S.reverse * wet : 0;
+  const target = fwd > 0 ? (tankFast() ? S.speed : Math.min(S.speed, tune.march_speed)) * wet : fwd < 0 ? -S.reverse * wet : 0;
   const acc = S.accel * (Math.sign(target) !== Math.sign(tk.speed) && tk.speed !== 0 ? 2 : 1);
   tk.speed += Math.max(-acc * dt, Math.min(acc * dt, target - tk.speed));
   const prevHead = tk.heading, px0 = tk.x, pz0 = tk.z;

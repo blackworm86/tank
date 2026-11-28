@@ -19,7 +19,8 @@ function stepPlay(dt) {
   if (R3.ready) state.mouse3 = pickWorld(MS.x, MS.y);
   handleInput();
   updateTank(dt);
-  for (const sq of state.squads) { squadUpkeep(sq, dt); for (const m of sq.members) if (m) m.selected = sq.selected; }
+  for (const sq of state.squads) { squadUpkeep(sq, dt); for (const m of sq.members) if (m) m.selected = sq.selected && m.alive; }
+  pruneFallen(); // the fallen leave their cards, an empty squad goes (squads.js)
   updateUnits(dt);
   updateProjectiles(dt);
   updateEffects(dt);
@@ -60,6 +61,7 @@ function handleInput() {
   if (pressed('F2')) { state.dev = !state.dev; say('Radio', state.dev ? 'Pannello sviluppo aperto (F2). K: nemico sotto il mouse.' : 'Pannello sviluppo chiuso.', '#c8a0ff'); }
   if (state.dev) devInput();
   if (!tk.alive) return;
+  if (pressed('CapsLock')) { toggleTankPace(); say('Pilota', tankFast() ? 'Massima velocità.' : 'Passo della fanteria.', '#ffd9a0'); } // tank.js
   const cmd = state.mode === 'cmd' || state.tpause, shift = down.has('ShiftLeft') || down.has('ShiftRight');
   if (cmd) {
     if (pressed('KeyV')) state.arm = state.arm === 'move' ? null : 'move';
