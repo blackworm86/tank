@@ -456,6 +456,7 @@ function fire(e, t, w) {
     if (t.moving) acc *= 0.8;
     acc *= heightK(e, t); // iteration 65: from above he aims better, from below worse
     if (e.garrison) acc *= tune.bld_acc; // at a window, braced
+    acc *= formAccK(e, t); // iteration 68: a line ahead, a wedge or an echelon
     if (t.garrison) acc *= tune.bld_cover; // a man behind a window is a small target
     if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc') * modOf(e).acc);
     if (suppressed(e)) acc *= tune.suppress_acc;

@@ -22,7 +22,7 @@ function newRun(carry) {
   });
   // the next sector: the tank, its parts and its scrap come along
   if (carry) Object.assign(state, { lv: Object.assign({}, carry.lv || {}), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
-    systems: carry.systems.slice(), owned: carry.owned.slice(), weaponsOwned: carry.weaponsOwned.slice(), shell: carry.shell, techKills: carry.techKills, crushes: carry.crushes, newAch: carry.newAch.slice() });
+    systems: carry.systems.slice(), owned: carry.owned.slice(), weaponsOwned: carry.weaponsOwned.slice(), shell: carry.shell, techKills: carry.techKills, crushes: carry.crushes, newAch: carry.newAch.slice(), tankForm: carry.tankForm || 'free' });
   state.ammo = carry && carry.ammo ? Object.assign({}, carry.ammo) : freshAmmo();
   const s = world.sites, rm = s.roadMain;
   const tk = spawn('tank', s.start.x + 0.5, s.start.z + 0.5); tk.rad = HULLS[state.hull].rad;

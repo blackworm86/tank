@@ -55,7 +55,10 @@ function menuItems(g, append) {
   items.push({ key: 'Z', label: 'Fermi qui', desc: DESC.hold, act: all(orderHold) });
   { const cur = roeOf(sel[0]), nx = nextOf(ROES, cur.k), g = gaitOf(sel[0]), ng = nextOf(GAITS, g.k);
     items.push({ key: 'Q', label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
-    items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } }); }
+    items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } });
+    const fo = formOf(sel[0]), nf = nextOf(FORMS, fo.k), tf = tankForm(), ntf = nextOf(FORMS, tf.k); // iteration 68
+    items.push({ key: 'O', label: 'Formazione: ' + fo.name + ' → ' + nf.name, col: nf.col, desc: nf.name + ': ' + nf.desc, act: () => { for (const sq of sel) setForm(sq, nf.k); } });
+    items.push({ key: 'H', label: 'Al carro: ' + tf.name + ' → ' + ntf.name, col: ntf.col, desc: 'Come si dispongono le squadre che seguono il carro. ' + ntf.name + ': ' + ntf.desc, act: () => setTankForm(ntf.k) }); }
   if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', desc: 'Escono dalla porta e si fermano fuori.', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
   const rv = !g.tgt ? rideAt(p) : null; // a transport under the mouse: climb on it (the squad's own too)
   if (rv && ms.some(m => canRide(m) && !m.inside)) items.unshift({ key: 'J', label: 'Sali su ' + UT[rv.kind].name + ' (' + Math.max(0, rideFree(rv)) + ' posti liberi)', col: '#4fe3e0', desc: DESC.ride, off: rideFree(rv) <= 0, act: all(sq => { if (alive(sq).some(m => canRide(m))) orderRide(sq, rv); }) });

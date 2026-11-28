@@ -56,6 +56,8 @@ function handleInput() {
     if (pressed('KeyG')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderFollow(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
     if (pressed('KeyZ')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderHold(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
     if (pressed('KeyB')) boardOrUnload();
+    if (pressed('KeyO')) { const sel = selectedSquads(); if (sel.length) { const nf = nextOf(FORMS, formOf(sel[0]).k).k; for (const sq of sel) setForm(sq, nf); } } // iteration 68
+    if (pressed('KeyH')) cycleTankForm(); // P is the pause
   }
   if (pressed('F2')) { state.dev = !state.dev; say('Radio', state.dev ? 'Pannello sviluppo aperto (F2). K: nemico sotto il mouse.' : 'Pannello sviluppo chiuso.', '#c8a0ff'); }
   if (state.dev) devInput();

@@ -472,6 +472,21 @@ window.CONFIG = {
   ai_bld_range: { value: 14, min: 4, max: 40, step: 1 },          // how far it looks for one
   flank_share: { value: 0.5, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
   flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
+  form_gap: { value: 1.8, min: 1, max: 4, step: 0.1 },          // metres between soldiers in a formation (iteration 68)
+  form_veh_gap: { value: 5, min: 3, max: 10, step: 0.5 },       // metres between a squad's vehicles in a formation
+  form_sq_gap: { value: 9, min: 5, max: 18, step: 1 },          // metres between the squads following the tank in its formation
+  form_lead: { value: 1.8, min: 0, max: 4, step: 0.2 },         // the march slots are set this far ahead of the leader, so the men keep pace with him
+  form_radio_k: { value: 0.55, min: 0.3, max: 0.9, step: 0.05 }, // the tank's formation fits within this share of the radio's reach
+  form_catch_d: { value: 8, min: 3, max: 20, step: 1 },         // a following unit this far from its slot in the tank's formation hurries
+  form_catch_speed: { value: 1.3, min: 1, max: 1.8, step: 0.05 }, // how much it hurries
+  form_join: { value: 7, min: 2, max: 15, step: 1 },            // the leader this close to the end: the formation breaks and each goes to his place
+  form_lead_speed: { value: 0.85, min: 0.5, max: 1, step: 0.05 }, // the leader of a formation walks this much slower, so his men keep up
+  form_wait_lag: { value: 3, min: 1, max: 8, step: 0.5 },       // a man this far behind his slot makes the leader wait
+  form_wait_speed: { value: 0.4, min: 0.1, max: 1, step: 0.05 }, // the leader's pace while he waits
+  form_col_speed: { value: 1.1, min: 1, max: 1.4, step: 0.05 }, // a column on the march moves this much faster
+  form_line_acc: { value: 1.1, min: 1, max: 1.5, step: 0.05 },  // a line's aim at targets ahead of it
+  form_line_flank: { value: 1.15, min: 1, max: 1.6, step: 0.05 }, // damage a line takes from the flank or back
+  form_wedge_acc: { value: 1.05, min: 1, max: 1.3, step: 0.05 }, // a wedge's or an echelon's aim
   foe_band: { value: 0.75, min: 0.3, max: 1, step: 0.05 },      // raiders on foot hold at this share of their weapon's range (iteration 67)
   foe_cover_r: { value: 9, min: 3, max: 14, step: 1 },          // how far round a raider looks for cover
   foe_high_k: { value: 0.8, min: 0, max: 3, step: 0.1 },        // score a raider gives each metre of height

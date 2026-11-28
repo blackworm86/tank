@@ -239,7 +239,10 @@ function goTo(sq, x, z, how, face) {
     const en = nearestEnemyTo(x, z, 0, how === 'cover' ? 90 : 45);
     if (en) { const dx = en.x - x, dz = en.z - z, L = Math.hypot(dx, dz) || 1; threat = { x: dx / L, z: dz / L }; }
   }
-  const inf = ms.filter(m => !m.veh), spots = how === 'none' ? [] : coverSpotsAt(x, z, inf.length, threat);
+  const fk = formOf(sq).k, inForm = fk !== 'free' && how !== 'cover'; // iteration 68: the squad's formation, unless sent to cover
+  const fh = face != null ? face : headingTo(ms, x, z); sq.formFace = fh;
+  const fpts = inForm ? formArrival(sq, ms, x, z, fh) : null;
+  const inf = ms.filter(m => !m.veh), spots = how === 'none' || inForm ? [] : coverSpotsAt(x, z, inf.length, threat);
   // a line across the facing (or a loose ring without one) for whoever finds no cover
   const px = face != null ? Math.cos(face) : 0, pz = face != null ? -Math.sin(face) : 0;
   let k = 0;
@@ -250,12 +253,13 @@ function goTo(sq, x, z, how, face) {
     if (!m.veh && spots[k]) d = spots[k++];
     else {
       // a line across the facing, or a loose ring (each man his own place: no two sent to one spot), then the nearest free spot
-      if (face != null) { const o = (i - (ms.length - 1) / 2) * (m.veh ? 3.2 : 1.7), back = m.veh ? 1.5 : 0; d = { x: x + px * o - Math.sin(face) * back, z: z + pz * o - Math.cos(face) * back }; }
+      if (fpts) d = fpts.get(m);
+      else if (face != null) { const o = (i - (ms.length - 1) / 2) * (m.veh ? 3.2 : 1.7), back = m.veh ? 1.5 : 0; d = { x: x + px * o - Math.sin(face) * back, z: z + pz * o - Math.cos(face) * back }; }
       else { const a = i / Math.max(1, ms.length) * Math.PI * 2, r = m.veh || ms.length === 1 ? 0 : 1.6; d = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r }; }
       d = claimSpot(m, d.x, d.z, taken);
     }
-    setDest(m, d.x, d.z); m.pref = null;
-    m.face = face; m.moveFace = face;
+    setDest(m, d.x, d.z); m.pref = null; m.fDest = { x: d.x, z: d.z }; m.formDone = false;
+    m.face = face != null ? face : fpts ? fh : null; m.moveFace = face;
   });
   return spots.length;
 }
@@ -461,7 +465,7 @@ function checkBuildings() {
     if (sq) { sq.order = { t: 'hold' }; say(sq.name, 'L\'edificio crolla! Fuori!', '#ffb070'); }
   }
 }
-function orderHold(sq) { for (const m of alive(sq)) { m.path = null; m.pref = null; } sq.order = { t: 'hold' }; say(sq.name, 'Teniamo la posizione.'); }
+function orderHold(sq) { for (const m of alive(sq)) { m.path = null; m.pref = null; m.formLead = false; } sq.order = { t: 'hold' }; say(sq.name, 'Teniamo la posizione.'); }
 function squadUpkeep(sq, dt) {
   sq.tick -= dt; if (sq.tick > 0) return; sq.tick = 1.2;
   const ms = alive(sq), tk = state.tank; if (!ms.length || !tk.alive) return;
@@ -502,7 +506,8 @@ function squadUpkeep(sq, dt) {
   if (sq.order.t === 'garrisoned') return;
   if (sq.order.t === 'follow') {
     if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; }
-    ms.forEach((m, i) => {
+    sq.formFace = tk.heading;
+    if (!followInForm(sq, ms)) ms.forEach((m, i) => {
       if (m.kind === 'sniper' && !m.veh) return; // its own post (roleUpkeep)
       if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
       const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0) + (m.kind === 'medic' ? 4 : 0);
@@ -532,7 +537,9 @@ function squadUpkeep(sq, dt) {
     const lg = o.pts[o.i], sp = lg && lg.supp && lg.supp.alive ? lg.supp : null;
     for (const m of ms) { if (sp) m.pref = sp; else if (m.pref && m.pref === o.lastSupp) m.pref = null; }
     if (sp) o.lastSupp = sp;
-    if (boundStep(sq, ms, o)) { /* tactics.js: bounding under fire */ }
+    const bounding = boundStep(sq, ms, o); // tactics.js: bounding under fire
+    if (!bounding) formMarch(sq, ms); else for (const m of ms) m.formLead = false; // formation.js: the march in formation
+    if (bounding) { /* the bounds lead */ }
     else if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
       if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how, p.face) > 0; sq.tick = 0.4; }
       else if (o.final && o.final.alive) { for (const m of ms) if (m.pref === o.lastSupp) m.pref = null; orderSuppress(sq, o.final, true); } // the plan's end: stop and fire on it till it falls
@@ -683,6 +690,7 @@ function cardInput() {
   MS.lp = false; MS.drag = null; state.menuBlock = true; state.menu = null;
   if (inRect(c.post, MS.x, MS.y)) { cycleRoe(c.sq); return true; }
   if (c.gait && inRect(c.gait, MS.x, MS.y)) { cycleGait(c.sq); return true; }
+  if (c.form && inRect(c.form, MS.x, MS.y)) { cycleForm(c.sq); return true; }
   if (inRect(c.edit, MS.x, MS.y)) { state.rename = { sq: c.sq, text: c.sq.name }; return true; }
   const ic = c.icons.find(i => i.m && i.m.alive && Math.abs(MS.x - i.x) < 10 && Math.abs(MS.y - i.y) < 11);
   if (ic && !ic.m.veh) { state.dragSoldier = { m: ic.m, x0: MS.x, y0: MS.y, moved: false, add }; return true; }

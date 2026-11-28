@@ -346,6 +346,8 @@ function drawHUD() {
     ctx.font = `bold 10px ${FONT}`; const pw = ctx.measureText(ps.short).width + 12, gt = gaitOf(sq);
     card.post = { x: 238 - pw, y: y + 5, w: pw, h: 17 };
     rrect(card.post.x, card.post.y, pw, 17, 4, 'rgba(0,0,0,0.45)', ps.col); text(ps.short, card.post.x + pw / 2, y + 14, 10, ps.col);
+    { const fo = formOf(sq), fw = ctx.measureText(fo.short).width + 10; card.form = null; // the formation (click: the next), left of the rules, when there is room
+      if (card.post.x - fw - 4 > 66 + nw) { card.form = { x: card.post.x - fw - 4, y: y + 5, w: fw, h: 17 }; rrect(card.form.x, card.form.y, fw, 17, 4, 'rgba(0,0,0,0.35)', fo.k === 'free' ? 'rgba(232,220,196,0.3)' : fo.col); text(fo.short, card.form.x + fw / 2, y + 14, 10, fo.k === 'free' ? HC.dim : fo.col); } }
 
     sq.slots.forEach((k, j) => {
       const m = sq.members[j], ix = 30 + j * 21, iy = y + 37, pk = !!(m && state.picked && state.picked.has(m));
@@ -411,7 +413,7 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'Trascina un soldato su un\'altra squadra']
+    ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'O formazione squadra   H formazione al carro', 'Trascina un soldato su un\'altra squadra']
     : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio: modo comando (pausa, ordini)', 'Tab: cambia proiettile   R T F G C V: sistemi attivi', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
