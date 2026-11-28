@@ -80,6 +80,8 @@ window.CONFIG = {
   valley_width: { value: 0.24, min: 0.12, max: 0.45, step: 0.01 }, // a valley map's half width (share of the map side)
   wall_height: { value: 25, min: 14, max: 28, step: 1 },         // the rock walls round a valley or a basin
   river_chance: { value: 0.65, min: 0, max: 1, step: 0.05 },     // chance a sector without the river geography still has a river
+  river_fords: { value: 1, min: 0, max: 3, step: 1 },            // fords on a river that is not the wide one (the wide river always has 2)
+  bridge_rubble: { value: 1, min: 1, max: 1, step: 1 },          // a blown bridge deck lies this many metres under the water: a ford of wreckage, never a gap
   geo_force: { value: 0, min: 0, max: 4, step: 1 },            // 0 = the campaign's geography; 1 ridges, 2 wide river, 3 plateaus, 4 hills (testing)
   ridge_height: { value: 13, min: 4, max: 20, step: 1 },        // how tall the ridges stand over the land (passes cut through)
   plateau_height: { value: 10, min: 3, max: 16, step: 1 },      // the plateaus' cliff height

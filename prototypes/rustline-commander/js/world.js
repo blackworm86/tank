@@ -137,8 +137,10 @@ function worldSteps() { return Object.keys(WORLD_STEPS).sort((a, b) => (WORLD_ST
 /** Builds a whole new map for a run from rng(), step by step. Returns the sites (start, outposts, camps, fortress...). */
 function genWorld() {
   const G = {};
+  world.deckH = null; // no wreckage rule while the map is being built
   for (const id of worldSteps()) WORLD_STEPS[id].run(G);
   world.sites = G.sites;
+  world.deckH = Uint8Array.from(world.hmap); // the ground as built: wreckage never rises above it (bridgeRubble)
   return G.sites;
 }
 /** The distance from (x, z) to the nearest point of a polyline. */
@@ -207,6 +209,10 @@ function wgWater(G) {
     lakes.push({ x, z, r: 6 + rng() * 6 });
   }
   const wide = wideRiver && river.length > 0, fords = wide ? [river[Math.floor(river.length * (0.3 + rng() * 0.12))], river[Math.floor(river.length * (0.6 + rng() * 0.12))]] : [];
+  // every river can be forded somewhere (iteration 57): a narrow one gets river_fords fords spread along the way
+  const nf = Math.round(tune.river_fords);
+  if (!wide && river.length) for (let k = 0; k < nf; k++) fords.push(river[Math.floor(river.length * (0.36 + (k + 0.2 + rng() * 0.6) * 0.28 / nf))]);
+  world.fords = fords; // in canonical space (G.canon): for checks
   Object.assign(G, { river, mesa, canyon, lakes, wide, fords });
 }
 /** The relief: noise, mountains, the mesa, the geography, the river valley, the shape's walls, the lakes; then the soft blurs. */
@@ -233,7 +239,9 @@ function wgRelief(G) {
     if (dr < 10 + wd * 1.5) h = Math.min(h, WL + 0.6 + (dr - 4 - wd) * 0.9);
     if (dr < 4.2 + wd) h = Math.min(h, WL - 1);
     if (dr < 2.6 + wd) h = Math.min(h, WL - 2.2);
-    if (wide && dr < 4.2 + wd && fords.some(f => Math.hypot(cx - f[0], cz - f[1]) < 6)) h = Math.max(h, WL - 0.6); // a ford: shallow enough to drive
+    if (fords.length && dr < 4.2 + wd && fords.some(f => Math.hypot(cx - f[0], cz - f[1]) < 6)) h = Math.max(h, WL - 0.6); // a ford: shallow enough to drive
+    // a ford's banks come down to it as a track a tank climbs (1 every 2 m), cut through whatever rises there (iteration 57)
+    for (const f of fords) { const df = Math.hypot(cx - f[0], cz - f[1]); if (df < 16) h = Math.min(h, WL - 0.6 + Math.max(0, df - 5) * 0.5); }
     const wk = wallK(cx, cz); if (wk > 0) h = h * (1 - wk) + (tune.wall_height + fbm(cx / 9, cz / 9, ns + 52, 2) * 4) * wk; // the rock walls of a valley or a basin
     for (const L of lakes) {
       const dl = Math.hypot(cx - L.x, cz - L.z);
@@ -1055,9 +1063,69 @@ function blastVoxels(cx, cy, cz, r, H) { // H: the hit (type, damage, penetratio
   if (removed.length) {
     collapse(Math.floor(cx), Math.floor(cz), R + 6, removed);
     for (let z = z0 - 6; z <= z1 + 6; z++) for (let x = x0 - 6; x <= x1 + 6; x++) if (inMap(x, z)) recomputeColumn(x, z);
+    bridgeRubble(x0, z0, x1, z1);
     updateGround(x0 - 3, z0 - 3, x1 + 3, z1 + 3);
   }
   return removed;
+}
+/**
+ * A bridge never leaves a gap that ends a run (iteration 57). What a blast takes off a deck, or off the road
+ * and the banks up to 3 cells from it (the abutments), comes down as a slope of wreckage: a ramp no steeper than
+ * the map's (ramp_run) down from the road, the bank or what still stands, never deeper than bridge_rubble under the water. A hole in a
+ * deck becomes a dip; a span blown away a V of rubble down into the river and up the other side, slow but
+ * crossed by the tank and the soldiers alike.
+ */
+function bridgeRubble(x0, z0, x1, z1) {
+  const N = world.N, R = world.road, H = world.hmap, D = world.deckH, floor = world.WL - Math.round(tune.bridge_rubble);
+  const inC = new Map(), list = [], seeds = [];
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (inMap(x, z) && R[x + N * z] === 2) seeds.push(x + N * z);
+  if (!seeds.length) return;
+  // the bridges hit, whole, and their abutments: the road and the banks within 3 of a deck
+  for (const s of seeds) if (!inC.has(s)) { inC.set(s, 0); list.push(s); }
+  for (let k = 0; k < list.length && list.length < 4000; k++) {
+    const c = list[k], d = inC.get(c), cx = c % N, cz = (c / N) | 0;
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = cx + a, z = cz + b; if (!inMap(x, z)) continue;
+      const n = x + N * z; if (inC.has(n)) continue;
+      const nd = R[n] === 2 ? 0 : d + 1; if (nd > 3) continue;
+      inC.set(n, nd); list.push(n);
+    }
+  }
+  // the lowest each cell may lie: a ramp (1 every ramp_run cells, map rule M1) down from its highest neighbour
+  // on the road or the bank, relaxed to a fixed point; the hull rides it like any ramp
+  // (the highest first, as a max-first search: each cell settles once)
+  const t = new Map(), fall = 1 / Math.max(1, tune.ramp_run), heap = new MinHeap(), NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const cap = (c, v) => D && v > D[c] ? D[c] : v; // never above the deck or the road as built
+  for (const c of list) {
+    const cx = c % N, cz = (c / N) | 0; let v = Math.max(H[c], R[c] === 2 ? floor : 0);
+    for (const [a, b] of NB) {
+      const x = cx + a, z = cz + b; if (!inMap(x, z)) continue;
+      const n = x + N * z; if (inC.has(n) || !(R[n] || natTop(n))) continue;
+      v = Math.max(v, cap(c, H[n] - fall)); // an anchor: the road or the bank beyond the wreck
+    }
+    t.set(c, v); heap.push(c, -v);
+  }
+  while (heap.size) {
+    const c = heap.pop(), v = t.get(c), cx = c % N, cz = (c / N) | 0;
+    for (const [a, b] of NB) {
+      const x = cx + a, z = cz + b; if (!inMap(x, z)) continue;
+      const n = x + N * z; if (!inC.has(n)) continue;
+      const w = cap(n, v - fall); if (w > t.get(n) + 1e-4) { t.set(n, w); heap.push(n, -w); }
+    }
+  }
+  let bx0 = N, bz0 = N, bx1 = -1, bz1 = -1;
+  for (const c of list) {
+    // up to the ramp, and every hollow a blast cut under what still stands (an overhang would ride as a wall)
+    const tv = H[c] ? world.vox[VH * c + H[c] - 1] : 0, solidTop = GROUNDV.has(tv) || tv === V.RUST; // not under a canopy
+    const top = Math.max(Math.floor(t.get(c) + 1e-3), solidTop ? H[c] : 0);
+    const m = R[c] === 2 ? V.RUST : R[c] ? V.ROAD : V.DIRT; // off a deck the wreckage is ground the tank rides (GROUNDV)
+    let filled = 0;
+    for (let y = 1; y < top; y++) { const k = VH * c + y; if (!world.vox[k] && world.fmark[k] !== 1) { world.vox[k] = m; world.fmark[k] = 0; filled = 1; } } // a structure's solid cell stays its own
+    if (!filled) continue;
+    const x = c % N, z = (c / N) | 0; markDirty(x, z); recomputeColumn(x, z);
+    bx0 = Math.min(bx0, x); bz0 = Math.min(bz0, z); bx1 = Math.max(bx1, x); bz1 = Math.max(bz1, z);
+  }
+  if (bx1 >= 0) updateGround(bx0, bz0, bx1, bz1); // the wreckage can lie beyond the blast's own box
 }
 /** Anything in the box no longer joined to the ground or the box's sides falls as debris. */
 function collapse(cx, cz, rad, removed) {

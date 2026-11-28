@@ -110,6 +110,7 @@ function projectStruct(S) {
     }
     recomputeColumn(X, Z); markDirty(X, Z);
   }
+  if (world.deckH) bridgeRubble(S.x0, S.z0, S.x0 + S.w - 1, S.z0 + S.d - 1); // a piece that fell through a bridge leaves no hole behind it (world.js)
 }
 /**
  * After the map rules: a 1 m cell a rule emptied (a doorway, a road kept open) loses its fine cells too, then
