@@ -441,6 +441,15 @@ window.CONFIG = {
   fire_ground_s: { value: 8, min: 0, max: 30, step: 0.5 },        // seconds a burning patch on the ground lasts
   fire_ignite: { value: 0.35, min: 0.01, max: 1, step: 0.01 },    // chance a burnable cell in an incendiary's reach catches, times how readily it burns
   fire_ignite_max: { value: 24, min: 1, max: 200, step: 1 },      // cells an incendiary sets alight at most (the fire spreads from them)
+  // how fire and smoke look (iteration 78, js/particles.js)
+  fx_flame_size: { value: 1, min: 0.3, max: 3, step: 0.05 },      // flames' size
+  fx_glow: { value: 1, min: 0, max: 3, step: 0.05 },              // the soft glow around flames and blasts
+  fx_smoke_alpha: { value: 0.62, min: 0.1, max: 1, step: 0.02 },  // how thick a puff of smoke is
+  fx_wind_x: { value: 0.7, min: -4, max: 4, step: 0.1 },          // the wind that carries smoke and flames, metres a second
+  fx_wind_z: { value: 0.35, min: -4, max: 4, step: 0.1 },
+  fx_fire_occlude: { value: 0.35, min: 0, max: 1, step: 0.05 },  // how much a flame dims what is behind it (0: pure glow, washes out on pale ground)
+  fx_embers: { value: 1, min: 0, max: 4, step: 0.1 },             // sparks from fires and blasts
+  fire_light: { value: 30, min: 0, max: 120, step: 0.5 },           // the flickering light a fire or a blast throws on the ground
   fire_inc_r: { value: 0.9, min: 0.5, max: 4, step: 0.1 },        // reach of an incendiary's flames, times its blast radius
 
   // ---- Directional armour, hull turning and arcs of fire (js/systems/combat.js, js/systems/entities.js, js/systems/units.js) ----

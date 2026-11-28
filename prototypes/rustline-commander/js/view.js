@@ -72,8 +72,6 @@ function initView() {
   R3.tracers.frustumCulled = false; sc.add(R3.tracers);
   // pools for flashes, smoke, shells, order marks, scrap pickups
   R3.pools = {};
-  makePool('flash', () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffa23a, transparent: true, fog: false })));
-  makePool('smoke', () => new THREE.Mesh(R3.box, new THREE.MeshLambertMaterial({ color: 0x6f6259, transparent: true })));
   makePool('shell', () => new THREE.Mesh(R3.box, new THREE.MeshBasicMaterial({ color: 0xffd27a, fog: false })));
   makePool('mark', () => { const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.05, 24), new THREE.MeshBasicMaterial({ color: 0x4fe3e0, transparent: true, side: THREE.DoubleSide, fog: false })); m.rotation.x = -Math.PI / 2; return m; });
   makePool('pick', () => makePickupModel());
@@ -768,12 +766,8 @@ function renderWorld() {
     T.m.compose(T.p, T.q, T.s); D.setMatrixAt(n, T.m); D.setColorAt(n, R3.vlin[d.t] || R3.vlin[V.ROCK]); n++;
   }
   D.count = n; D.instanceMatrix.needsUpdate = true; if (D.instanceColor) D.instanceColor.needsUpdate = true;
-  // flashes and smoke
-  for (const f of state.fx) {
-    const k = f.t / f.life;
-    if (f.kind === 'flash') { const m = poolGet('flash'); m.position.set(f.x, f.y, f.z); m.scale.setScalar(f.s * (0.5 + k)); m.material.opacity = 1 - k; m.rotation.set(f.x, f.z, k); }
-    else { const m = poolGet('smoke'); m.position.set(f.x, f.y + k * f.rise, f.z); m.scale.setScalar(f.s * (0.6 + k * 0.9)); m.material.opacity = 0.75 * (1 - k); m.material.color.setHex(f.col || 0x6f6259); m.rotation.set(k, f.x, 0); }
-  }
+  // flashes, flames, embers and smoke: soft particles (js/particles.js, iteration 78)
+  drawParticles();
   for (const p of state.proj) { const m = poolGet('shell'); m.position.set(p.x, p.y, p.z); m.scale.set(0.3, 0.3, 0.9); m.lookAt(p.x + p.vx, p.y + p.vy, p.z + p.vz); }
   for (const o of state.marks) { const m = poolGet('mark'); const k = o.t / o.life; m.position.set(o.x, o.y + 0.15, o.z); m.scale.setScalar(1.6 - k); m.material.opacity = 1 - k; m.material.color.setHex(o.col); }
   for (const p of state.pickups) { if (p.taken) continue; const m = poolGet(p.loot ? 'loot' : p.ammo ? 'ammo' : 'pick'); m.position.set(p.x, hAt(p.x, p.z) + 0.6 + Math.sin(state.t * 3 + p.x) * 0.2, p.z); m.userData.spin.rotation.y = state.t * 1.5; }

@@ -55,7 +55,8 @@ function updateFires(dt) {
     f.tick -= dt; if (f.tick > 0) continue; f.tick = 0.5;
     const p = firePos(f);
     if (state.fx && rng() < fxP) state.fx.push({ kind: 'smoke', x: p.x + (rng() - 0.5) * 0.4, y: p.y + 0.2, z: p.z + (rng() - 0.5) * 0.4, t: 0, life: 0.7, s: 0.45, rise: 2.2, col: rng() < 0.5 ? 0xff7a1a : 0xffb030 });
-    if (state.fx && rng() < fxP * 0.4) state.fx.push({ kind: 'smoke', x: p.x, y: p.y + 1, z: p.z, t: 0, life: 2.5, s: 0.9, rise: 3.5, col: 0x2a2420 });
+    if (state.fx && rng() < fxP * 0.5) state.fx.push({ kind: 'smoke', x: p.x + (rng() - 0.5) * 0.6, y: p.y + 1, z: p.z + (rng() - 0.5) * 0.6, t: 0, life: 3 + rng() * 1.5, s: 0.8 + rng() * 0.4, rise: 4.5, col: rng() < 0.5 ? 0x2a2420 : 0x3a302a });
+    if (state.fx && rng() < fxP * 0.35 * tune.fx_embers) state.fx.push({ kind: 'ember', x: p.x + (rng() - 0.5) * 0.6, y: p.y + 0.3, z: p.z + (rng() - 0.5) * 0.6, t: 0, life: 1 + rng() * 1.2, s: 0.09 + rng() * 0.06, rise: 2.5 + rng() * 2.5, vx: (rng() - 0.5) * 0.8, vz: (rng() - 0.5) * 0.8 });
     if (!f.ground) {
       const S = world.structs[f.S], m = S.cells[f.l], C = S.cells;
       if (cellHurt(S, f.l, FMHP[m] * tune.fire_burn * 0.5)) burnt.add(S); else world.sdirty.add(S.id);
