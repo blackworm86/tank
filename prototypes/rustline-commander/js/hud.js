@@ -39,15 +39,9 @@ function unitIcon(kind, x, y, s, col) {
   if (kind === 'jeep') {
     ctx.fillRect(-9, -1, 18, 5); ctx.fillRect(1, -5, 2, 4); ctx.fillRect(-6, -8, 2, 7); ctx.fillRect(-6, -9, 8, 2);
     ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-8, 4, 4, 4); ctx.fillRect(4, 4, 4, 4);
-  } else if (kind === 'car') {
-    ctx.fillRect(-9, -3, 18, 7); ctx.fillRect(-4, -7, 8, 4); ctx.fillRect(3, -6, 8, 2);
-    ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-8, 4, 4, 4); ctx.fillRect(4, 4, 4, 4);
   } else if (kind === 'ltank') {
     ctx.fillRect(-10, -1, 20, 6); ctx.fillRect(-5, -6, 9, 5); ctx.fillRect(4, -5, 8, 2);
     ctx.fillStyle = '#1d1b1a'; ctx.fillRect(-10, 5, 20, 3);
-  } else if (kind === 'at') {
-    ctx.fillRect(-7, -6, 3, 11); ctx.fillRect(-4, -2, 15, 2); ctx.fillRect(-9, 4, 12, 2);
-    ctx.fillStyle = '#1d1b1a'; ctx.beginPath(); ctx.arc(-3, 6, 3, 0, 6.3); ctx.fill();
   } else {
     ctx.fillRect(-2, -9, 4, 4); // head
     ctx.fillRect(-3, -5, 6, 7); // body
@@ -60,7 +54,8 @@ function unitIcon(kind, x, y, s, col) {
     if (kind === 'eng') { ctx.fillStyle = dead ? col : '#e0b040'; ctx.fillRect(-6, -4, 3, 6); ctx.fillStyle = dead ? col : '#2a2220'; ctx.fillRect(2, -5, 2, 9); ctx.fillRect(1, -6, 4, 2); }
     if (kind === 'radio') { ctx.fillStyle = dead ? col : '#5a6a40'; ctx.fillRect(-7, -5, 4, 7); ctx.fillStyle = dead ? col : '#2a2220'; ctx.fillRect(-6, -13, 1, 8); ctx.fillRect(2, -4, 6, 1.6); }
     if (kind === 'scout') { ctx.fillRect(2, -4, 6, 1.4); ctx.fillStyle = dead ? col : '#c8b070'; ctx.fillRect(-3, -10, 6, 2); }
-    if (kind === 'mortar') { ctx.save(); ctx.translate(6, 6); ctx.rotate(-0.6); ctx.fillRect(-1.2, -9, 2.4, 9); ctx.restore(); ctx.fillRect(3, 6, 7, 1.5); }
+    if (kind === 'at') { ctx.fillRect(-8, -7, 14, 3); ctx.fillRect(4, -8, 3, 5); } // the tube on the shoulder
+    if (kind === 'recruit') ctx.fillRect(2, -3, 5, 1.4); // a short carbine
   }
   if (dead) { ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-7, -8); ctx.lineTo(7, 8); ctx.moveTo(7, -8); ctx.lineTo(-7, 8); ctx.stroke(); }
   ctx.restore();
@@ -349,17 +344,19 @@ function drawHUD() {
       if (pk) rrect(ix - 10, iy - 11, 20, 22, 3, 'rgba(255,255,255,0.22)', '#ffffff');
       const lifted = dragging && m && (dragging.m === m || (pk && state.picked.has(dragging.m)));
       unitIcon(k, ix, iy, 17, lifted ? 'rgba(168,216,112,0.25)' : m && m.alive ? '#a8d870' : '#5a3a32');
-      if (m && m.alive && m.rank) chevrons(ix, iy - 11, m.rank, 0.7);
+      if (m && m.alive && m.rank && m.kind !== 'recruit') chevrons(ix, iy - 11, m.rank, 0.7);
+      const job = !!(m && jobOptions(m).length); // jobs.js: a new Job to choose, the gold arrow opens it
+      if (job) { const p = 0.6 + 0.4 * Math.sin(performance.now() / 180); ctx.fillStyle = 'rgba(255,211,106,' + p + ')'; ctx.beginPath(); ctx.moveTo(ix + 7, iy - 19); ctx.lineTo(ix + 13, iy - 11); ctx.lineTo(ix + 1, iy - 11); ctx.closePath(); ctx.fill(); }
       if (m && !m.alive) { // fallen: crossed out till he leaves the card (pruneFallen), fading in the last second
         ctx.globalAlpha = Math.max(0.2, Math.min(1, tune.fallen_show - (state.t - (m.deathT || 0))));
         ctx.strokeStyle = '#ff4a3a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(ix - 7, iy - 8); ctx.lineTo(ix + 7, iy + 8); ctx.moveTo(ix + 7, iy - 8); ctx.lineTo(ix - 7, iy + 8); ctx.stroke();
         ctx.globalAlpha = 1; ctx.lineCap = 'butt';
       }
-      card.icons.push({ m, x: ix, y: iy });
+      card.icons.push({ m, x: ix, y: iy, job });
     });
     UI.cards.push(card);
-    const riding = ms.length && ms.every(m => m.inside || m.veh || m.kind === 'at') && ms.some(m => m.inside);
+    const riding = ms.length && ms.every(m => m.inside || m.veh) && ms.some(m => m.inside);
     const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'ride' ? (ms.some(m => m.rideOn) && sq.order.done ? 'Sulla jeep' : 'Sale sulla jeep') : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : legLabel(sq.order)) : 'Ferma';
     { const nr = ms.reduce((a, m) => a + (seatsOf(m) > 0 ? ridersOf(m).length : 0), 0); if (nr) text(nr + ' a bordo', 238, y + 25, 10, '#4fe3e0', 'right'); } // a jeep's riders
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
@@ -379,6 +376,8 @@ function drawHUD() {
     const n = state.picked && state.picked.has(dragging.m) ? state.picked.size : 1;
     unitIcon(dragging.m.kind, MS.x + 6, MS.y + 6, 20, '#ffffff'); if (n > 1) text('×' + n, MS.x + 20, MS.y - 6, 12, '#ffffff', 'left');
   }
+
+  drawJobPick(); // jobs.js: a soldier's choice of Job, beside his card
 
   // radio log
   const msgs = state.msgs.filter(m => state.t - m.t < 8).slice(-3);
@@ -572,7 +571,7 @@ function shieldIcon(x, y, q) {
 function drawOrderAids() {
   const g = state.gest, at = g ? g.p : state.mouse3;
   const sel = selectedSquads().filter(sq => inRadio(sq));
-  const bIn = at && !g && sel.length && (!state.arm || state.arm === 'cover') && !enemyUnderMouse() && sel.some(sq => alive(sq).some(m => !m.veh && m.kind !== 'at')) ? buildingAt(at.x, at.z) : null;
+  const bIn = at && !g && sel.length && (!state.arm || state.arm === 'cover') && !enemyUnderMouse() && sel.some(sq => alive(sq).some(m => !m.veh)) ? buildingAt(at.x, at.z) : null;
   if (bIn) { // a building under the mouse: the order is to go in
     if (!bIn.ruined && buildingWalls(bIn) < bIn.walls0 * tune.garrison_ruin) bIn.ruined = true;
     const lab = bIn.ruined ? 'Edificio crollato' : 'Entra nell\'edificio  ' + bIn.occ.length + '/' + bIn.cap;

@@ -10,9 +10,9 @@ function squadName(slots) {
   if (k.size === 1) {
     const t = slots[0], n = slots.length;
     return { rifle: n > 1 ? 'Fucilieri' : 'Fuciliere', sniper: n > 1 ? 'Team cecchini' : 'Cecchino solitario', mg: n > 1 ? 'Mitraglieri' : 'Mitragliere',
-      medic: n > 1 ? 'Medici' : 'Medico', mortar: n > 1 ? 'Batteria mortai' : 'Artigliere', car: n > 1 ? 'Autoblinde' : 'Autoblindo',
+      medic: n > 1 ? 'Medici' : 'Medico', recruit: n > 1 ? 'Reclute' : 'Recluta',
       eng: n > 1 ? 'Genieri' : 'Geniere', radio: n > 1 ? 'Operatori radio' : 'Operatore radio', scout: n > 1 ? 'Esploratori' : 'Esploratore',
-      at: n > 1 ? 'Batteria anticarro' : 'Cannone anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto', jeep: 'Jeep' }[t];
+      at: n > 1 ? 'Squadra anticarro' : 'Anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto', jeep: 'Jeep' }[t];
   }
   const tr = traitsOf(slots).find(t => t.squad);
   return tr ? tr.squad : 'Squadra mista';
@@ -294,7 +294,7 @@ function orderSuppress(sq, target, stay = false) {
   mark(target.x, target.z, 0x9fd8ff);
 }
 /** Infantry that can ride (not the anti-tank gun, not vehicles). */
-function canRide(m) { return m && m.alive && !m.veh && m.kind !== 'at' && !m.rideOn; }
+function canRide(m) { return m && m.alive && !m.veh && !m.rideOn; }
 function passengers() { return state.ents.filter(e => e.alive && e.inside); }
 function seatsFree() { return tankStats().seats - passengers().length; }
 /** Sends the squad's infantry to the command vehicle to climb in. */
@@ -342,7 +342,7 @@ function springAmbush(sq) {
 /** How each kind fights: cover = how far it looks for cover, back = how far it keeps behind the threat. */
 const ROLE = {
   rifle: { cover: 6, back: 0 }, mg: { cover: 8, back: 3 }, medic: { cover: 6, back: 6 }, eng: { cover: 6, back: 3 }, radio: { cover: 6, back: 5 }, scout: { cover: 7, back: 0 },
-  mortar: { cover: 6, back: 12 }, at: { cover: 5, back: 0 },
+  recruit: { cover: 5, back: 0 }, at: { cover: 6, back: 3 }, sniper: { cover: 8, back: 6 },
 };
 /**
  * The soldiers' own sense, every squad tick: in a fight, out of cover, each kind finds cover toward the
@@ -420,7 +420,7 @@ function overwatchSpot(ax, az, R, en) {
 function orderFollow(sq) { leaveBuilding(sq); sq.order = { t: 'follow' }; sq.tick = 0; say(sq.name, 'Ricevuto, vi seguiamo.'); }
 /** Sends the squad's infantry into a building: they walk to its door and take the places inside. */
 function orderGarrison(sq, b) {
-  const ms = alive(sq).filter(m => !m.veh && m.kind !== 'at');
+  const ms = alive(sq).filter(m => !m.veh);
   if (!b.ruined && buildingWalls(b) < b.walls0 * tune.garrison_ruin) b.ruined = true;
   if (b.ruined) { say(sq.name, 'È crollato, lì dentro non si entra.', '#e0a070'); return false; }
   if (!ms.length) { say(sq.name, 'Non possiamo entrare.', '#e0a070'); return false; }
@@ -484,7 +484,7 @@ function squadUpkeep(sq, dt) {
   if (sq.order.t === 'garrison') {
     const b = sq.order.b; let left = 0;
     for (const m of ms) {
-      if (m.veh || m.kind === 'at' || m.garrison || m.inside) continue;
+      if (m.veh || m.garrison || m.inside) continue;
       if (Math.hypot(m.x - b.out.x, m.z - b.out.z) < 1.8 || Math.hypot(m.x - b.door.x, m.z - b.door.z) < 1.4) {
         if (b.occ.length < b.cap && !b.ruined) { enterBuilding(m, b); continue; }
         say(sq.name, 'Dentro non c\'è più posto.', '#e0a070'); sq.order = { t: 'hold' }; return;
@@ -502,7 +502,7 @@ function squadUpkeep(sq, dt) {
     ms.forEach((m, i) => {
       if (m.kind === 'sniper' && !m.veh) return; // its own post (roleUpkeep)
       if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
-      const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0) + (m.kind === 'mortar' || m.kind === 'medic' ? 4 : 0);
+      const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0) + (m.kind === 'medic' ? 4 : 0);
       const px = tk.x + Math.sin(a) * r, pz = tk.z + Math.cos(a) * r;
       if ((m.x - px) ** 2 + (m.z - pz) ** 2 > 9 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2.5)) setDest(m, px, pz);
     });
@@ -570,7 +570,7 @@ function issueOrder(kind, append, pt, face, tgt) {
       continue;
     }
     const bAt = (!kind || kind === 'cover') && !tgt ? buildingAt(pt.x, pt.z) : null;
-    if (bAt && alive(sq).some(m => !m.veh && m.kind !== 'at')) { // right-click on a building: go in
+    if (bAt && alive(sq).some(m => !m.veh)) { // right-click on a building: go in
       if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
       orderGarrison(sq, bAt); continue;
     }
@@ -646,6 +646,9 @@ function inRect(r, x, y) { return !!r && x >= r.x && x <= r.x + r.w && y >= r.y 
  * mouse was the cards' this step.
  */
 function cardInput() {
+  if (jobPickInput()) return true; // jobs.js: a soldier's choice of Job is open
+  if (MS.lp) { const c = cardAt(MS.x, MS.y), ic = c && c.icons.find(i => i.job && Math.abs(MS.x - i.x - 7) < 7 && Math.abs(MS.y - i.y + 13) < 7); // the gold arrow: his choices
+    if (ic) { MS.lp = false; MS.drag = null; state.menuBlock = true; openJobPick(ic.m, ic.x, ic.y); return true; } }
   if (!state.tpause) { // driving: the cards are only a display, and a click on one is not a shot
     if (MS.lp && cardAt(MS.x, MS.y)) { MS.lp = false; state.menuBlock = true; return true; }
     return false;

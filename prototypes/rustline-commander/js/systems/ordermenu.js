@@ -26,7 +26,7 @@ function menuItems(g, append) {
     items.push({ key: 'F', label: 'Tappa ' + n + ': assalto', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', true, p, g.face, null) });
     return items;
   }
-  const ms = sel.flatMap(sq => alive(sq)), inf = ms.some(m => !m.veh && m.kind !== 'at'), riders = ms.some(m => canRide(m) && !m.inside);
+  const ms = sel.flatMap(sq => alive(sq)), inf = ms.some(m => !m.veh), riders = ms.some(m => canRide(m) && !m.inside);
   const onTank = Math.hypot(p.x - tk.x, p.z - tk.z) < tk.rad + 0.9;
   const b = inf && !onTank && !g.tgt ? buildingAt(p.x, p.z) : null;
   const all = f => () => { let any = false; for (const sq of sel) { if (inRadio(sq)) { f(sq); any = true; } else say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); } if (any) sfx('radio'); };

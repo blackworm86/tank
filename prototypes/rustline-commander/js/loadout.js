@@ -295,6 +295,7 @@ function scatterCrates() {
 // ---- The soldiers' trades -------------------------------------------------------------------------------------
 /** What each kind of soldier does, for the barracks. */
 const ROLE_DESC = {
+  recruit: 'Poco efficace, nessun bonus. Con l\'esperienza sceglie un incarico.',
   rifle: 'Fucile affidabile. Due o più: squadra d\'assalto.',
   mg: 'Raffiche che sopprimono: chi è colpito mira peggio e rallenta.',
   medic: 'Cura chi gli sta vicino, corre dai feriti e può salvare chi cade.',
@@ -302,8 +303,7 @@ const ROLE_DESC = {
   radio: 'Sente la radio da più lontano e fa da ponte: chi gli è vicino riceve gli ordini.',
   scout: 'Vede lontano, corre, i nemici lo notano tardi.',
   sniper: 'Tiro lungo da una posizione alta.',
-  mortar: 'Artigliere: tiro indiretto oltre le coperture.',
-  at: 'Cannone anticarro trainato: perfora i mezzi.',
+  at: 'Lanciarazzi a carica cava contro i mezzi, lento a ricaricare; debole con la fanteria.',
 };
 /** The squads' specialisations: read from who is in the squad, each with its bonus or malus. */
 const TRAITS = [
@@ -313,10 +313,9 @@ const TRAITS = [
   { id: 'genio', name: 'Genio', desc: 'al riparo: -20% colpi presi', test: c => c.eng >= 1 && c.n >= 2, mod: { coverK: 0.8 }, squad: 'Squadra del genio' },
   { id: 'comando', name: 'Comando', desc: '+12% cadenza di tiro', test: c => c.radio >= 1 && c.n >= 2, mod: { rate: 0.88 }, squad: 'Squadra comando' },
   { id: 'ricognizione', name: 'Ricognizione', desc: '+30% vista, +10% velocità, -10% precisione', test: c => c.scout >= 2 || (c.scout >= 1 && c.n <= 2), mod: { sight: 1.3, speed: 1.1, acc: 0.9 }, squad: 'Pattuglia' },
-  { id: 'artiglieria', name: 'Artiglieria', desc: 'mortai: -40% dispersione', test: c => c.mortar >= 2 || (c.mortar >= 1 && (c.scout + c.radio) >= 1), mod: { scatter: 0.6 }, squad: 'Batteria' },
   { id: 'specialisti', name: 'Specialisti', desc: '+6% precisione e cadenza', test: c => c.n >= 3 && c.kinds === c.n, mod: { acc: 1.06, rate: 0.94 }, squad: 'Specialisti' },
-  { id: 'lenta', name: 'Lenta', bad: true, desc: '-15% velocità: armi pesanti', test: c => c.mg + c.mortar + c.at >= 2, mod: { speed: 0.85 } },
-  { id: 'sbandati', name: 'Sbandati', bad: true, desc: '-15% precisione: nessuno che spari sul serio', test: c => c.n >= 2 && !c.rifle && !c.mg && !c.sniper && !c.scout, mod: { acc: 0.85 } },
+  { id: 'lenta', name: 'Lenta', bad: true, desc: '-15% velocità: armi pesanti', test: c => c.mg + c.at >= 2, mod: { speed: 0.85 } },
+  { id: 'sbandati', name: 'Sbandati', bad: true, desc: '-15% precisione: nessuno che spari sul serio', test: c => c.n >= 2 && !c.rifle && !c.mg && !c.sniper && !c.scout && !c.recruit, mod: { acc: 0.85 } },
 ];
 const NO_MOD = Object.freeze({ acc: 1, sup: 1, taken: 1, coverK: 1, rate: 1, sight: 1, speed: 1, scatter: 1 });
 /** The specialisations a squad of these kinds gets. */

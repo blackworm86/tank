@@ -374,11 +374,11 @@ function makeSoldier(kind) {
     bx(s, 0.22, 0.1, 0.1, PC.black, 0, 1.38, 0.18); bx(s, 0.08, 0.1, 0.7, 0x3a2e24, 0.22, 0.98, 0.36);
     bx(s, 0.5, 0.2, 0.2, 0x8a7a48, 0, 0.75, -0.2);
   }
-  if (kind === 'mortar') {
+  if (kind === 'recruit') { bx(s, 0.38, 0.1, 0.38, PC.khaki, 0, 1.55, 0); bx(s, 0.08, 0.1, 0.75, 0x3a2e24, 0.22, 0.98, 0.34); } // a field cap, a short carbine
+  if (kind === 'at') { // helmet, the rocket tube on the right shoulder, two rockets on the back
     bx(s, 0.4, 0.16, 0.4, PC.helmet, 0, 1.56, 0);
-    bx(s, 0.7, 0.08, 0.7, PC.metal, 0.62, 0.04, 0.45); bx(s, 0.2, 1.2, 0.2, 0x3a3a35, 0.62, 0.6, 0.6, -0.5);
-    bx(s, 0.07, 0.5, 0.07, PC.metal, 0.62, 0.3, 0.95, 0.4);
-    bx(s, 0.42, 0.28, 0.3, 0x6a5a30, -0.6, 0.14, 0.3); bx(s, 0.06, 0.29, 0.31, PC.yel, -0.6, 0.15, 0.3);
+    bx(s, 0.18, 0.18, 1.5, 0x4f5a34, 0.3, 1.34, 0.1); bx(s, 0.24, 0.24, 0.2, PC.black, 0.3, 1.34, 0.86);
+    for (const dx of [-0.12, 0.12]) bx(s, 0.12, 0.5, 0.12, 0x6a5a30, dx, 1.0, -0.3);
   }
   if (raider) {
     bx(s, 0.34, 0.14, 0.33, PC.red, 0, 1.3, 0.02);
@@ -426,21 +426,6 @@ function poseLimbs(e, u) {
   u.legs[0].rotation.x = sw; u.legs[1].rotation.x = -sw;
   if (A) { A[0].rotation.x = -sw * 0.5; A[1].rotation.x = sw * 0.5; A[0].rotation.z = A[1].rotation.z = 0; }
   u.body.rotation.x = 0; u.body.position.y = 0;
-}
-function makeCarModel() {
-  const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
-  bx(b, 2.2, 0.9, 3.6, PC.olive, 0, 1.0, 0); bx(b, 2.0, 0.5, 0.7, PC.olive2, 0, 1.15, 2.0, -0.45);
-  for (const sx of [-1, 1]) for (const sz of [-1.2, 1.2]) bx(b, 0.4, 0.9, 0.9, PC.track, sx * 1.15, 0.45, sz);
-  bx(b, 2.22, 0.1, 0.4, PC.stripe, 0, 1.46, 0.6);
-  bx(b, 0.8, 0.12, 0.3, PC.glass, 0, 1.3, 1.75);
-  const tur = new THREE.Group(); tur.position.set(0, 1.5, -0.3); g.add(tur);
-  bx(tur, 1.2, 0.5, 1.2, PC.olive2, 0, 0.25, 0);
-  const gun = new THREE.Group(); gun.position.set(0, 0.25, 0.6); tur.add(gun);
-  bx(gun, 0.16, 0.16, 1.6, PC.metal, 0, 0, 0.8);
-  bx(tur, 0.06, 1.3, 0.06, PC.black, -0.45, 1.0, -0.4); bx(tur, 0.12, 0.12, 0.12, PC.cyan, -0.45, 1.65, -0.4);
-  g.userData = { turret: tur, gun, hull: b, gunZ: 0.6 };
-  selRing(g, 2.6);
-  return g;
 }
 /** The jeep: open, low, a windscreen, a machine gun on a post at the back with its gunner. */
 function makeJeepModel() {
@@ -498,24 +483,6 @@ function makeBossModel() {
   bx(tur, 0.08, 2.6, 0.08, PC.black, 1.1, 2.4, -1.2); bx(tur, 0.7, 0.45, 0.04, PC.red, 1.45, 3.4, -1.2); bx(tur, 0.3, 0.2, 0.05, PC.yel, 1.45, 3.4, -1.2);
   g.userData = { turret: tur, gun, hull, gunZ: 1.6 };
   selRing(g, 4.2);
-  return g;
-}
-/** The anti-tank gun: a low gun behind a shield on two wheels, with a crew of two. */
-function makeATGunModel() {
-  const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
-  for (const sx of [-1, 1]) bx(b, 0.25, 0.9, 0.9, PC.track, sx * 0.8, 0.45, 0.1);
-  bx(b, 1.5, 0.25, 0.5, PC.olive2, 0, 0.55, 0.1);
-  bx(b, 1.9, 1.0, 0.12, PC.olive, 0, 1.0, 0.45); bx(b, 1.92, 0.1, 0.14, PC.stripe, 0, 1.38, 0.45);
-  bx(b, 0.2, 0.2, 2.4, PC.metal, 0, 0.85, 1.4); bx(b, 0.32, 0.32, 0.3, PC.black, 0, 0.85, 2.6);
-  for (const sx of [-0.35, 0.35]) bx(b, 0.12, 0.12, 1.8, PC.olive2, sx, 0.3, -0.9, 0.12, sx * 0.4, 0);
-  for (const [sx, sz] of [[-0.55, -0.4], [0.6, -0.9]]) {
-    const c = new THREE.Group(); c.position.set(sx, 0, sz); b.add(c);
-    bx(c, 0.22, 0.5, 0.26, PC.khaki, -0.1, 0.25, 0); bx(c, 0.22, 0.5, 0.26, PC.khaki, 0.1, 0.25, 0);
-    bx(c, 0.5, 0.5, 0.32, PC.olive, 0, 0.75, 0); bx(c, 0.28, 0.28, 0.28, PC.skin, 0, 1.15, 0); bx(c, 0.36, 0.14, 0.36, PC.helmet, 0, 1.32, 0);
-  }
-  b.scale.setScalar(1.15);
-  g.userData = { hull: b };
-  selRing(g, 1.7);
   return g;
 }
 /** The support tank: a smaller tank in the player's paint, short gun, no commander. */
@@ -580,10 +547,8 @@ function makeCrateModel(body, band) {
 function modelFor(e) {
   if (e.kind === 'tank') { const L = tankLook(), g = L.hull === 'apc' ? makeAPCModel(L.barrel) : L.hull === 'light' ? makeLightTankModel(L.barrel) : makeTankModel(L); dressTank(g, L.hull); return g; } // modules.js: the fitted modules
   if (e.kind === 'apc') return makeAPCModel();
-  if (e.kind === 'car') return makeCarModel();
   if (e.kind === 'jeep') return makeJeepModel();
   if (e.kind === 'ltank') return makeLightTankModel();
-  if (e.kind === 'at') return makeATGunModel();
   const mk = registry('model')[e.kind]; if (mk) return mk(); // each registered kind's own figure (content/horde.js, enemies.js, missions.js)
   return makeSoldier(e.kind);
 }
@@ -831,7 +796,7 @@ function renderWorld() {
 
 // ---- The figures sheet (?scene=figures) ----------------------------------------------------------
 const FIGS = [
-  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['mortar', 'Mortaio'], ['at', 'Cannone anticarro'], ['car', 'Autoblindo'], ['jeep', 'Jeep'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
+  ['tank', 'Carro comando'], ['rifle', 'Fuciliere'], ['sniper', 'Cecchino'], ['mg', 'Mitragliere'], ['medic', 'Medico'], ['recruit', 'Recluta'], ['at', 'Anticarro'], ['eng', 'Geniere'], ['scout', 'Esploratore'], ['radio', 'Operatore radio'], ['jeep', 'Jeep'], ['ltank', 'Carro di supporto'], ['apc', 'Trasporto truppe'],
   // the enemies join from the enemy registry (registerEnemy)
 ];
 function renderFigures() {

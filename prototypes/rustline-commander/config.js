@@ -249,7 +249,6 @@ window.CONFIG = {
   ambush_trigger: { value: 0.6, min: 0.2, max: 1, step: 0.05 },   // an ambush opens fire when the enemy is within this share of its range
   ambush_reveal: { value: 8, min: 2, max: 30, step: 1 },          // raiders see an unsprung ambush only this close
   ambush_bonus: { value: 1.6, min: 1, max: 3, step: 0.1 },        // aim multiplier for 4 s after an ambush springs
-  at_ambush: { value: 0.7, min: 0.3, max: 1, step: 0.05 },        // an unseen AT gun waits till its target is this close (share of range)
   suppress_time: { value: 2.5, min: 0.5, max: 8, step: 0.5 },     // seconds a machine-gun burst pins infantry down
   suppress_acc: { value: 0.5, min: 0.1, max: 1, step: 0.05 },     // aim while pinned down
   suppress_speed: { value: 0.6, min: 0.2, max: 1, step: 0.05 },   // speed while pinned down
@@ -281,6 +280,10 @@ window.CONFIG = {
   rank_xp_1: { value: 15, min: 1, max: 200, step: 1 },            // xp for Esperto
   rank_xp_2: { value: 40, min: 1, max: 400, step: 1 },            // xp for Veterano
   rank_xp_3: { value: 80, min: 1, max: 800, step: 1 },            // xp for Elite
+  xp_ref_hp: { value: 26, min: 1, max: 300, step: 1 },           // an enemy with this much health (a raider) is worth xp_kill; vehicles count twice
+  xp_falloff: { value: 0.25, min: 0, max: 1, step: 0.05 },        // XP lost for each level a soldier stands above the enemy (0-9 ladder)
+  spec_level: { value: 2, min: 1, max: 3, step: 1 },              // the Job level that unlocks its specialisation
+  recruit_k: { value: 0.75, min: 0.3, max: 1, step: 0.05 },       // a Recruit's damage and aim against a rifleman's
   rank_speed: { value: 0.06, min: 0, max: 0.3, step: 0.01 },      // speed per rank
   rank_acc: { value: 0.1, min: 0, max: 0.5, step: 0.01 },         // aim per rank
   rank_hp: { value: 0.1, min: 0, max: 0.5, step: 0.01 },          // health per rank
@@ -316,16 +319,9 @@ window.CONFIG = {
   jeep_turret: { value: 160, min: 20, max: 400, step: 5 },       // its pintle machine gun, degrees a second
   jeep_seats: { value: 3, min: 0, max: 4, step: 1 },             // soldiers it carries in the open: they fire their own weapons from it
   jeep_acc: { value: 0.55, min: 0.05, max: 1, step: 0.01 },
-  car_turret: { value: 90, min: 20, max: 300, step: 5 },        // armoured car turret, degrees a second
-  car_hp: { value: 160, min: 30, max: 600, step: 10 },          // armoured car
-  car_speed: { value: 8, min: 2, max: 16, step: 0.5 },
-  car_range: { value: 28, min: 5, max: 60, step: 1 },
-  car_damage: { value: 14, min: 1, max: 80, step: 1 },
-  car_rate: { value: 0.5, min: 0.1, max: 3, step: 0.05 },
-  at_hp: { value: 45, min: 10, max: 300, step: 5 },
-  at_range: { value: 42, min: 10, max: 90, step: 1 },
+  at_range: { value: 34, min: 10, max: 90, step: 1 },          // the Anti-tank soldier's rocket
   at_damage: { value: 95, min: 10, max: 400, step: 5 },
-  at_rate: { value: 4.5, min: 0.5, max: 15, step: 0.25 },       // seconds between rounds
+  at_rate: { value: 8, min: 0.5, max: 30, step: 0.5 },          // seconds between his rockets
   at_speed: { value: 70, min: 20, max: 160, step: 5 },          // round speed, units/s
   ltank_hp: { value: 260, min: 50, max: 1000, step: 10 },
   ltank_speed: { value: 5.5, min: 1, max: 14, step: 0.5 },
@@ -392,13 +388,10 @@ window.CONFIG = {
   hull_turn_boss: { value: 22, min: 5, max: 120, step: 1 },     // deg/s a still hull turns to face its enemy
   hull_turn_technical: { value: 80, min: 5, max: 200, step: 5 },
   hull_turn_enemy: { value: 90, min: 5, max: 300, step: 5 },      // the Horde's other vehicles (bikes and buggies turn on the spot, tanks slowly: see enemies.js)
-  hull_turn_car: { value: 100, min: 5, max: 200, step: 5 },
   hull_turn_jeep: { value: 130, min: 5, max: 300, step: 5 },
   hull_turn_ltank: { value: 45, min: 5, max: 200, step: 5 },
   mg_arc: { value: 40, min: 10, max: 180, step: 5 },           // half-angle, degrees
   mg_turn: { value: 70, min: 10, max: 360, step: 5 },          // deg/s
-  at_arc: { value: 30, min: 10, max: 180, step: 5 },
-  at_turn: { value: 30, min: 5, max: 360, step: 5 },
 
   // ---- The Horde: enemies (js/systems/horde.js, js/content/base/raiders.js, js/content/base/enemies.js) ----
   camp_men_k: { value: 1.3, min: 0.5, max: 3, step: 0.1 },       // raiders in a camp, times the old count
@@ -468,7 +461,7 @@ window.CONFIG = {
   final_waves: { value: 6, min: 1, max: 15, step: 1 },            // waves in the last stand (the last brings the Chief)
   final_prep: { value: 60, min: 10, max: 300, step: 5 },          // seconds to set up before the first wave of the last stand
   final_gap: { value: 70, min: 20, max: 200, step: 5 },           // seconds between last-stand waves (sooner once a wave is beaten)
-  max_squads: { value: 6, min: 1, max: 9, step: 1 },
+  max_squads: { value: 4, min: 1, max: 9, step: 1 },
   geo_combo: { value: 0.4, min: 0, max: 1, step: 0.05 },         // chance a sector has a second geography
   cache_bonus: { value: 15, min: 0, max: 200, step: 5 },        // extra scrap in a mission's cache
 
@@ -493,16 +486,15 @@ window.CONFIG = {
   scrap_camp: { value: 15, min: 0, max: 600, step: 10 },        // bonus per camp cleared (x tier)
   scrap_wreck: { value: 6, min: 0, max: 200, step: 5 },        // per wreck picked up
   repair_cost: { value: 0.5, min: 0, max: 5, step: 0.1 },       // scrap per integrity point
+  cost_recruit: { value: 20, min: 0, max: 300, step: 5 },        // every new soldier is a Recruit (iteration 62)
   cost_rifle: { value: 30, min: 0, max: 300, step: 5 },
   cost_sniper: { value: 60, min: 0, max: 300, step: 5 },
   cost_mg: { value: 55, min: 0, max: 300, step: 5 },
   cost_medic: { value: 50, min: 0, max: 300, step: 5 },
-  cost_mortar: { value: 85, min: 0, max: 400, step: 5 },
   cost_jeep: { value: 140, min: 0, max: 1000, step: 10 },
-  cost_car: { value: 220, min: 0, max: 1000, step: 10 },
   cost_at: { value: 110, min: 0, max: 500, step: 5 },
   cost_ltank: { value: 340, min: 0, max: 1500, step: 10 },
-  squad_max_size: { value: 4, min: 1, max: 8, step: 1 },
+  squad_max_size: { value: 6, min: 1, max: 8, step: 1 },
 
   // ---- Effects (js/systems/combat.js, js/systems/tank.js) ----
   debris_max: { value: 500, min: 0, max: 2000, step: 50 },

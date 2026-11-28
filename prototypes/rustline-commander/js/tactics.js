@@ -76,7 +76,7 @@ function roleOpts(m, sq, threats) {
     }
   } else if (m.kind === 'at') {
     const v = threats.find(q => q.veh); if (v) Object.assign(o, { R: 9, flankV: v, range: w.range * 0.75, needLine: true });
-  } else if (m.kind === 'medic' || m.kind === 'radio' || m.kind === 'mortar') Object.assign(o, { minD: m.kind === 'mortar' ? 22 : 14, R: 7 });
+  } else if (m.kind === 'medic' || m.kind === 'radio') Object.assign(o, { minD: 14, R: 7 });
   else if (m.kind === 'scout') Object.assign(o, { R: 7, highK: 0.3 });
   return o;
 }

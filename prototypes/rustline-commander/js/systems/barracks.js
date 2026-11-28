@@ -7,7 +7,9 @@
 // ---- The workshop and the barracks ------------------------------------------------------------------
 /** What the squad lost: the fallen still on its card, and those who already left it (sq.fallen: pruneFallen). */
 function missingIn(sq) { return sq.slots.map((k, i) => (!sq.members[i] || !sq.members[i].alive) ? k : null).filter(Boolean).concat(sq.fallen || []); }
-function reinforceCost(sq) { return missingIn(sq).reduce((a, k) => a + tune[UT[k].cost], 0); }
+/** Replacements are Recruits (iteration 62); a vehicle comes back as itself. */
+function replacement(k) { return UT[k].veh ? k : 'recruit'; }
+function reinforceCost(sq) { return missingIn(sq).reduce((a, k) => a + tune[UT[replacement(k)].cost], 0); }
 function reinforce(sq) {
   const miss = missingIn(sq); if (!miss.length) { state.shopMsg = 'Squadra al completo.'; return; }
   const c = reinforceCost(sq); if (state.scrap < c) { state.shopMsg = 'Servono ' + c + ' rottami.'; return; }
@@ -15,10 +17,10 @@ function reinforce(sq) {
   const s = state.shopSite;
   sq.slots.forEach((k, i) => {
     if (sq.members[i] && sq.members[i].alive) return;
-    const p = spotNear(s.x + 0.5, s.z + 0.5, i); const m = spawn(k, p.x, p.z); m.squad = sq; sq.members[i] = m;
+    const p = spotNear(s.x + 0.5, s.z + 0.5, i); k = sq.slots[i] = replacement(k); const m = spawn(k, p.x, p.z); m.squad = sq; sq.members[i] = m;
   });
-  for (const k of sq.fallen || []) { // those who left the card come back as new slots
-    const i = sq.slots.length, p = spotNear(s.x + 0.5, s.z + 0.5, i), m = spawn(k, p.x, p.z);
+  for (const k0 of sq.fallen || []) { // those who left the card come back as new slots, Recruits
+    const k = replacement(k0), i = sq.slots.length, p = spotNear(s.x + 0.5, s.z + 0.5, i), m = spawn(k, p.x, p.z);
     m.squad = sq; sq.slots.push(k); sq.members.push(m);
   }
   sq.fallen = []; if (!sq.named) sq.name = squadName(sq.slots);
@@ -34,7 +36,7 @@ function recruitRoster() {
   const s = state.shopSite, sq = addSquad(r, s.x + 0.5, s.z + 0.5); sq.order = { t: 'follow' };
   state.shopMsg = sq.name + ' arruolata.'; state.roster = []; sfx('coin');
 }
-/** Buys a support vehicle (car or ltank) as a squad of its own. */
+/** Buys a support vehicle (jeep or support tank) as a squad of its own. */
 function buyVehicle(kind) {
   const cost = tune[UT[kind].cost];
   if (state.squads.length >= maxSquads()) { state.shopMsg = 'Massimo ' + maxSquads() + ' squadre.'; return; }
@@ -43,7 +45,6 @@ function buyVehicle(kind) {
   const s = state.shopSite, sq = addSquad([kind], s.x + 0.5, s.z + 0.5); sq.order = { t: 'follow' };
   state.shopMsg = UT[kind].name + ' pronto.'; sfx('coin');
 }
-function buyCar() { buyVehicle('car'); }
 function repairCost(n) { return Math.ceil(n * tune.repair_cost); }
 function repair(all) {
   const tk = state.tank, miss = Math.ceil(tk.maxhp - tk.hp); if (miss <= 0) { state.shopMsg = 'Il carro è integro.'; return; }
@@ -64,43 +65,28 @@ registerShopTab('barracks', {
       rrect(x0 + 24, yy, 480, 50, 5, 'rgba(0,0,0,0.3)', '#5a4030');
       text((i + 1) + '. ' + sq.name, x0 + 36, yy + 15, 15, HC.text, 'left');
       sq.slots.concat(sq.fallen || []).forEach((k, j) => { const m = sq.members[j]; unitIcon(k, x0 + 44 + j * 24, yy + 36, 18, m && m.alive ? '#a8d870' : '#5a3a32'); }); // the fallen after the living
-      squadMod(sq); text((sq.traits || []).map(t => t.name).join(' · '), x0 + 150, yy + 37, 11, '#b6d77a', 'left');
+      squadMod(sq); text((sq.traits || []).map(t => t.name).join(' · '), x0 + 40 + (sq.slots.length + (sq.fallen || []).length) * 24, yy + 37, 11, '#b6d77a', 'left'); // past the icons
       if (miss) button(x0 + 300, yy + 8, 194, 34, 'Rimpiazza ' + miss + ' (' + c + ')', () => reinforce(sq), { off: state.scrap < c, size: 14 });
       else text('Al completo', x0 + 494, yy + 25, 14, HC.ok, 'right');
     });
     if (!state.squads.length) text('Nessuna squadra.', x0 + 24, cy + 40, 15, HC.dim, 'left');
-    const rx = x0 + 540;
-    text('Nuova squadra su misura (max ' + tune.squad_max_size + ' soldati)', rx, cy + 6, 17, '#ffd9a0', 'left');
-    let hov = null;
-    INF_KINDS.forEach((k, i) => {
-      const bx0 = rx + (i % 3) * 154, by0 = cy + 26 + Math.floor(i / 3) * 52;
-      if (MS.x >= bx0 && MS.x <= bx0 + 148 && MS.y >= by0 && MS.y <= by0 + 46) hov = k;
-      button(bx0, by0, 148, 46, '', () => { if (state.roster.length < tune.squad_max_size) state.roster.push(k); }, { off: state.roster.length >= tune.squad_max_size });
-      unitIcon(k, bx0 + 20, by0 + 24, 24, '#a8d870');
-      text('+ ' + UT[k].name, bx0 + 38, by0 + 16, 14, HC.text, 'left'); text(tune[UT[k].cost] + ' rottami', bx0 + 38, by0 + 33, 13, HC.gold, 'left');
-    });
-    const ry = cy + 190;
-    rrect(rx, ry, 456, 60, 5, 'rgba(0,0,0,0.3)', '#5a4030');
-    const rtr = traitsOf(state.roster);
-    if (state.roster.length) {
-      text(squadName(state.roster), rx + 12, ry + 16, 15, HC.text, 'left'); state.roster.forEach((k, j) => unitIcon(k, rx + 22 + j * 26, ry + 42, 20, '#a8d870'));
-      text(rtr.map(t => t.name).join(' · '), rx + 140, ry + 42, 12, '#b6d77a', 'left');
-    }
-    else { text('Scegli i soldati qui sopra: un cecchino solitario, un team', rx + 12, ry + 20, 13, HC.dim, 'left'); text('di mitraglieri, fucilieri con un medico...', rx + 12, ry + 40, 13, HC.dim, 'left'); }
-    const rc = rosterCost(state.roster);
-    button(rx, ry + 70, 150, 38, 'Svuota', () => { state.roster = []; });
-    button(rx + 160, ry + 70, 296, 38, 'Arruola (' + rc + ' rottami)', recruitRoster, { off: !state.roster.length || state.scrap < rc || state.squads.length >= maxSquads() });
-    [['jeep', 'Jeep'], ['car', 'Autoblindo'], ['ltank', 'Carro supporto']].forEach(([k, d], i) => {
+    const rx = x0 + 540, n = Math.max(1, Math.min(tune.squad_max_size, state.recruitN || tune.squad_max_size)), rc = n * tune.cost_recruit;
+    text('Nuova squadra di reclute', rx, cy + 6, 17, '#ffd9a0', 'left');
+    wrap('Tutti partono da Recluta: con l\'esperienza ognuno sceglie il suo incarico dalla scheda della squadra (Fuciliere, Esploratore, Medico, Geniere, poi le specializzazioni).', 456, 13).slice(0, 3).forEach((l, k) => text(l, rx, cy + 30 + k * 17, 13, HC.dim, 'left'));
+    button(rx, cy + 86, 44, 40, '-', () => { state.recruitN = Math.max(1, n - 1); }, { off: n <= 1 });
+    rrect(rx + 50, cy + 86, 150, 40, 5, 'rgba(0,0,0,0.3)', '#5a4030');
+    for (let j2 = 0; j2 < n; j2++) unitIcon('recruit', rx + 64 + j2 * 22, cy + 106, 18, '#a8d870');
+    button(rx + 206, cy + 86, 44, 40, '+', () => { state.recruitN = Math.min(tune.squad_max_size, n + 1); }, { off: n >= tune.squad_max_size });
+    button(rx + 260, cy + 86, 196, 40, 'Arruola ' + n + ' (' + rc + ')', () => { state.roster = Array(n).fill('recruit'); recruitRoster(); }, { off: state.scrap < rc || state.squads.length >= maxSquads() });
+    const ry = cy + 140;
+    text('Mezzi di supporto (una squadra ciascuno)', rx, ry, 15, '#ffd9a0', 'left');
+    [['jeep', 'Jeep'], ['ltank', 'Carro supporto']].forEach(([k, d], i) => {
       const c = tune[UT[k].cost], bx0 = rx + i * 154;
-      button(bx0, ry + 124, 148, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
-      unitIcon(k, bx0 + 20, ry + 147, 22, '#a8d870');
-      text(d, bx0 + 40, ry + 139, 13, HC.text, 'left'); text(c + ' rottami', bx0 + 40, ry + 157, 12, HC.gold, 'left');
+      button(bx0, ry + 14, 148, 46, '', () => buyVehicle(k), { off: state.scrap < c || state.squads.length >= maxSquads() });
+      unitIcon(k, bx0 + 20, ry + 37, 22, '#a8d870');
+      text(d, bx0 + 40, ry + 29, 13, HC.text, 'left'); text(c + ' rottami', bx0 + 40, ry + 47, 12, HC.gold, 'left');
     });
-    text('Squadre: ' + state.squads.length + ' / ' + maxSquads(), rx, ry + 190, 14, HC.dim, 'left');
-    // the role under the mouse, or what the new squad's make-up gives it
-    if (hov) { text(UT[hov].name, rx, ry + 214, 14, '#ffd9a0', 'left'); wrap(ROLE_DESC[hov], 456, 13).slice(0, 2).forEach((l, k) => text(l, rx, ry + 232 + k * 16, 13, HC.text, 'left')); }
-    else if (rtr.length) rtr.slice(0, 4).forEach((t, k) => text(t.name + ': ' + t.desc, rx, ry + 214 + k * 17, 13, t.bad ? '#e0a070' : '#b6d77a', 'left'));
-    else text('Passa sopra un ruolo per leggere cosa fa. La composizione dà bonus e malus.', rx, ry + 214, 12, HC.dim, 'left');
+    text('Squadre: ' + state.squads.length + ' / ' + maxSquads() + '   ·   al massimo ' + tune.squad_max_size + ' soldati per squadra', rx, ry + 80, 14, HC.dim, 'left');
   },
 });
 registerShopTab('repair', {

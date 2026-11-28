@@ -181,7 +181,7 @@ function startTestMap() {
   newRun(null);
   state.mission = null; state.npcs = []; state.quests = []; // no mission, no Horde, no one met on the way
   const tk = state.tank, back = (k, d) => ({ x: tk.x - Math.sin(tk.heading + k) * d, z: tk.z - Math.cos(tk.heading + k) * d });
-  for (const [slots, k] of [[['rifle', 'rifle', 'rifle', 'mg'], 0.6], [['sniper', 'at'], -0.6], [['ltank'], 0.2], [['car'], -0.2], [['jeep'], 0]]) {
+  for (const [slots, k] of [[['rifle', 'rifle', 'rifle', 'mg'], 0.6], [['sniper', 'at'], -0.6], [['ltank'], 0.2], [['recruit', 'recruit', 'recruit'], -0.2], [['jeep'], 0]]) {
     const p = back(k, slots[0] === 'jeep' ? 14 : 9); const sq = addSquad(slots, p.x, p.z); if (sq) sq.order = { t: 'hold' }; // the usual posture: they fire at the targets in reach (Q in the order menu holds their fire)
   }
   state.scrap = 999;

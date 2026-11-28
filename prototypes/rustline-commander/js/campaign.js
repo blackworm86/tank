@@ -162,13 +162,13 @@ function setupMap() {
 /** The eighth sector: the army's last camp, its squads and tanks, and the Horde's gate. */
 function setupFinal() {
   const b = world.sites.start;
-  const army = [['rifle', 'rifle', 'rifle', 'rifle', 'mg'], ['rifle', 'rifle', 'at'], ['sniper', 'sniper'], ['ltank'], ['car']];
+  const army = [['rifle', 'rifle', 'rifle', 'rifle', 'mg'], ['rifle', 'rifle', 'at'], ['sniper', 'sniper'], ['ltank'], ['jeep']];
   let k = 0;
   for (const slots of army) {
     if (state.squads.length >= maxSquads()) break;
     const p = spotNear(b.x + 0.5 + (k % 3 - 1) * 7, b.z + 0.5 + (Math.floor(k / 3) - 0.5) * 7, k);
     const sq = addSquad(slots, p.x, p.z);
-    if (sq) { sq.order = { t: 'hold' }; sq.name = (slots[0] === 'ltank' ? 'Carro ' : slots[0] === 'car' ? 'Blindo ' : 'Plotone ') + ['Ascia', 'Brace', 'Corvo', 'Dente', 'Eco'][k]; sq.named = true; }
+    if (sq) { sq.order = { t: 'hold' }; sq.name = (slots[0] === 'ltank' ? 'Carro ' : slots[0] === 'jeep' ? 'Jeep ' : 'Plotone ') + ['Ascia', 'Brace', 'Corvo', 'Dente', 'Eco'][k]; sq.named = true; }
     k++;
   }
   say('Comando', 'Comandante! Quello che resta dell\'esercito è ai tuoi ordini. Prepara le difese: l\'Orda arriva tra ' + fmtT(state.hordeT) + '.', '#9fe3a0');

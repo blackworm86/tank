@@ -23,28 +23,25 @@ function spawn(kind, x, z, extra) {
   return e;
 }
 // ---- Ranks: soldiers who live through fights get better ------------------------------------------------
-const RANKS = ['Recluta', 'Esperto', 'Veterano', 'Élite'];
-/** XP to a soldier of ours; past each rank_xp_N threshold it is promoted (faster, steadier aim, tougher, quicker to fire). */
+/** XP to a soldier of ours; past each rank_xp_N threshold he goes up a level of his Job (faster, steadier aim, tougher, quicker to fire). A Recruit stops at level 1, ready for a Job (jobs.js). */
 function giveXp(e, n) {
   if (!e || !e.alive || e.team !== 0 || e.veh) return;
   e.xp = (e.xp || 0) + n;
-  let r = 0; for (let k = 1; k <= 3; k++) if (e.xp >= tune['rank_xp_' + k]) r = k;
+  let r = 0; for (let k = 1; k <= (e.kind === 'recruit' ? 1 : 3); k++) if (e.xp >= tune['rank_xp_' + k]) r = k;
   if (r > (e.rank || 0)) {
     const hp0 = e.maxhp; e.rank = r; e.maxhp = unitHp(e); e.hp += e.maxhp - hp0;
-    floatText(e.x, e.y + 2.6, e.z, 'Promosso: ' + RANKS[r], '#ffd36a');
-    if (e.squad) say(e.squad.name, UT[e.kind].name + ' promosso a ' + RANKS[r] + '.', '#ffd36a');
+    floatText(e.x, e.y + 2.6, e.z, UT[e.kind].name + ' ' + JOB_LEVELS[r], '#ffd36a');
+    if (e.squad) say(e.squad.name, jobOptions(e).length ? UT[e.kind].name + ' pronto per un nuovo incarico: freccia dorata sulla scheda.' : UT[e.kind].name + ' ora ' + JOB_LEVELS[r] + '.', '#ffd36a');
   }
 }
-function rankK(e, key) { return 1 + (e.rank || 0) * tune[key]; }
+function rankK(e, key) { return 1 + (e.kind === 'recruit' ? 0 : (e.rank || 0)) * tune[key]; } // a Recruit's levels give no bonus
 function suppressed(e) { return state.t < (e.supT || 0); }
 function unitHp(e) {
   const tier = e.tier || 1, k = 1 + (tier - 1) * tune.tier_scale;
   switch (e.kind) {
     case 'tank': return tankStats().hp;
-    case 'car': return tune.car_hp;
     case 'jeep': return tune.jeep_hp;
     case 'ltank': return tune.ltank_hp;
-    case 'at': return tune.at_hp;
     default: if (ENEMY[e.kind]) return enemyHp(e); // the enemy registry (content/horde.js)
       return e.team ? tune.raider_hp * k : tune.inf_hp * rankK(e, 'rank_hp');
   }
@@ -56,11 +53,9 @@ function unitSpeed(e) {
 function baseSpeed(e) {
   if (ENEMY[e.kind]) return ENEMY[e.kind].speed(); // the enemy registry
   switch (e.kind) {
-    case 'car': return tune.car_speed;
     case 'jeep': return tune.jeep_speed;
     case 'ltank': return tune.ltank_speed;
-    case 'at': return tune.inf_speed * 0.55;
-    case 'mortar': case 'mg': return tune.inf_speed * 0.85;
+    case 'mg': return tune.inf_speed * 0.85;
     case 'scout': return tune.inf_speed * tune.scout_speed;
     default: return tune.inf_speed * (e.team ? 0.92 : 1);
   }

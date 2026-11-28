@@ -31,6 +31,7 @@
 <script src="js/systems/entities.js"></script>
 <script src="js/systems/run.js"></script>
 <script src="js/systems/squads.js"></script>
+<script src="js/systems/jobs.js"></script>
 <script src="js/systems/ride.js"></script>
 <script src="js/systems/fog.js"></script>
 <script src="js/systems/ordermenu.js"></script>
@@ -213,7 +214,7 @@ const scenes = {
   },
   play: {
     update(dt) {
-      if (pressed('KeyP') || (pressed('Escape') && !state.menu)) { scene = 'pause'; return; }
+      if (pressed('KeyP') || (pressed('Escape') && !state.menu && !state.jobPick)) { scene = 'pause'; return; }
       try { stepPlay(dt); } catch (err) { reportError(err); }
       // the run ends even if something above went wrong: a lost tank always reaches the end screen
       if (!state.tank.alive && !state.goScene && state.t > (state.tank.deathT || 0) + 5) { state.result = state.result || 'lose'; endRun(); }

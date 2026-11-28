@@ -56,7 +56,6 @@ function updateUnits(dt) {
       if (lurking(e)) { // an ambush: hold fire till they walk into it (or someone is hit)
         if (dist2(e, t) <= (w.range * tune.ambush_trigger) ** 2 || state.t - (e.shotT || -99) < 1) springAmbush(e.squad); else aligned = false;
       }
-      if (e.kind === 'at' && !e.revealed && dist2(e, t) > (w.range * tune.at_ambush) ** 2) aligned = false; // the gun waits for a sure shot
       if (!e.team && e.squad) { // the squad's posture decides whether it opens fire
         const r = roe(e), hit = state.t - (e.squad.attackedT || -99) < tune.posture_memory, ordered = t === e.pref;
         if (!ordered && (r === 'hold' || (r === 'return' && !hit))) aligned = false; // the rules of engagement (squads.js ROES)
@@ -133,7 +132,7 @@ function nudge(e, dx, dz) {
   if (walkable(Math.floor(nx), Math.floor(nz)) && Math.abs(hAt(nx, nz) - hAt(e.x, e.z)) <= 1) { e.x = nx; e.z = nz; }
 }
 /** A vehicle's turret speed, radians a second: the support tank's, the armoured car's, a raider's. */
-function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'car' ? tune.car_turret : e.kind === 'jeep' ? tune.jeep_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
+function turretRate(e) { return (e.kind === 'ltank' ? 70 : e.kind === 'jeep' ? tune.jeep_turret : enemyTurret(ENEMY[e.kind])) * Math.PI / 180; }
 /**
  * Where a vehicle's gunner looks with no target: along the way it drives, the way it was told to face, or the
  * last enemy seen, swept slowly turret_scan either side as the crew watches.
@@ -321,7 +320,7 @@ function pickTarget(e, w) {
 }
 /** True when any unit of the team can see the target (the mortar fires on what others spot). */
 function seenByTeam(o, team) {
-  for (const f of state.ents) if (f.alive && !f.inside && f.team === team && f.kind !== 'mortar' && dist2(f, o) < tune.sight_range ** 2 && canSee(f, o)) return true;
+  for (const f of state.ents) if (f.alive && !f.inside && f.team === team && dist2(f, o) < tune.sight_range ** 2 && canSee(f, o)) return true;
   return false;
 }
 function raiderThink(e, w) {

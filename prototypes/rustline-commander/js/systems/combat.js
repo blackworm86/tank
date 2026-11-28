@@ -49,7 +49,7 @@ function dmgTo(e, amt, kind, src, hit) {
   dmgNumber(e, amt, D, res, side, src); // js/damage.js
   if (src) { e.shotBy = src; e.shotT = state.t; e.revealed = true; if (!e.team && e.squad) e.squad.attackedT = state.t; }
   if (lurking(e)) springAmbush(e.squad);
-  if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit); }
+  if (e.team === 1 && src && src.team === 0) { alertGroup(e.group, src); giveXp(src, tune.xp_hit * xpFactor(src, e)); }
   if (e.team === 0 && e.squad && src && src.team === 1 && state.t - (e.squad.fireMsgT || -99) > 12) { e.squad.fireMsgT = state.t; say(e.squad.name, 'Siamo sotto fuoco!', '#ff9a7a'); }
   if (e.hp <= 0 && !medicSave(e, kind)) kill(e, src, kind);
 }
@@ -71,7 +71,7 @@ function kill(e, src, kind) {
     const D = ENEMY[e.kind];
     if (D && D.tally) state[D.tally] = (state[D.tally] || 0) + 1; // a counter an achievement reads
     if (kind === 'crush') state.crushes = (state.crushes || 0) + 1;
-    if (src && src.team === 0) giveXp(src, tune.xp_kill * (e.veh ? 3 : 1));
+    if (src && src.team === 0) giveXp(src, killXp(src, e)); // jobs.js: the enemy's strength, less for those far above it
     if (!e.veh) { state.scrap += tune.scrap_infantry; floatText(e.x, e.y + 2.2, e.z, '+' + tune.scrap_infantry, '#ffd36a'); }
     if (D && D.deathSay && !e.dev) say('Radio', D.deathSay, '#9fe3a0');
   } else if (e.kind === 'tank') {
