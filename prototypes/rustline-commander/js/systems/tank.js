@@ -195,7 +195,8 @@ function fireCannon(tk, S) {
   const ty = tk.aligned && rr < 1.2 ? a.y : Math.max(world.WL - 0.2, hAt(tx, tz));
   const mx = tk.x + Math.sin(tk.turretYaw) * (1.2 + S.barrel), mz = tk.z + Math.cos(tk.turretYaw) * (1.2 + S.barrel), my = tk.vy + 1.95;
   const dt = S.dtype || SHELLS[state.shell].dtype || state.shell; // a rocket launcher fires its own kind; a gun the round loaded (incendiary: fire)
-  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * (S.dtype ? 1 : SHELLS[state.shell].blast), shell: state.shell, dtype: dt, pen: dt === 'ap' || dt === 'heat' ? S.pen : undefined }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);
+  const own = S.dtype ? null : state.shell; // the round's reach on men, its crater and its strength on walls (iteration 74)
+  launch({ kind: 'shell', team: 0, owner: tk, dmg: S.dmg, blast: S.blast * (own ? shellK(own, 'unit') : 1), groundR: own ? S.blast * shellK(own, 'ground') : undefined, bldK: own ? shellK(own, 'bld') : undefined, shell: state.shell, dtype: dt, pen: dt === 'ap' || dt === 'heat' ? S.pen : undefined }, mx, my, mz, tx, ty, tz, tune.shell_speed, tune.shell_gravity);
   tk.reload = S.reload; tk.recoil = state.weapon === 'c75' || state.weapon === 'c105' ? 1 : 0.35; tk.spread += S.fireSpread;
   state.lastShot = state.t;
   muzzle(mx, my, mz, 1.3); sfx('cannon', tk.x, tk.z); cam.shake = Math.max(cam.shake, tune.shake * 0.6);

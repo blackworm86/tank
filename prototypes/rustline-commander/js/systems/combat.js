@@ -89,7 +89,8 @@ function kill(e, src, kind) {
 /** A shell, rocket or mortar round goes off: voxels fly, units in the radius are hurt. */
 function explode(p, x, y, z, direct) {
   if (p.smoke) { smokeAt(x, z); return; } // a smoke grenade (iteration 71)
-  const removed = blastVoxels(x, y, z, p.blast, { dtype: p.dtype, dmg: p.dmg, pen: p.pen, vx: p.vx, vy: p.vy, vz: p.vz });
+  const gr = p.groundR ?? p.blast; // the main gun's rounds dig their own crater (iteration 74): fragmentation scarcely scratches
+  const removed = gr > 0.05 ? blastVoxels(x, y, z, gr, { dtype: p.dtype, dmg: p.dmg * (p.bldK ?? 1), pen: p.pen, vx: p.vx, vy: p.vy, vz: p.vz }) : [];
   spawnDebris(removed, x, y, z, 40);
   blastFx(x, y, z, p.blast);
   if (p.fire || p.dtype === 'fire') { fireSplash(x, y, z); igniteArea(x, y, z, p.blast * tune.fire_inc_r, p.owner); } // a molotov, an incendiary round (js/fire.js)
@@ -105,7 +106,8 @@ function explode(p, x, y, z, direct) {
       if (p.shell === 'frag' && e.team === 1 && !e.veh) e.supT = state.t + tune.suppress_time * 1.5; // splinters pin them down
       if (p.owner && e.team === p.owner.team) a *= 0.5;
       const cq = e.veh || e.rideOn || p.grenade ? 0 : coverFrom(e, x, z); // a grenade lands behind the cover, inside the room
-      if (cq === 2) a *= tune.cover_blast; else if (cq === 1) a *= tune.cover_blast_light;
+      const ck = p.shell === 'frag' ? tune.shell_frag_cover : 1; // splinters come over cover: light cover none, heavy cover part (iteration 74)
+      if (cq === 2) a *= 1 - (1 - tune.cover_blast) * ck; else if (cq === 1 && p.shell !== 'frag') a *= tune.cover_blast_light;
       dmgTo(e, a, 'blast', p.owner, { x, z, top: p.kind === 'mortar', dtype: p.dtype === 'frag' || p.dtype === 'fire' ? p.dtype : 'he' });
     }
   }

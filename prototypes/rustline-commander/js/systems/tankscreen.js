@@ -44,7 +44,7 @@ function drawTankPanel(x0, w, cy, bottom, live) {
   TSZ.hot = null;
   const L = { x: x0 + 24, w: 250 }, R = { x: x0 + w - 24 - 250, w: 250 };
   const C = { x: L.x + L.w + 20, w: R.x - 20 - (L.x + L.w + 20) };
-  const detH = 108, mainB = bottom - detH - 10;
+  const detH = 122, mainB = bottom - detH - 10;
   drawWeaponCol(L, cy, mainB, live);
   drawSysCol(R, cy, mainB, live);
   if (live && state.tsPick) drawPick(C, cy, mainB);
@@ -80,7 +80,7 @@ function drawWeaponCol(L, cy, mainB, live) {
       const n5 = Math.min(5, Math.max(0, room));
       button(L.x + 8, yy + 22, 96, 18, '+5 (' + n5 * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
       button(L.x + 110, yy + 22, L.w - 118, 18, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
-    } else text('Mezzi x' + S0.veh + ' · Fanteria x' + S0.inf, L.x + 10, yy + 30, 13, HC.dim, 'left');
+    } else text('Mezzi x' + shellK(k, 'veh') + ' · Fanteria x' + shellK(k, 'inf'), L.x + 10, yy + 30, 13, HC.dim, 'left');
   });
 }
 
@@ -118,8 +118,8 @@ function drawHullCol(C, cy, mainB, live) {
     text('liv. ' + l + '/' + stdMax(), x + bw - 8, y + 31, 13, l ? '#ffd36a' : HC.dim, 'right');
     if (c == null) text('Al massimo', x + 10, y + bh - 13, 13, '#b6d77a', 'left');
     else if (live) button(x + 6, y + bh - 22, bw - 12 - (state.sandbox ? 28 : 0), 18, 'Migliora (' + (state.sandbox ? 'gratis' : c) + ')', () => upgradeStd(id), { off: state.scrap < c, size: 13 });
-    if (live && state.sandbox && l > 0) button(x + bw - 30, y + bh - 22, 24, 18, '−', () => lowerStd(id), { size: 14 });
     else text('Prossimo: ' + c + ' rottami', x + 10, y + bh - 13, 13, HC.dim, 'left');
+    if (live && state.sandbox && l > 0) button(x + bw - 30, y + bh - 22, 24, 18, '−', () => lowerStd(id), { size: 14 });
   };
   STD_LEFT.forEach((id, i) => box(id, C.x, top + i * step, true));
   STD_RIGHT.forEach((id, i) => box(id, C.x + C.w - bw, top + Math.round((i + 0.5) * step * n / STD_RIGHT.length - step / 2), false));
@@ -195,7 +195,8 @@ function drawDetail(x, y, w, h, live) {
   } else if (it.startsWith('s:')) {
     const k = it.slice(2), S0 = SHELLS[k];
     title = S0.short + ' · ' + S0.name + (state.shell === k ? ' · caricato' : ''); desc = S0.desc;
-    L.push('Danno ai mezzi x' + S0.veh + ' · alla fanteria x' + S0.inf + ' · raggio dello scoppio x' + S0.blast);
+    L.push('Danno: fanteria x' + shellK(k, 'inf') + ' · mezzi x' + shellK(k, 'veh') + ' · scoppio sugli uomini x' + shellK(k, 'unit'));
+    L.push('Muri x' + shellK(k, 'bld') + ' · cratere nel terreno x' + shellK(k, 'ground') + (k === 'frag' ? ' · i ripari leggeri non fermano le schegge' : k === 'ap' ? ' · trapassa i muri' : k === 'inc' ? ' · incendia ciò che brucia' : ''));
     foot = 'Un colpo: ' + shellCost(k) + ' rottami. In marcia Tab cambia il tipo caricato.';
   } else if (it.startsWith('sys:')) {
     const id = it.slice(4), S0 = SYSTEMS[id], k = S0.active && sysKey(id);
@@ -208,7 +209,7 @@ function drawDetail(x, y, w, h, live) {
   dl.forEach((l, k) => text(l, x + 14, y + 36 + k * 16, 13, HC.text, 'left'));
   let ly = y + 36 + dl.length * 16;
   L.slice(0, 3).forEach(l => { wrap(l, dw, 13).slice(0, 1).forEach(s => text(s, x + 14, ly, 13, '#cfe6a8', 'left')); ly += 16; });
-  if (foot) text(foot, x + 14, y + h - 12, 13, footCol, 'left');
+  if (foot) text(foot, x + 14, Math.max(ly + 2, y + h - 14), 13, footCol, 'left');
   // the vehicle's numbers
   const S0 = tankStats(), tk = state.tank, sx = x + w - sw - 14;
   ctx.strokeStyle = '#5a4030'; ctx.beginPath(); ctx.moveTo(sx - 12, y + 10); ctx.lineTo(sx - 12, y + h - 10); ctx.stroke();

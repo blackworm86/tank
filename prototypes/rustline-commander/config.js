@@ -388,6 +388,21 @@ window.CONFIG = {
   dk_heat_veh: { value: 1.3, min: 0, max: 3, step: 0.05 },
   dk_fire_inf: { value: 1, min: 0, max: 3, step: 0.05 },
   dk_fire_veh: { value: 0.15, min: 0, max: 3, step: 0.05 },
+  // the main gun's rounds (iteration 74): unit, the blast's reach on men and vehicles; ground, the crater it digs in earth
+  // and rock; bld, its strength on walls (times the hit's damage); all times the weapon's own blast and damage
+  shell_he_unit: { value: 1, min: 0.1, max: 3, step: 0.05 },     // explosive: the all-rounder, breaches walls and cover
+  shell_he_ground: { value: 1, min: 0, max: 3, step: 0.05 },
+  shell_he_bld: { value: 1, min: 0, max: 3, step: 0.05 },
+  shell_ap_unit: { value: 0.4, min: 0.1, max: 3, step: 0.05 },   // piercing: armour; a narrow hole through a wall, next to no blast
+  shell_ap_ground: { value: 0.35, min: 0, max: 3, step: 0.05 },
+  shell_ap_bld: { value: 0.7, min: 0, max: 3, step: 0.05 },
+  shell_frag_unit: { value: 2, min: 0.1, max: 3, step: 0.05 },   // fragmentation: a wide hail on men, scarcely a scratch on walls and ground
+  shell_frag_ground: { value: 0.3, min: 0, max: 3, step: 0.05 },
+  shell_frag_bld: { value: 0.15, min: 0, max: 3, step: 0.05 },
+  shell_frag_cover: { value: 0.5, min: 0, max: 1, step: 0.05 },  // splinters over cover: how much of the cover's protection still counts (light cover none)
+  shell_inc_unit: { value: 1.1, min: 0.1, max: 3, step: 0.05 },  // incendiary: fire on what burns, no crater
+  shell_inc_ground: { value: 0.25, min: 0, max: 3, step: 0.05 },
+  shell_inc_bld: { value: 0.2, min: 0, max: 3, step: 0.05 },
   splash_veh: { value: 0.45, min: 0, max: 1, step: 0.05 },        // share of a blast's splash a vehicle takes (then its armour)
   splash_pierce: { value: 0.4, min: 0, max: 1, step: 0.05 },      // a piercing or shaped-charge round's splash, a share of a blast's
   dmg_numbers: { value: 1, min: 0, max: 1, step: 1 },             // 1: damage numbers over the units hit

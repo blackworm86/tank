@@ -41,13 +41,21 @@ function equipWeapon(id) {
   for (const k of SHELL_IDS) state.ammo[k] = max0 && max1 ? Math.round(state.ammo[k] * max1 / max0) : max1 ? (k === 'he' ? Math.round(max1 * 0.6) : k === 'ap' ? max1 - Math.round(max1 * 0.6) : 0) : 0;
   state.shopMsg = W.name + ' montata.'; sfx('coin');
 }
-/** The three kinds of round for the main gun. veh/inf: damage on vehicles and infantry; blast: radius. */
+/**
+ * The four kinds of round for the main gun (iteration 74: each one good at something and bad at something). Their numbers
+ * are in config.js (shell_<id>_unit, _ground, _bld; dk_<dtype>_inf and _veh for men and vehicles): shellK reads them.
+ */
 const SHELLS = {
-  he: { name: 'Esplosivo', short: 'HE', desc: 'Scoppio largo: fanteria e coperture. Debole sui mezzi.', veh: 0.6, inf: 1.2, blast: 1.35 },
-  ap: { name: 'Perforante', short: 'AP', desc: 'Buca le corazze: molto danno ai mezzi, poco scoppio.', veh: 1.6, inf: 0.5, blast: 0.4 },
-  frag: { name: 'Frammentazione', short: 'FRAG', desc: 'Pioggia di schegge: sopprime la fanteria su un\'area larga.', veh: 0.2, inf: 0.75, blast: 2.2 },
-  inc: { name: 'Incendiario', short: 'INC', dtype: 'fire', desc: 'Appicca il fuoco a legno, fieno, teli e sacchi; brucia e fa fuggire la fanteria. Quasi nulla sui mezzi.', veh: 0.15, inf: 1, blast: 1.1 },
+  he: { name: 'Esplosivo', short: 'HE', dtype: 'he', desc: 'Il colpo di base: buono sulla fanteria allo scoperto, apre brecce in muri e coperture. Debole sui corazzati.' },
+  ap: { name: 'Perforante', short: 'AP', dtype: 'ap', desc: 'Buca le corazze e trapassa i muri con un foro stretto: il colpo per i mezzi. Quasi nessuno scoppio, poco utile sulla fanteria.' },
+  frag: { name: 'Frammentazione', short: 'FRAG', dtype: 'frag', desc: "Schegge su un'area larga: inchioda la fanteria e la raggiunge anche dietro i ripari leggeri. Quasi non scalfisce muri, terreno e mezzi." },
+  inc: { name: 'Incendiario', short: 'INC', dtype: 'fire', desc: 'Appicca il fuoco a legno, fieno, teli e sacchi: brucia e fa fuggire la fanteria, nega una zona. Non scava, quasi nulla sui mezzi.' },
 };
+/** A round's factor: 'unit' (blast on men and vehicles), 'ground' (crater), 'bld' (walls), 'inf' and 'veh' (its damage type on each). */
+function shellK(k, what) {
+  if (what === 'inf' || what === 'veh') return dtypeK(SHELLS[k].dtype, what === 'veh');
+  return tune['shell_' + k + '_' + what];
+}
 const SHELL_IDS = ['he', 'ap', 'frag', 'inc'];
 /** True while the weapon in use fires counted rounds. */
 function countedGun() { return weaponStats(state.weapon).kind === 'shell'; }
