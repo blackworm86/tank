@@ -54,6 +54,7 @@
 <script src="js/factions.js"></script>
 <script src="js/loadout.js"></script>
 <script src="js/modules.js"></script>
+<script src="js/systems/tankscreen.js"></script>
 <!-- Content packs: a pack is a folder in js/content/ and its lines here, after every system; an expansion
      is one more folder and its lines below base (docs/architecture/rustline-modular-plan.md). -->
 <!-- pack: base -->
@@ -90,7 +91,7 @@ const CONTROLS = [
   '1-6 squadre  Alt+1-6 sposta  H fermi  B bordo  U esci',
   'I ingaggio  L andatura  O formazione',
   'All\'uscita: officina (modifiche, colpi, riparazioni, soldati)',
-  'Q/E camera  Rotella zoom  P pausa  M muto  F2 sviluppo',
+  'K mezzo  Q/E camera  Rotella zoom  P pausa  M muto  F2 sviluppo',
 ];
 const clock = window.GAME_CLOCK || { now: () => performance.now() / 1000 }; // a check may inject one
 const CHEAP = params.get('render') === 'cheap'; // a headless shot or check: 3D draws cheap; players never see it
@@ -218,6 +219,7 @@ const scenes = {
   play: {
     update(dt) {
       if (pressed('KeyP') || (pressed('Escape') && !state.menu && !state.jobPick)) { scene = 'pause'; return; }
+      if (pressed('KeyK') && !state.menu && !state.jobPick) { state.tsPick = null; scene = 'tank'; return; } // iteration 72: the vehicle screen
       try { stepPlay(dt); } catch (err) { reportError(err); }
       // the run ends even if something above went wrong: a lost tank always reaches the end screen
       if (!state.tank.alive && !state.goScene && state.t > (state.tank.deathT || 0) + 5) { state.result = state.result || 'lose'; endRun(); }
@@ -242,6 +244,11 @@ const scenes = {
       if (!state.shopSite) { state.shopSite = world.sites.start; state.shopTab = shopTabs()[Number(params.get('tab')) || 0]; } // a shot opens it straight
       ctx.clearRect(0, 0, W, H); renderWorld(); drawShop();
     },
+  },
+  // the vehicle screen in the field (js/systems/tankscreen.js): the game waits
+  tank: {
+    update() { tankScreenInput(); },
+    draw() { scenes.play.draw(); drawTankScreen(); },
   },
   pause: {
     update() { if (pressed('KeyP') || pressed('Escape')) scene = 'play'; MS.lp = MS.rp = MS.lr = MS.rr = false; },

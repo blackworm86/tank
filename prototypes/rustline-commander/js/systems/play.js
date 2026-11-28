@@ -67,7 +67,7 @@ function handleInput() {
   if (tk.alive && pressed('KeyZ')) quickFollow();
   if (pressed('KeyX')) cycleTankForm();
   if (tk.alive && pressed('KeyC')) quickHoldFire();
-  if (pressed('F2')) { state.dev = !state.dev; say('Radio', state.dev ? 'Pannello sviluppo aperto (F2). K: nemico sotto il mouse.' : 'Pannello sviluppo chiuso.', '#c8a0ff'); }
+  if (pressed('F2')) { state.dev = !state.dev; say('Radio', state.dev ? 'Pannello sviluppo aperto (F2). Shift+J: nemico sotto il mouse.' : 'Pannello sviluppo chiuso.', '#c8a0ff'); }
   if (state.dev) devInput();
   if (!tk.alive) return;
   if (pressed('CapsLock')) { toggleTankPace(); say('Pilota', tankFast() ? 'Massima velocità.' : 'Passo della fanteria.', '#ffd9a0'); } // tank.js

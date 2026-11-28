@@ -15,7 +15,7 @@ function newRun(carry) {
     lv: {}, lookKey: 1, blips: [], radarT: 0,
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapon, stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
-    hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 'standard', shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
+    hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 'tank', shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
     boss: null, menu: null, picked: null, rename: null, dragSoldier: null, event: null, campsKnown: false, goScene: null,
     systems: [], owned: [], weaponsOwned: [HULLS[HULL_PICK.id].weapon], ammo: null, shell: 'he', sysCd: {}, smokes: [], eraLeft: 3,
     techKills: 0, crushes: 0, newAch: [], turboUntil: 0, repairUntil: 0, salvo: null, relayL: null,

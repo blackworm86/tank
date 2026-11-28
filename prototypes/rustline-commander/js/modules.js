@@ -11,15 +11,15 @@
  * up(k): what one level gives, for the workshop's line (the numbers: std_<id>_k in config.js).
  */
 const STD_SYSTEMS = [
-  { id: 'turret', name: 'Torretta', icon: 'turret', look: [[], ['t_ring'], ['t_servo'], ['t_ring', 't_servo']], up: k => 'torretta +' + pc(k) },
-  { id: 'stab', name: 'Stabilizzatore', icon: 'stab', look: [[], ['t_gyro'], ['t_gyro'], ['t_stab']], up: k => 'dispersione in moto -' + pc(k) + ', mira più rapida' },
-  { id: 'gun', name: 'Arma principale', icon: 'cannon', look: [[], ['g_brake'], ['g_long'], ['g_long', 'g_brake']], up: k => 'ricarica -' + pc(k) + ', danno +' + pc(k * 0.8) + ', dispersione -' + pc(k * 0.8) },
-  { id: 'coax', name: 'Mitragliatrice coassiale', icon: 'coax', look: [[], ['c_heavy'], ['c_water'], ['c_twin']], up: k => 'calore sopportato +' + pc(k) + ', cadenza +' + pc(k * 0.12) },
-  { id: 'armor', name: 'Corazza', icon: 'armor', look: [[], ['f_plates'], ['f_plates', 's_plates'], ['f_comp', 's_comp']], up: k => 'danni subiti -' + pc(k) + ' (retro metà), +' + Math.round(tune.std_armor_hp) + ' integrità' },
-  { id: 'engine', name: 'Motore', icon: 'engine', look: [[], ['d_diesel'], ['d_turbo'], ['d_v12']], up: k => 'velocità +' + pc(k) + ', accelerazione +' + pc(k * 4) },
-  { id: 'tracks', name: 'Cingoli e ruote', icon: 'tracks', look: [[], ['d_wide'], ['d_wide'], ['d_race']], up: k => 'rotazione +' + pc(k) + ', sale +' + (k * 1.5).toFixed(2) + ' m' },
-  { id: 'bay', name: 'Vano truppe', icon: 'seats', look: [[], ['b_handles'], ['b_bay'], ['b_bay', 'b_handles']], up: k => '+' + Math.round(k) + ' posti' },
-  { id: 'radio', name: 'Radio', icon: 'radio', look: [[], ['r_radio'], ['r_mast'], ['r_long']], up: k => 'raggio radio +' + pc(k) },
+  { id: 'turret', short: 'Torretta', desc: "Il motore che gira la torretta: più livelli, più in fretta il cannone arriva dove punta il mouse.", name: 'Torretta', icon: 'turret', look: [[], ['t_ring'], ['t_servo'], ['t_ring', 't_servo']], up: k => 'torretta +' + pc(k) },
+  { id: 'stab', short: 'Stabilizzatore', desc: "Tiene il cannone fermo mentre lo scafo si muove: si spara meglio in marcia e si mira prima.", name: 'Stabilizzatore', icon: 'stab', look: [[], ['t_gyro'], ['t_gyro'], ['t_stab']], up: k => 'dispersione in moto -' + pc(k) + ', mira più rapida' },
+  { id: 'gun', short: 'Arma principale', desc: "Lavori sull'arma principale: ricarica più rapida, più danno e meno dispersione.", name: 'Arma principale', icon: 'cannon', look: [[], ['g_brake'], ['g_long'], ['g_long', 'g_brake']], up: k => 'ricarica -' + pc(k) + ', danno +' + pc(k * 0.8) + ', dispersione -' + pc(k * 0.8) },
+  { id: 'coax', short: 'Coassiale', desc: "La mitragliatrice del click destro: regge più a lungo prima di scaldarsi e spara più in fretta.", name: 'Mitragliatrice coassiale', icon: 'coax', look: [[], ['c_heavy'], ['c_water'], ['c_twin']], up: k => 'calore sopportato +' + pc(k) + ', cadenza +' + pc(k * 0.12) },
+  { id: 'armor', short: 'Corazza', desc: "Piastre sullo scafo: meno danni presi (sul retro metà dell'effetto) e più integrità.", name: 'Corazza', icon: 'armor', look: [[], ['f_plates'], ['f_plates', 's_plates'], ['f_comp', 's_comp']], up: k => 'danni subiti -' + pc(k) + ' (retro metà), +' + Math.round(tune.std_armor_hp) + ' integrità' },
+  { id: 'engine', short: 'Motore', desc: "Più velocità di punta e molta più accelerazione.", name: 'Motore', icon: 'engine', look: [[], ['d_diesel'], ['d_turbo'], ['d_v12']], up: k => 'velocità +' + pc(k) + ', accelerazione +' + pc(k * 4) },
+  { id: 'tracks', short: 'Cingoli e ruote', desc: "Lo scafo ruota più in fretta e sale su gradini più alti.", name: 'Cingoli e ruote', icon: 'tracks', look: [[], ['d_wide'], ['d_wide'], ['d_race']], up: k => 'rotazione +' + pc(k) + ', sale +' + (k * 1.5).toFixed(2) + ' m' },
+  { id: 'bay', short: 'Vano truppe', desc: "Più posti a bordo per portare la fanteria.", name: 'Vano truppe', icon: 'seats', look: [[], ['b_handles'], ['b_bay'], ['b_bay', 'b_handles']], up: k => '+' + Math.round(k) + ' posti' },
+  { id: 'radio', short: 'Radio', desc: "Più raggio radio: si comandano e si portano avanti squadre più lontane.", name: 'Radio', icon: 'radio', look: [[], ['r_radio'], ['r_mast'], ['r_long']], up: k => 'raggio radio +' + pc(k) },
 ];
 const STD = Object.fromEntries(STD_SYSTEMS.map(S => [S.id, S]));
 function pc(k) { return Math.round(k * 100) + '%'; }
@@ -111,39 +111,4 @@ function dressTank(g, hull) {
 }
 /** The command vehicle's barrel length on its model. */
 function tankBarrel(hull) { return tankStats().barrel * (hull === 'mbt' ? 1 : hull === 'light' ? 0.8 : 0.9); }
-
-// ---- The workshop tab (js/systems/workshop.js) -------------------------------------------------------------
-registerShopTab('standard', {
-  name: 'Sistemi', order: 10,
-  preview: true, // the vehicle turns in the window on the right
-  draw(x0, y0, w, h, cy) {
-    // the 9 systems on the left, the vehicle in the middle of the screen (the preview camera looks there)
-    // with its numbers, the advanced systems on the right
-    const ww = Math.min(330, w * 0.24), wx = W / 2 - ww / 2, lx = x0 + 24, lw = wx - 16 - lx, wy = cy - 4, wh = y0 + h - 56 - wy;
-    const nx = wx + ww + 18, nw = x0 + w - 24 - nx;
-    ctx.clearRect(wx, wy, ww, wh); rrect(wx, wy, ww, wh, 6, null, '#7a5a40');
-    const S0 = tankStats(), rows = [['Velocità', S0.speed.toFixed(1)], ['Integrità', Math.round(S0.hp)], ['Corazza', '-' + Math.round((1 - armorTake('front')) * 100) + '%'], ['Torretta', Math.round(S0.turret) + '°/s'],
-      ['Ricarica', S0.reload.toFixed(2) + ' s'], ['Radio', Math.round(S0.radio) + ' m'], ['Posti', S0.seats], ['Sale', S0.climb.toFixed(2) + ' m']];
-    const nh = Math.ceil(rows.length / 2) * 17 + 10;
-    rrect(wx + 4, wy + wh - nh - 4, ww - 8, nh, 4, 'rgba(14,10,8,0.78)', null);
-    rows.forEach(([k, v], i) => { const cx = wx + 12 + (i % 2) * (ww - 16) / 2, cw = (ww - 16) / 2 - 12, yy = wy + wh - nh + 9 + Math.floor(i / 2) * 17; text(k, cx, yy, 11, HC.dim, 'left'); text(String(v), cx + cw, yy, 11, HC.text, 'right'); });
-    text('Sistemi avanzati  ' + state.systems.length + ' / ' + sysSlots(), nx, cy + 6, 16, '#ffd9a0', 'left');
-    state.systems.forEach((id, i) => { const S2 = SYSTEMS[id], k = S2.active && sysKey(id); rrect(nx, cy + 20 + i * 34, nw, 30, 4, 'rgba(0,0,0,0.28)', S2.active ? '#8fe0ff' : '#5a4030'); text((k ? k.slice(3) + '  ' : '') + S2.name, nx + 10, cy + 35 + i * 34, 13, S2.active ? '#eaf7ff' : HC.text, 'left'); });
-    for (let i = state.systems.length; i < sysSlots(); i++) { rrect(nx, cy + 20 + i * 34, nw, 30, 4, null, '#3a2a20'); text('slot libero', nx + 10, cy + 35 + i * 34, 12, '#7a6a58', 'left'); }
-    text('Si comprano e montano nella scheda Sistemi avanzati.', nx, cy + 36 + sysSlots() * 34, 11, HC.dim, 'left');
-    text('Sistemi standard  ·  ' + stdMax() + ' livelli ciascuno, si comprano con i rottami', lx, cy + 6, 16, '#ffd9a0', 'left');
-    const RH = Math.min(54, Math.floor((y0 + h - 70 - cy - 22) / STD_SYSTEMS.length));
-    STD_SYSTEMS.forEach((S, r) => {
-      const yy = cy + 20 + r * RH, l = lvl(S.id), c = stdCost(S.id), k = tune['std_' + S.id + '_k'];
-      rrect(lx, yy, lw, RH - 5, 5, 'rgba(0,0,0,0.28)', '#5a4030');
-      partIcon(S.icon, lx + 22, yy + (RH - 5) / 2, 24);
-      text(S.name, lx + 44, yy + 14, 15, HC.text, 'left');
-      for (let i = 0; i < stdMax(); i++) rrect(lx + 44 + i * 22, yy + 26, 18, 9, 2, i < l ? '#ffd36a' : 'rgba(255,255,255,0.08)', '#8a6a40');
-      const tx = lx + 52 + stdMax() * 22, room = lw - (c == null ? 12 : 140) - (tx - lx); // the line stops short of the button
-      let t = c == null ? 'al massimo' : 'prossimo: ' + S.up(k); ctx.font = `11px ${FONT}`;
-      if (ctx.measureText(t).width > room) { while (t.length > 4 && ctx.measureText(t + '…').width > room) t = t.slice(0, -1); t += '…'; }
-      text(t, tx, yy + 31, 11, c == null ? '#b6d77a' : HC.dim, 'left');
-      if (c != null) button(lx + lw - 132, yy + 6, 124, RH - 17, 'Migliora ' + c, () => upgradeStd(S.id), { off: state.scrap < c, size: 13 });
-    });
-  },
-});
+// The workshop tab and the field view of the systems: js/systems/tankscreen.js (iteration 72).

@@ -53,7 +53,7 @@ function devSpawnEnemy(kind, x, z) {
   const e = addRaider(g, kind, x, z, 2); e.dev = true;
   say('Sviluppo', UT[kind].name + ' piazzato.', '#c8a0ff');
 }
-/** The panel's own input: K drops the chosen enemy at the mouse; clicks on the panel stay on it. */
+/** The panel's own input: Shift+J drops the chosen enemy at the mouse; clicks on the panel stay on it. */
 /** A friendly unit of the picked kind as a new squad at (x,z) (dev). */
 function devSpawnAlly(kind, x, z) {
   if (state.squads.length >= maxSquads()) { say('Sviluppo', 'Massimo ' + maxSquads() + ' squadre.', '#c8a0ff'); return; }
@@ -66,10 +66,10 @@ function devKillNear(r) { let n = 0; for (const e of state.ents) if (e.alive && 
 /** Moves the own tank to (x,z) if it fits there (dev). */
 function devTeleport(x, z) { const tk = state.tank; if (tankFits(tk, x, z, tk.heading, 99)) { tk.x = x; tk.z = z; tk.speed = 0; } else say('Sviluppo', 'Il carro lì non ci sta.', '#c8a0ff'); }
 function devInput() {
-  if (pressed('KeyJ') && state.mouse3) devSpawnAlly(state.devKind || 'rifle', state.mouse3.x, state.mouse3.z);
+  const sh = down.has('ShiftLeft') || down.has('ShiftRight'); // iteration 72: K is the vehicle screen, Shift+J the dev enemy
+  if (pressed('KeyJ') && state.mouse3) { if (sh) devSpawnEnemy(state.devEnemy || 'r_rifle', state.mouse3.x, state.mouse3.z); else devSpawnAlly(state.devKind || 'rifle', state.mouse3.x, state.mouse3.z); }
   if (pressed('KeyL') && state.mouse3) devTeleport(state.mouse3.x, state.mouse3.z);
   if (pressed('KeyN') && state.mission && !state.final) leaveSector(); // dev: on to the campaign map now
-  if (pressed('KeyK') && state.mouse3) devSpawnEnemy(state.devEnemy || 'r_rifle', state.mouse3.x, state.mouse3.z);
   const r = UI.devRect;
   if (r && MS.x >= r.x && MS.x <= r.x + r.w && MS.y >= r.y && MS.y <= r.y + r.h) {
     if (MS.lp) clickButtons();
