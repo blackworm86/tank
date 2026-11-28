@@ -339,7 +339,8 @@ function makeSoldier(kind) {
   const lg = legs(s, pants);
   const wide = kind === 'mg' || kind === 'r_mg';
   bx(s, wide ? 0.66 : 0.55, 0.6, 0.34, shirt, 0, 0.9, 0);
-  bx(s, 0.16, 0.5, 0.18, shirt, wide ? -0.42 : -0.36, 0.95, 0.06); bx(s, 0.16, 0.5, 0.18, shirt, wide ? 0.42 : 0.36, 0.95, 0.06);
+  // the arms hang from a shoulder pivot (iteration 59: they swing as he walks and reach up on a rock face)
+  const arms = [-1, 1].map(sd => { const a = new THREE.Group(); a.position.set(sd * (wide ? 0.42 : 0.36), 1.18, 0.06); s.add(a); bx(a, 0.16, 0.5, 0.18, shirt, 0, -0.23, 0); return a; });
   bx(s, 0.3, 0.3, 0.3, PC.skin, 0, 1.37, 0);
   if (kind === 'rifle') { bx(s, 0.4, 0.16, 0.4, PC.helmet, 0, 1.56, 0); bx(s, 0.08, 0.1, 0.95, 0x3a2e24, 0.22, 0.98, 0.42); bx(s, 0.3, 0.3, 0.2, 0x4f5a34, 0, 0.95, -0.24); }
   if (kind === 'sniper') {
@@ -397,9 +398,34 @@ function makeSoldier(kind) {
       bx(s, 0.2, 0.2, 1.5, 0x5a5a3a, 0.3, 1.36, 0.1); bx(s, 0.27, 0.27, 0.34, PC.red, 0.3, 1.36, 0.95); bx(s, 0.14, 0.14, 0.2, PC.yel, 0.3, 1.36, 1.18);
     }
   }
-  g.userData = { body: s, legs: lg };
+  // what is held in the hands in front (a rifle, a machine gun, a launcher): slung on the back on a rock face
+  const sling = new THREE.Group(); sling.position.set(0, 0.98, 0); s.add(sling);
+  for (const o of [...s.children]) if (o.isMesh && o.position.x > 0.15 && o.position.z > 0.1 && o.position.y > 0.75 && o.position.y < 1.5) { o.position.y -= 0.98; sling.add(o); }
+  g.userData = { body: s, legs: lg, arms, sling };
   selRing(g, 0.95);
   return g;
+}
+/**
+ * A soldier's limbs (iteration 59). Walking: the legs swing, the arms a little against them. On a rock face
+ * (climbStep): facing the rock, leaning into it, the hands reaching up over the head one after the other while
+ * the legs push in turn, the pace tied to the height gained so a pinned climber hangs still and one going down
+ * plays it backwards.
+ */
+function poseLimbs(e, u) {
+  const A = u.arms, climbing = e.climbH != null;
+  if (climbing) {
+    const ph = e.vy * tune.climb_anim, s = Math.sin(ph), pull = Math.max(0, Math.sin(ph * 2)) * 0.06;
+    if (A) { A[0].rotation.x = -2.85 - 0.3 * s; A[1].rotation.x = -2.85 + 0.3 * s; A[0].rotation.z = -0.15; A[1].rotation.z = 0.15; }
+    u.legs[0].rotation.x = -0.1 - 0.5 * Math.max(0, s); u.legs[1].rotation.x = -0.1 - 0.5 * Math.max(0, -s);
+    u.body.rotation.x = 0.1; u.body.position.y = pull;
+    if (u.sling) { u.sling.rotation.x = -1.35; u.sling.position.z = -0.34; } // the gun on his back, muzzle up
+    return;
+  }
+  if (u.sling) { u.sling.rotation.x = 0; u.sling.position.z = 0; }
+  const sw = e.moving ? Math.sin(state.t * 11 + e.id) * 0.6 : 0;
+  u.legs[0].rotation.x = sw; u.legs[1].rotation.x = -sw;
+  if (A) { A[0].rotation.x = -sw * 0.5; A[1].rotation.x = sw * 0.5; A[0].rotation.z = A[1].rotation.z = 0; }
+  u.body.rotation.x = 0; u.body.position.y = 0;
 }
 function makeCarModel() {
   const g = new THREE.Group(), b = new THREE.Group(); g.add(b);
@@ -650,7 +676,8 @@ function syncModel(e) {
     }
   }
   if (!e.alive && !u.xrayOff) { u.xrayOff = true; m.traverse(o => { if (o.userData.xray) o.visible = false; }); }
-  if (u.legs && e.alive) { const sw = e.moving ? Math.sin(state.t * 11 + e.id) * 0.6 : 0; u.legs[0].rotation.x = sw; u.legs[1].rotation.x = -sw; }
+  if (u.legs && e.alive) poseLimbs(e, u);
+  if (e.climbH != null) { m.position.x -= Math.sin(e.heading) * 0.35; m.position.z -= Math.cos(e.heading) * 0.35; } // on the rock face, not into it
   if (u.body) u.body.scale.y = 1.45 * (e.alive && e.inCover && !e.moving ? 0.72 : 1);
   if (!e.alive) {
     if (e.veh) { if (!u.burnt) { m.traverse(o => { if (o.isMesh && o !== u.ring && !o.userData.xray) o.material = mat(0x2b2522); }); u.burnt = true; } }
