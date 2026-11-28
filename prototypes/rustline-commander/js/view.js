@@ -195,7 +195,14 @@ function buildChunkGeo(cx, cz) {
   const quad = (t, y, n, pts, isTop) => { // one face of the drawn ground: corners [px, height, pz] of column (qx, qz)
     const bc = R3.vlin[t];
     let k = 0.96 + hash2(qx * 7 + y * 3, qz * 13 - y, 77) * tune.vox_jitter; // a faint per-voxel shade, no checkerboard
-    if (isTop) k *= 0.92 + vnoise(qx / 6, qz / 6, 5) * 0.16; else k *= 0.8 + 0.2 * Math.min(1, y / 14);
+    if (isTop) {
+      k *= 0.92 + vnoise(qx / 6, qz / 6, 5) * 0.16;
+      // iteration 77: height reads as light, a drop the tank cannot drive as a lit rim over a dark foot
+      k *= 1 + tune.height_tint * Math.max(-0.5, Math.min(0.7, (y + 1 - world.WL) / 16 - 0.25));
+      const g = y + 1; let lo = g, hi = g;
+      for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = gh(qx + a, qz + b); if (n < lo) lo = n; if (n > hi) hi = n; }
+      if (g - lo >= tune.map_cliff) k *= tune.cliff_rim; else if (hi - g >= tune.map_cliff) k *= tune.cliff_foot;
+    } else k *= tune.side_dark * (0.85 + 0.15 * Math.min(1, y / 14));
     for (let i = 0; i < 4; i++) {
       const [px, h, pz] = pts[i];
       pos.push(qx + px, h, qz + pz); nor.push(n[0], n[1], n[2]);

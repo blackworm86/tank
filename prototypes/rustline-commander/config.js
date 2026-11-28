@@ -20,17 +20,17 @@ window.CONFIG = {
   terrain_detail: { value: 3, min: 1, max: 4, step: 1 },        // ground mesh subdivisions per voxel: more = finer relief
   terrain_grain: { value: 0.16, min: 0, max: 0.6, step: 0.02 }, // small bumps in the ground, metres
   mud_patches: { value: 0.4, min: 0, max: 1, step: 0.05 },      // how much mud lies in hollows away from water
-  forest_amount: { value: 0.6, min: 0, max: 1, step: 0.05 },    // share of the map under woods and forests
-  forest_density: { value: 0.34, min: 0.05, max: 0.5, step: 0.01 }, // trees per cell inside a forest
-  tree_scatter: { value: 0.006, min: 0, max: 0.05, step: 0.002 }, // lone trees per cell elsewhere
+  forest_amount: { value: 0.45, min: 0, max: 1, step: 0.05 },    // share of the map under woods and forests
+  forest_density: { value: 0.26, min: 0.05, max: 0.5, step: 0.01 }, // trees per cell inside a forest
+  tree_scatter: { value: 0.003, min: 0, max: 0.05, step: 0.002 }, // lone trees per cell elsewhere
   grass_tufts: { value: 1.4, min: 0, max: 3, step: 0.1 },       // dry grass tufts per grassy cell (looks only)
-  stone_density: { value: 0.08, min: 0, max: 0.4, step: 0.01 }, // loose stones and boulders (looks only)
-  terrain_smooth: { value: 2, min: 0, max: 5, step: 1 },        // blur passes over the hills: more = gentler ramps (cliffs stay)
+  stone_density: { value: 0.04, min: 0, max: 0.4, step: 0.01 }, // loose stones and boulders (looks only)
+  terrain_smooth: { value: 3, min: 0, max: 5, step: 1 },        // blur passes over the hills: more = gentler ramps (cliffs stay)
   road_half_width: { value: 3, min: 1, max: 4, step: 1 },       // road is 2*this+1 voxels wide (map rule M4: 7 wide)
   road_shoulder: { value: 6, min: 2, max: 10, step: 1 },        // how far the 1-per-voxel ramp beside a road reaches
   camp_count: { value: 5, min: 2, max: 8, step: 1 },            // raider camps per run
   patrol_count: { value: 8, min: 0, max: 14, step: 1 },         // roaming raider patrols
-  ruin_count: { value: 14, min: 0, max: 50, step: 1 },          // ruined buildings and walls
+  ruin_count: { value: 10, min: 0, max: 50, step: 1 },          // ruined buildings and walls
   struct_res: { value: 4, min: 2, max: 4, step: 2 },           // fine cells a metre in houses and blocks of flats (4 = 25 cm), read when a map is built (js/structs.js)
   struct_fill: { value: 0.375, min: 0.1, max: 0.9, step: 0.025 }, // share of a 1 m cell's fine cells that makes it solid for paths, cover and garrisons
   struct_ruin: { value: 0.55, min: 0, max: 1, step: 0.05 },     // how ruined the buildings stand at the start (0 whole, 1 stumps)
@@ -39,7 +39,7 @@ window.CONFIG = {
   struct_settle: { value: 0.3, min: 0.1, max: 2, step: 0.1 },    // seconds between the chipped walls' updates (what falls, cover, paths, the drawn walls)
   industry_p: { value: 0.6, min: 0, max: 1, step: 0.05 },       // the chance a map holds an industrial zone (hangar, containers, steel water tower, walls, hedgehogs)
   pylon_gap: { value: 30, min: 0, max: 80, step: 5 },            // metres between the pylons of the power line across the map (0: none)
-  trap_clusters: { value: 3, min: 0, max: 10, step: 1 },          // clusters of hedgehogs beside the roads a map
+  trap_clusters: { value: 2, min: 0, max: 10, step: 1 },          // clusters of hedgehogs beside the roads a map
   city_tower: { value: 0.2, min: 0, max: 1, step: 0.05 },       // the chance a wide city lot holds a tower of 8 to 15 storeys (40% of them shot to a skeleton)
   statics_span: { value: 1, min: 0.3, max: 3, step: 0.1 },      // how far each material may reach out from what bears it (concrete 6 m, metal 4, wood 3, brick 1.5), times
   statics_load: { value: 1, min: 0.2, max: 5, step: 0.1 },       // the load a post or a wall carries before it is crushed, times
@@ -69,7 +69,7 @@ window.CONFIG = {
   collapse_block: { value: 0.08, min: 0.01, max: 1, step: 0.01 }, // cubic metres below which a block goes to rubble
   collapse_spread: { value: 0.8, min: 0, max: 3, step: 0.1 },     // metres the blocks scatter from where the piece lands, at 10 m/s
   collapse_g: { value: 12, min: 4, max: 30, step: 1 },           // how fast the pieces fall, m/s2
-  rock_count: { value: 18, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
+  rock_count: { value: 12, min: 0, max: 60, step: 1 },          // rounded rock outcrops (map rule M3: no pillars or arches)
   map_max_grade: { value: 1.1, min: 0.3, max: 3, step: 0.1 },
   map_cliff: { value: 3, min: 2, max: 6, step: 1 },              // a ground step at least this high is a cliff wall: never a slope, never driven (M1)
   ramp_run: { value: 2, min: 1, max: 4, step: 1 },               // cells a ramp takes to climb 1 voxel: 2 = 1 m every 2 m, about 27 degrees (M1)
@@ -92,7 +92,13 @@ window.CONFIG = {
   cam_pitch: { value: 56, min: 35, max: 75, step: 1 },          // degrees down from horizon, zoomed out (bird's eye)
   cam_pitch_near: { value: 33, min: 15, max: 60, step: 1 },     // degrees down from horizon, zoomed in (over the tank's shoulders, RTS-style)
   cam_ahead: { value: 4, min: 0, max: 30, step: 1 },            // metres the camera looks ahead of the tank, zoomed in (none zoomed out)
-  vox_jitter: { value: 0.05, min: 0, max: 0.2, step: 0.01 },   // per-voxel brightness variation (the larger, the more the surface looks gridded)
+  vox_jitter: { value: 0.03, min: 0, max: 0.2, step: 0.01 },   // per-voxel brightness variation (the larger, the more the surface looks gridded)
+  // the ground's reading (iteration 77): high ground lighter, low ground darker; the edge of a drop the tank cannot
+  // drive lit, its foot and the rock faces darker, so plateaus, cliffs and steps read at a glance
+  height_tint: { value: 0.5, min: 0, max: 1, step: 0.05 },     // brightness change over 16 m of height
+  cliff_rim: { value: 1.3, min: 1, max: 1.6, step: 0.02 },     // the top of a cliff's edge
+  cliff_foot: { value: 0.8, min: 0.4, max: 1, step: 0.02 },     // the ground at a cliff's foot
+  side_dark: { value: 0.7, min: 0.3, max: 1, step: 0.02 },      // the rock faces of the steps and cliffs
   cam_fov: { value: 32, min: 20, max: 60, step: 1 },            // degrees
   cam_dist: { value: 84, min: 30, max: 140, step: 1 },          // starting zoom distance
   cam_dist_min: { value: 35, min: 20, max: 80, step: 1 },
