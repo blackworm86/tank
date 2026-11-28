@@ -232,10 +232,7 @@ function squadSense(sq, ms) {
   const lost = (inf.length / n0 <= tune.ai_retreat_alive && hpF < 0.6) || foes.reduce((a, o) => a + (o.veh ? 3 : 1), 0) >= inf.length * tune.ai_retreat_odds;
   if (lost && Math.hypot(c.x - tk.x, c.z - tk.z) > tk.rad + 8) { // back behind the tank, away from the enemy
     sq.senseT = state.t;
-    const f = foes.length ? foes.reduce((a, o) => ({ x: a.x + o.x / foes.length, z: a.z + o.z / foes.length }), { x: 0, z: 0 }) : c;
-    const dx = tk.x - f.x, dz = tk.z - f.z, L = Math.hypot(dx, dz) || 1, p = spotNear(tk.x + dx / L * 6, tk.z + dz / L * 6, 0);
-    orderMove(sq, p.x, p.z, 'none'); sq.order.retreat = true;
-    say(sq.name, 'Non reggiamo! Ripieghiamo sul carro!', '#ff9a7a');
+    orderRetreat(sq, 'Non reggiamo! Ripieghiamo sul carro!'); // squads.js (iteration 70)
     return;
   }
   if (squadLevel(inf) >= tune.ai_bld_level && foes.length) { // a building with room, close by, toward cover

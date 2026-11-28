@@ -136,7 +136,8 @@ function formSpeedK(e) {
   let k = 1;
   if (formOf(sq).k === 'column' && sq.order.t === 'move' && !sq.order.done) k *= tune.form_col_speed;
   if (e.formLead) k *= e.formLeadK || tune.form_lead_speed;
-  if (e.formCatch && sq.order.t === 'follow') k *= tune.form_catch_speed;
+  if (e.formCatch && (sq.order.t === 'follow' || sq.order.t === 'escort')) k *= tune.form_catch_speed;
+  if (sq.order.retreat && !sq.order.done && !e.veh) k *= tune.retreat_speed; // falling back on the tank: at a run (iteration 70)
   return k;
 }
 /** The squad's front: the way it last faced or marched (radians), or null. */

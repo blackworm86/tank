@@ -472,6 +472,10 @@ window.CONFIG = {
   ai_bld_range: { value: 14, min: 4, max: 40, step: 1 },          // how far it looks for one
   flank_share: { value: 0.5, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
   flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
+  retreat_speed: { value: 1.25, min: 1, max: 1.8, step: 0.05 }, // falling back on the tank, the soldiers run this much faster (iteration 70)
+  watch_arc: { value: 90, min: 30, max: 180, step: 5 },          // degrees of the sector a watching squad covers
+  watch_acc: { value: 1.15, min: 1, max: 1.6, step: 0.05 },      // aim of a squad set in its sector
+  watch_draw: { value: 20, min: 8, max: 40, step: 1 },            // metres of the sector's fan drawn on the ground
   form_gap: { value: 1.8, min: 1, max: 4, step: 0.1 },          // metres between soldiers in a formation (iteration 68)
   form_veh_gap: { value: 5, min: 3, max: 10, step: 0.5 },       // metres between a squad's vehicles in a formation
   form_sq_gap: { value: 9, min: 5, max: 18, step: 1 },          // metres between the squads following the tank in its formation

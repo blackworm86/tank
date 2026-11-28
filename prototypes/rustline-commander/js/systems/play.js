@@ -85,6 +85,7 @@ function handleInput() {
   if (cmd && state.mouse3 && (MS.rp || (state.arm && MS.lp))) {
     state.gest = { btn: MS.rp ? 'r' : 'l', sx: MS.x, sy: MS.y, p: { x: state.mouse3.x, y: state.mouse3.y, z: state.mouse3.z }, tgt: enemyUnderMouse(),
       kind: state.arm || (down.has('KeyF') ? 'attack' : null), face: null };
+    { const f = friendlyUnderMouse(); state.gest.fr = f && !(f.squad && f.squad.selected) ? f : null; } // a unit of ours: the menu offers to escort it (iteration 70)
     if (state.gest.btn === 'l') { MS.lp = false; MS.drag = null; }
   }
   if (state.gest) {

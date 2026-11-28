@@ -30,6 +30,10 @@ function menuItems(g, append) {
   const onTank = Math.hypot(p.x - tk.x, p.z - tk.z) < tk.rad + 0.9;
   const b = inf && !onTank && !g.tgt ? buildingAt(p.x, p.z) : null;
   const all = f => () => { let any = false; for (const sq of sel) { if (inRadio(sq)) { f(sq); any = true; } else say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); } if (any) sfx('radio'); };
+  if (g.fr && !onTank) { // a unit of ours not among the chosen: escort it (iteration 70)
+    const u = g.fr, nm = u.veh ? UT[u.kind].name : u.squad ? u.squad.name : UT[u.kind].name;
+    items.push({ key: 'Z', alt: ['J', 'K'], label: 'Scorta: ' + nm, col: '#9fe3a0', desc: DESC.escort, act: all(sq => orderEscort(sq, u)) });
+  }
   if (g.tgt) {
     const nm = UT[g.tgt.kind].name.toLowerCase();
     items.push({ key: 'F', label: 'Attacca: ' + nm, col: '#ff8a6a', desc: DESC.attack, act: () => issueOrder('attack', false, p, g.face, g.tgt) });
@@ -49,10 +53,12 @@ function menuItems(g, append) {
     if (inf) items.push({ key: 'R', label: 'Vai al riparo qui', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', false, p, g.face) });
     if (!g.tgt) items.push({ key: 'F', label: 'Assalto fin qui', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', false, p, g.face, null) });
     if (inf) items.push({ key: 'T', label: 'Agguato qui', desc: DESC.ambush(), act: () => issueOrder('ambush', false, p, g.face) });
+    if (!g.tgt) items.push({ key: 'G', alt: ['C', 'Y', 'K'], label: 'Sorveglia il settore qui', col: '#9fd8ff', desc: DESC.watch(), act: () => issueOrder('watch', false, p, g.face) });
     if (sel.some(sq => sq.order.t === 'move' && !sq.order.done)) items.push({ key: 'K', label: 'Aggiungi tappa al percorso', desc: DESC.stop, act: () => issueOrder('move', true, p, g.face) });
     items.push({ key: 'Z', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
   }
   items.push({ key: 'H', label: 'Fermi qui', desc: DESC.hold, act: all(orderHold) });
+  if (!onTank) items.push({ key: 'B', alt: ['C', 'G'], label: 'Ripiega sul carro', col: '#ff9a7a', desc: DESC.retreat, act: all(sq => orderRetreat(sq)) });
   { const cur = roeOf(sel[0]), nx = nextOf(ROES, cur.k), g = gaitOf(sel[0]), ng = nextOf(GAITS, g.k);
     items.push({ key: 'I', keep: true, label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
     items.push({ key: 'L', keep: true, label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } });
@@ -69,6 +75,9 @@ function menuItems(g, append) {
 }
 /** What each order does, shown at the menu's foot under the highlighted row. */
 const DESC = {
+  retreat: 'Corrono al carro senza fermarsi a sparare e si mettono dietro lo scafo, dal lato lontano dal nemico.',
+  watch: () => 'Vanno lì e restano: sparano solo a chi entra nell\'arco di ' + Math.round(tune.watch_arc) + '° (trascina per orientarlo), mirando meglio.',
+  escort: 'Restano alle spalle di quell\'unità, nella loro formazione, e la seguono dove va.',
   move: 'Ci vanno per la via più rapida, senza cercare riparo; in marcia sparano secondo le regole d\'ingaggio.',
   cover: 'Ci vanno e si mettono dietro la copertura migliore lì vicino, rivolti verso la freccia trascinata o verso il nemico.',
   assault: 'Avanzano fin qui sparando a ciò che incontrano, senza fermarsi né cercare riparo. Rapido ma esposto.',
@@ -88,8 +97,14 @@ const DESC = {
   enter: 'Entrano e sparano dalle finestre: l\'edificio li protegge finché non crolla.',
 };
 /** Opens the menu at the mouse for the order gesture g (its point, its dragged bearing, its enemy). */
+/** The menu's letters (iteration 70): each row the first of its wishes (key, then alt) not taken above it and not W A S D Q E P M. */
+function menuKeys(items) {
+  const used = new Set('WASDQEPM'.split(''));
+  for (const it of items) { const k = [it.key, ...(it.alt || [])].find(c => c && !used.has(c)); it.key = k || ''; if (k) used.add(k); }
+  return items;
+}
 function openMenu(g, append) {
-  const items = menuItems(g, append); if (!items.length) return;
+  const items = menuKeys(menuItems(g, append)); if (!items.length) return;
   // the foot: what the highlighted order does, as tall as the longest explanation needs
   const lines = Math.max(2, ...items.map(it => it.desc ? wrap(it.desc, MENU.w - 24, 11).length : 1)), foot = MENU.foot + (lines - 2) * 13;
   const h = MENU.head + items.length * MENU.row + MENU.pad + foot;
@@ -120,7 +135,7 @@ function menuInput() {
   if (pressed('ArrowDown')) m.sel = menuStep(m, m.sel, 1);
   if (pressed('ArrowUp')) m.sel = menuStep(m, m.sel, -1);
   if ((pressed('Enter') || pressed('NumpadEnter') || pressed('Space')) && m.sel >= 0) pick = m.items[m.sel];
-  for (const it of m.items) if (!pick && !it.off && it.act && pressed('Key' + it.key)) { pick = it; break; }
+  for (const it of m.items) if (!pick && !it.off && it.act && it.key && pressed('Key' + it.key)) { pick = it; break; }
   if (!pick && MS.lp) {
     const k = menuHover(); MS.lp = false; MS.drag = null; state.menuBlock = true; // this click is the menu's, not the cannon's
     if (k < 0) { if (!(MS.x >= m.x && MS.x <= m.x + MENU.w && MS.y >= m.y && MS.y <= m.y + m.h)) state.menu = null; return; }
@@ -129,7 +144,7 @@ function menuInput() {
   if (MS.lr) MS.lr = false;
   if (pressed('Escape')) { state.menu = null; return; }
   if (pick && !pick.off && pick.act) {
-    if (pick.keep) { pick.act(); const k = m.items.indexOf(pick); m.items = menuItems(m.g, m.append); m.sel = Math.min(k, m.items.length - 1); return; } // a setting: the next one, and the menu stays
+    if (pick.keep) { pick.act(); const k = m.items.indexOf(pick); m.items = menuKeys(menuItems(m.g, m.append)); m.sel = Math.min(k, m.items.length - 1); return; } // a setting: the next one, and the menu stays
     state.menu = null; pick.act();
   }
 }

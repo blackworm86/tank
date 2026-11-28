@@ -216,6 +216,12 @@ function drawHUD() {
     const ms = alive(sq), o = sq.order; if (!ms.length || !(sq.selected || tp)) continue;
     let cx = 0, cz = 0, cy = 0; for (const m of ms) { cx += m.x; cz += m.z; cy += m.y; } cx /= ms.length; cz /= ms.length; cy /= ms.length;
     let prev = toScreen(cx, cy + 0.6, cz);
+    if (o.watch) { // iteration 70: the watched sector, a fan on the ground
+      const w = o.watch, r = tune.watch_draw, y0 = hAt(w.x, w.z) + 0.4, c0 = toScreen(w.x, y0, w.z);
+      if (c0.on) { ctx.save(); ctx.globalAlpha = sq.selected ? 0.8 : 0.45; ctx.strokeStyle = '#9fd8ff'; ctx.fillStyle = 'rgba(159,216,255,0.10)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(c0.x, c0.y);
+        for (let k = 0; k <= 12; k++) { const a = w.face - w.arc / 2 + w.arc * k / 12, q = toScreen(w.x + Math.sin(a) * r, y0, w.z + Math.cos(a) * r); ctx.lineTo(q.x, q.y); }
+        ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    }
     ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
     if (o.t === 'move' && !o.done) {
       for (let i = o.i; i < o.pts.length; i++) {
@@ -369,7 +375,7 @@ function drawHUD() {
     });
     UI.cards.push(card);
     const riding = ms.length && ms.every(m => m.inside || m.veh) && ms.some(m => m.inside);
-    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'ride' ? (ms.some(m => m.rideOn) && sq.order.done ? 'Sulla jeep' : 'Sale sulla jeep') : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : legLabel(sq.order)) : 'Ferma';
+    const ord = !ms.length ? 'Persa' : riding ? 'A bordo' : sq.order.t === 'board' ? 'Sale a bordo' : sq.order.t === 'ride' ? (ms.some(m => m.rideOn) && sq.order.done ? 'Sulla jeep' : 'Sale sulla jeep') : sq.order.t === 'garrison' ? 'Entra' : sq.order.t === 'garrisoned' ? 'Nell\'edificio' : sq.order.t === 'follow' ? 'Segue' : sq.order.t === 'escort' ? 'Scorta' : sq.order.watch && sq.order.done ? 'Sorveglia' : sq.order.retreat && !sq.order.done ? 'Ripiega' : sq.order.t === 'attack' ? 'Attacca' : sq.order.t === 'suppress' ? 'Soppressione' : sq.order.t === 'move' ? (sq.order.ambush ? (sq.order.sprung ? 'Agguato: fuoco!' : sq.order.done ? 'In agguato' : 'Si apposta') : sq.order.done ? 'In posizione' : sq.order.pts && sq.order.pts[sq.order.i] && sq.order.pts[sq.order.i].assault ? 'Assalto' : legLabel(sq.order)) : 'Ferma';
     { const nr = ms.reduce((a, m) => a + (seatsOf(m) > 0 ? ridersOf(m).length : 0), 0); if (nr) text(nr + ' a bordo', 238, y + 25, 10, '#4fe3e0', 'right'); } // a jeep's riders
     text(heard ? ord : 'Fuori portata', 238, y + 39, 11, heard ? HC.dim : HC.warn, 'right');
     { ctx.font = `11px ${FONT}`; const sw = ctx.measureText(heard ? ord : 'Fuori portata').width; ctx.font = `bold 9px ${FONT}`; const gw = ctx.measureText(gt.short).width + 12; // the gait, left of the order
@@ -646,7 +652,7 @@ function drawMenu() {
     const y = m.y + MENU.head + k * MENU.row;
     if (k === hv && !it.off) rrect(m.x + 4, y + 1, MENU.w - 8, MENU.row - 2, 4, 'rgba(79,227,224,0.18)', null);
     rrect(m.x + 10, y + 4, 20, 18, 3, it.off ? 'rgba(60,50,40,0.8)' : 'rgba(60,44,30,0.95)', it.off ? '#5a4a3a' : HC.edge);
-    text(it.key, m.x + 20, y + 13, 12, it.off ? '#7a6a5a' : HC.gold);
+    text(it.key || '·', m.x + 20, y + 13, 12, it.off ? '#7a6a5a' : HC.gold);
     text(it.label, m.x + 40, y + 13, 13, it.off ? '#7a6a5a' : (it.col || HC.text), 'left');
   });
 }

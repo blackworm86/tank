@@ -310,6 +310,7 @@ function pickTarget(e, w) {
     if (w.noVeh && o.veh) continue; // dogs bite men, not hulls
     const d = dist2(e, o); if (d > Math.min(w.range, R + up(o)) ** 2) continue;
     if (e.team === 1 && (lurking(o) || stealthy(o)) && d > tune.ambush_reveal ** 2) continue; // an ambush, or a stealthy soldier, still unseen
+    if (!e.team && !inWatch(e, o)) continue; // watching a sector: only what is in it (iteration 70)
     if (w.min && d < w.min * w.min) continue;
     if (e.kind === 'at' && !e.team && !o.veh && d > 14 * 14) continue; // men only within his pistol's reach
     c.push([d, o]);
@@ -457,6 +458,7 @@ function fire(e, t, w) {
     acc *= heightK(e, t); // iteration 65: from above he aims better, from below worse
     if (e.garrison) acc *= tune.bld_acc; // at a window, braced
     acc *= formAccK(e, t); // iteration 68: a line ahead, a wedge or an echelon
+    if (!e.team && e.squad && e.squad.order.watch && e.squad.order.done && !e.moving) acc *= tune.watch_acc; // iteration 70: set and waiting
     if (t.garrison) acc *= tune.bld_cover; // a man behind a window is a small target
     if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc') * modOf(e).acc);
     if (suppressed(e)) acc *= tune.suppress_acc;

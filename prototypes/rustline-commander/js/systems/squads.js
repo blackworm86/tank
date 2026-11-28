@@ -504,7 +504,8 @@ function squadUpkeep(sq, dt) {
     return;
   }
   if (sq.order.t === 'garrisoned') return;
-  if (sq.order.t === 'follow') {
+  if (sq.order.t === 'escort') { if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; } escortUpkeep(sq, ms); }
+  else if (sq.order.t === 'follow') {
     if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; }
     sq.formFace = tk.heading;
     if (!followInForm(sq, ms)) ms.forEach((m, i) => {
@@ -548,6 +549,57 @@ function squadUpkeep(sq, dt) {
   }
   roleUpkeep(sq, ms);
 }
+// ---- Comando orders (iteration 70): fall back on the tank, watch a sector, escort a unit -----------------------
+/** A spot behind the tank, on the side away from the enemies the squad knows of near it (or behind its hull). */
+function retreatSpot(sq) {
+  const tk = state.tank, ms = alive(sq).filter(m => !m.veh); const src = ms.length ? ms : alive(sq);
+  const c = src.reduce((a, m) => ({ x: a.x + m.x / src.length, z: a.z + m.z / src.length }), { x: 0, z: 0 });
+  const foes = state.ents.filter(o => o.alive && o.team === 1 && !hiddenFoe(o) && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 45 * 45);
+  const f = foes.length ? foes.reduce((a, o) => ({ x: a.x + o.x / foes.length, z: a.z + o.z / foes.length }), { x: 0, z: 0 }) : { x: tk.x + Math.sin(tk.heading) * 10, z: tk.z + Math.cos(tk.heading) * 10 };
+  const dx = tk.x - f.x, dz = tk.z - f.z, L = Math.hypot(dx, dz) || 1;
+  return spotNear(tk.x + dx / L * (tk.rad + 4), tk.z + dz / L * (tk.rad + 4), 0);
+}
+/** Ripiega sul carro: at a run to the far side of the tank, no stopping to fire on the way (retreat_speed faster). */
+function orderRetreat(sq, msg = 'Ripieghiamo sul carro!') {
+  leaveBuilding(sq);
+  const p = retreatSpot(sq); orderMove(sq, p.x, p.z, 'none');
+  sq.order.retreat = true; sq.order.pts[0].fire = 'none';
+  say(sq.name, msg, '#ff9a7a');
+}
+/** Sorveglia settore: to (x,z), then fire only on what comes into the arc (watch_arc wide, facing face), aiming better (watch_acc). */
+function orderWatch(sq, x, z, face) {
+  if (face == null) { const en = nearestEnemyTo(x, z, 0, 60); face = en ? Math.atan2(en.x - x, en.z - z) : headingTo(alive(sq), x, z); }
+  orderMove(sq, x, z, 'auto', false, face);
+  sq.order.watch = { x, z, face, arc: tune.watch_arc * Math.PI / 180 };
+  say(sq.name, 'Sorvegliamo il settore: spariamo a chi ci entra.', '#9fd8ff');
+}
+/** True when unit e of a squad watching a sector, in place, may fire on o (it is inside the arc). */
+function inWatch(e, o) {
+  const w = e.squad && e.squad.order.watch; if (!w || !e.squad.order.done) return true;
+  return Math.abs(angDiff(w.face, Math.atan2(o.x - w.x, o.z - w.z))) <= w.arc / 2;
+}
+/** Scorta: the squad keeps by unit u (a soldier stands for his squad, a vehicle for itself), behind its back. */
+function orderEscort(sq, u) {
+  leaveBuilding(sq);
+  sq.order = { t: 'escort', u, sq2: u.veh ? null : u.squad }; sq.tick = 0;
+  say(sq.name, 'Ricevuto, scortiamo ' + (u.veh ? UT[u.kind].name.toLowerCase() : u.squad ? u.squad.name : 'loro') + '.');
+}
+/** The escort's upkeep: the escorted unit's place (its squad's first soldier alive), the squad's formation behind it. */
+function escortUpkeep(sq, ms) {
+  const o = sq.order, u = o.sq2 ? alive(o.sq2).find(m => !m.veh) || alive(o.sq2)[0] : o.u;
+  if (!u || !u.alive) { sq.order = { t: 'hold' }; say(sq.name, 'Non c\'è più nessuno da scortare: teniamo la posizione.', '#e0a070'); return; }
+  const h = u.heading || 0, back = u.veh ? u.rad + 5 : 5, ax = u.x - Math.sin(h) * back, az = u.z - Math.cos(h) * back;
+  const k = formOf(sq).k === 'free' ? 'wedge' : formOf(sq).k, inf = ms.filter(m => !m.veh), veh = ms.filter(m => m.veh);
+  const put = (m, p) => {
+    if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
+    const d2 = (m.x - p.x) ** 2 + (m.z - p.z) ** 2; m.formCatch = d2 > tune.form_catch_d ** 2; // far behind: it hurries (formation.js)
+    if (d2 > 4 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2)) setDest(m, p.x, p.z);
+  };
+  inf.forEach((m, i) => put(m, formPoint(k, i, tune.form_gap, ax, az, h)));
+  veh.forEach((v, i) => put(v, formPoint(k, i, tune.form_veh_gap, ax - Math.sin(h) * (inf.length ? tune.form_veh_gap : 0), az - Math.cos(h) * (inf.length ? tune.form_veh_gap : 0), h)));
+  sq.formFace = h; sq.tick = Math.min(sq.tick, 0.6);
+}
+
 // ---- Quick orders (iteration 69): Z X C in both modes ------------------------------------------------------------
 /** Who a quick order goes to: the chosen squads in Comando, else every squad; only those in radio reach hear it. */
 function quickSquads() {
@@ -594,7 +646,7 @@ function issueOrder(kind, append, pt, face, tgt) {
   if (!sel.length) { say('Radio', 'Nessuna squadra selezionata: click o tasti 1-6.', '#e0a070'); return false; }
   pt = pt || state.mouse3; if (!pt) return false;
   if (kind === 'attack' && !tgt) tgt = nearestEnemyTo(pt.x, pt.z, 0, 4);
-  if (kind === 'move' || kind === 'cover' || kind === 'ambush') tgt = null;
+  if (kind === 'move' || kind === 'cover' || kind === 'ambush' || kind === 'watch') tgt = null;
   if (kind === 'suppress' && !(tgt && tgt.alive)) return false;
   let any = false;
   for (const sq of sel) {
@@ -613,6 +665,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     if (sq.members.some(m => m && m.alive && m.inside)) unloadSquad(sq);
     { let n = 0; for (const m of alive(sq)) if (m.rideOn && m.rideOn.squad !== sq) { dismount(m); n++; } if (n) say(sq.name, 'Giù dal mezzo, ci andiamo a piedi.'); } // riders on another squad's vehicle walk; on their own, it drives them
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
+    else if (kind === 'watch') orderWatch(sq, pt.x, pt.z, face);
     else if (kind === 'suppress') orderSuppress(sq, tgt);
     else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);
