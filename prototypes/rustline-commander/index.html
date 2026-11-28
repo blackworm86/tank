@@ -219,7 +219,7 @@ const scenes = {
   play: {
     update(dt) {
       if (pressed('KeyP') || (pressed('Escape') && !state.menu && !state.jobPick)) { scene = 'pause'; return; }
-      if (pressed('KeyK') && !state.menu && !state.jobPick) { state.tsPick = null; scene = 'tank'; return; } // iteration 72: the vehicle screen
+      if (pressed('KeyK') && !state.menu && !state.jobPick) { state.tsPick = null; if (state.test) openSandbox(); else scene = 'tank'; return; } // iteration 72: the vehicle screen; 73: the test map's sandbox
       try { stepPlay(dt); } catch (err) { reportError(err); }
       // the run ends even if something above went wrong: a lost tank always reaches the end screen
       if (!state.tank.alive && !state.goScene && state.t > (state.tank.deathT || 0) + 5) { state.result = state.result || 'lose'; endRun(); }

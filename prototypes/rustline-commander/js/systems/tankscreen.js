@@ -117,7 +117,8 @@ function drawHullCol(C, cy, mainB, live) {
     for (let i = 0; i < stdMax(); i++) rrect(x + 10 + i * 18, y + 27, 14, 8, 2, i < l ? '#ffd36a' : 'rgba(255,255,255,0.08)', '#8a6a40');
     text('liv. ' + l + '/' + stdMax(), x + bw - 8, y + 31, 13, l ? '#ffd36a' : HC.dim, 'right');
     if (c == null) text('Al massimo', x + 10, y + bh - 13, 13, '#b6d77a', 'left');
-    else if (live) button(x + 6, y + bh - 22, bw - 12, 18, 'Migliora (' + c + ')', () => upgradeStd(id), { off: state.scrap < c, size: 13 });
+    else if (live) button(x + 6, y + bh - 22, bw - 12 - (state.sandbox ? 28 : 0), 18, 'Migliora (' + (state.sandbox ? 'gratis' : c) + ')', () => upgradeStd(id), { off: state.scrap < c, size: 13 });
+    if (live && state.sandbox && l > 0) button(x + bw - 30, y + bh - 22, 24, 18, '−', () => lowerStd(id), { size: 14 });
     else text('Prossimo: ' + c + ' rottami', x + 10, y + bh - 13, 13, HC.dim, 'left');
   };
   STD_LEFT.forEach((id, i) => box(id, C.x, top + i * step, true));
@@ -157,21 +158,21 @@ function drawPick(C, cy, mainB) {
   const items = [];
   if (wpn) weaponIds().forEach(id => {
     const own = state.weaponsOwned.includes(id), eq = state.weapon === id, c = WEAPONS[id].cost;
-    items.push({ key: 'w:' + id, name: WEAPONS[id].name, line: eq ? 'Montata' : own ? 'Tua: click per montare' : 'Compra e monta: ' + c + ' rottami', col: eq ? '#b6d77a' : own ? HC.text : HC.gold, off: !own && state.scrap < c, active: eq, fn: () => { equipWeapon(id); if (state.weapon === id) state.tsPick = null; } });
+    items.push({ key: 'w:' + id, name: WEAPONS[id].name, line: eq ? 'Montata' : own ? 'Tua: click per montare' : state.sandbox ? 'Prendi e monta (gratis)' : 'Compra e monta: ' + c + ' rottami', col: eq ? '#b6d77a' : own ? HC.text : HC.gold, off: !own && state.scrap < c, active: eq, fn: () => { equipWeapon(id); if (state.weapon === id) state.tsPick = null; } });
   });
   else {
     const free = state.systems.length < sysSlots();
     state.owned.filter(id => !modOn(id)).forEach(id => items.push({ key: 'sys:' + id, name: SYSTEMS[id].name, line: free ? 'In magazzino: click per montare' : 'In magazzino (nessuno slot libero)', col: HC.text, off: !free, fn: () => { mountSystem(id); if (state.systems.length >= sysSlots()) state.tsPick = null; } }));
-    garageStock(state.shopSite).forEach(id => items.push({ key: 'sys:' + id, name: SYSTEMS[id].name, line: 'Compra: ' + systemCost(id) + ' rottami', col: HC.gold, off: state.scrap < systemCost(id), fn: () => buySystem(id) }));
+    (state.sandbox ? systemIds().filter(id => !state.owned.includes(id)) : garageStock(state.shopSite)).forEach(id => items.push({ key: 'sys:' + id, name: SYSTEMS[id].name, line: state.sandbox ? 'Prendi (gratis)' : 'Compra: ' + systemCost(id) + ' rottami', col: HC.gold, off: state.scrap < systemCost(id), fn: () => buySystem(id) }));
     if (!items.length) wrap('Niente in magazzino e niente in vendita in questa officina.', C.w - 28, 13).forEach((l, k) => text(l, C.x + 14, cy + 50 + k * 16, 13, HC.dim, 'left'));
   }
-  const cw = Math.floor((C.w - 38) / 2), ch = 52, rows = Math.max(1, Math.floor((mainB - cy - 44) / (ch + 8)));
+  const many = items.length > 10, cw = Math.floor((C.w - 38) / 2), ch = many ? 40 : 52, gap = many ? 6 : 8, rows = Math.max(1, Math.floor((mainB - cy - 44) / (ch + gap)));
   items.slice(0, rows * 2).forEach((it, i) => {
-    const x = C.x + 14 + (i % 2) * (cw + 10), y = cy + 38 + Math.floor(i / 2) * (ch + 8);
+    const x = C.x + 14 + (i % 2) * (cw + 10), y = cy + 38 + Math.floor(i / 2) * (ch + gap);
     button(x, y, cw, ch, '', it.fn, { off: it.off, active: it.active });
     tsZone(x, y, cw, ch, it.key);
-    wrap(it.name, cw - 16, 14).slice(0, 1).forEach(l => text(l, x + 8, y + 16, 14, HC.text, 'left'));
-    text(it.line, x + 8, y + 37, 13, it.off ? '#9a8a78' : it.col, 'left');
+    wrap(it.name, cw - 16, 14).slice(0, 1).forEach(l => text(l, x + 8, y + (many ? 12 : 16), 14, HC.text, 'left'));
+    text(it.line, x + 8, y + (many ? 29 : 37), 13, it.off ? '#9a8a78' : it.col, 'left');
   });
 }
 
@@ -185,12 +186,12 @@ function drawDetail(x, y, w, h, live) {
     const id = it.slice(4), S = STD[id], c = stdCost(id);
     title = S.name + ' · livello ' + lvl(id) + '/' + stdMax(); desc = S.desc;
     stdPreview(id).forEach(([k, a, b]) => L.push(k + ': ' + a + (b != null ? '  →  ' + b : '')));
-    foot = c == null ? 'Al livello massimo.' : 'Prossimo livello: ' + c + ' rottami' + (live ? '' : ' (in officina)'); footCol = c == null ? '#b6d77a' : HC.gold;
+    foot = c == null ? 'Al livello massimo.' : state.sandbox ? 'Prova: i livelli salgono e scendono gratis (− abbassa).' : 'Prossimo livello: ' + c + ' rottami' + (live ? '' : ' (in officina)'); footCol = c == null ? '#b6d77a' : HC.gold;
   } else if (it.startsWith('w:')) {
     const id = it.slice(2), W0 = WEAPONS[id], st = weaponStats(id);
     title = W0.name + (state.weapon === id ? ' · montata' : ''); desc = W0.desc;
     L.push('Danno ' + Math.round(st.dmg) + ' · ' + (st.kind === 'bullet' ? 'un colpo ogni ' + st.reload.toFixed(2) + ' s' : 'ricarica ' + st.reload.toFixed(1) + ' s') + (st.ammo ? ' · ' + st.ammo + ' colpi' : ' · colpi infiniti') + (st.weight ? ' · pesa (meno velocità)' : ''));
-    if (!state.weaponsOwned.includes(id)) { foot = 'Costa ' + W0.cost + ' rottami (poi si cambia gratis).'; footCol = HC.gold; }
+    if (!state.weaponsOwned.includes(id) && !state.sandbox) { foot = 'Costa ' + W0.cost + ' rottami (poi si cambia gratis).'; footCol = HC.gold; }
   } else if (it.startsWith('s:')) {
     const k = it.slice(2), S0 = SHELLS[k];
     title = S0.short + ' · ' + S0.name + (state.shell === k ? ' · caricato' : ''); desc = S0.desc;
@@ -200,7 +201,7 @@ function drawDetail(x, y, w, h, live) {
     const id = it.slice(4), S0 = SYSTEMS[id], k = S0.active && sysKey(id);
     title = S0.name; desc = S0.desc;
     L.push(S0.active ? (k ? 'Si usa col tasto ' + k.slice(3) + ', poi si ricarica.' : 'Montato prende uno dei tasti R T F G V B.') : 'Lavora da solo finché è montato.');
-    if (!state.owned.includes(id)) { foot = 'Costa ' + systemCost(id) + ' rottami.'; footCol = HC.gold; }
+    if (!state.owned.includes(id) && !state.sandbox) { foot = 'Costa ' + systemCost(id) + ' rottami.'; footCol = HC.gold; }
   }
   text(title, x + 14, y + 16, 16, '#ffd9a0', 'left');
   const dl = wrap(desc, dw, 13).slice(0, 2);
@@ -238,5 +239,28 @@ function tankScreenInput() {
 // ---- The workshop tab (js/systems/workshop.js): the same screen, live ---------------------------------------
 registerShopTab('tank', {
   name: 'Mezzo', order: 10,
-  draw(x0, y0, w, h, cy) { drawTankPanel(x0, w, cy - 6, y0 + h - 46, true); },
+  draw(x0, y0, w, h, cy) {
+    if (state.sandbox) { // the test map's sandbox (iteration 73): the hull changes here
+      text('Scafo', x0 + w - 24 - 3 * 112 - 8, y0 + 73, 14, '#ffd9a0', 'right');
+      HULL_IDS.forEach((id, i) => button(x0 + w - 24 - (3 - i) * 112, y0 + 56, 104, 34, HULLS[id].short, () => setHull(id), { active: state.hull === id, size: 14 }));
+    }
+    drawTankPanel(x0, w, cy - 6, y0 + h - 46, true);
+  },
 });
+
+// ---- The test map's sandbox (iteration 73) -------------------------------------------------------------------
+/** Sandbox: one level down on standard system id (to compare the levels). */
+function lowerStd(id) {
+  if (lvl(id) <= 0) return;
+  state.lv[id] = lvl(id) - 1; state.stats = null; state.lookKey++;
+  const tk = state.tank, hp = tankStats().hp; if (tk) { tk.maxhp = hp; tk.hp = Math.min(tk.hp, hp); }
+  state.shopMsg = STD[id].name + ' al livello ' + lvl(id) + '.';
+}
+/** Sandbox: the command vehicle becomes hull id where it stands, whole; systems beyond its slots go back to the store. */
+function setHull(id) {
+  if (state.hull === id || !HULLS[id]) return;
+  state.hull = id; state.stats = null; state.lookKey++; trimSystems();
+  const tk = state.tank; if (tk) { tk.rad = HULLS[id].rad; tk.maxhp = tankStats().hp; tk.hp = tk.maxhp; }
+  const m = ammoMax(); while (ammoTotal() > m) { const k = SHELL_IDS.find(s => state.ammo[s] > 0); state.ammo[k]--; }
+  state.shopMsg = 'Ora guidi: ' + HULLS[id].name + '.';
+}

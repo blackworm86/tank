@@ -26,15 +26,15 @@ function drawShop() {
   ctx.fillStyle = 'rgba(14,10,8,0.6)'; ctx.fillRect(0, 0, W, H);
   const x0 = 110, y0 = 40, w = W - 220, h = H - 80;
   panel(x0, y0, w, h);
-  text(state.shopSite.field ? 'Officina da campo - prima di partire' : 'Officina - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
-  gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
+  text(state.sandbox ? 'Officina di prova · tutto gratis' : state.shopSite.field ? 'Officina da campo - prima di partire' : 'Officina - ' + state.shopSite.name, x0 + 24, y0 + 30, 24, '#ffd9a0', 'left');
+  gearIcon(x0 + w - 200, y0 + 30, 10, HC.gold); text(state.sandbox ? 'rottami illimitati' : state.scrap + ' rottami', x0 + w - 184, y0 + 30, 18, HC.gold, 'left');
   const tabs = shopTabs(), tw = Math.min(176, Math.floor((w - 48) / Math.max(1, tabs.length)));
   tabs.forEach((id, i) => button(x0 + 24 + i * tw, y0 + 56, tw - 8, 34, (i + 1) + '  ' + SHOP_TABS[id].name, () => { state.shopTab = id; state.shopMsg = ''; }, { active: state.shopTab === id }));
   const cy = y0 + 106, T = shopTab();
   if (T) T.draw(x0, y0, w, h, cy);
   if (state.shopMsg) text(state.shopMsg, x0 + w / 2, y0 + h - 26, 16, HC.gold);
   if (state.leaving) { text('Invio o Esc: parti per la mappa della campagna   Backspace: resta nel settore', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right'); }
-  else text('Esc: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
+  else text(state.sandbox ? 'K o Esc: torna alla mappa di test' : 'Esc: torna al campo', x0 + w - 24, y0 + h - 26, 14, HC.dim, 'right');
   if (state.confirm) { // the downgrade question: only its two buttons answer
     UI.buttons = [];
     ctx.fillStyle = 'rgba(10,8,6,0.6)'; ctx.fillRect(0, 0, W, H);
@@ -56,6 +56,6 @@ function workshopInput() {
   if (state.confirm) { if (pressed('Escape')) state.confirm = null; else if (pressed('Enter')) { const f = state.confirm.yes; state.confirm = null; f(); } }
   else if (state.leaving && pressed('Backspace')) { state.leaving = false; scene = 'play'; }
   else if (state.leaving && (pressed('Escape') || pressed('Enter'))) { departSector(); follow(); }
-  else if (pressed('Escape')) scene = 'play';
+  else if (pressed('Escape') || (state.sandbox && pressed('KeyK'))) scene = 'play';
   MS.lp = MS.rp = MS.lr = MS.rr = false;
 }
