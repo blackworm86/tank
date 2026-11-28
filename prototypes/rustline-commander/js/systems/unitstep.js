@@ -355,7 +355,7 @@ function raiderThink(e, w) {
   if (tune.smart_raiders && !e.veh && raiderRole(e, w)) return; // tactics.js: pin, flank, buildings, retreat
   if (tune.smart_raiders && D && D.circleSmart && circleTarget(e)) return; // technicals circle, firing on the move
   if (e.target && !e.veh) { e.path = null; return; }
-  if (e.target && e.veh && dist2(e, e.target) < 16 * 16) { e.path = null; return; }
+  if (e.target && e.veh && dist2(e, e.target) < (w.range * tune.foe_veh_band) ** 2 && canSee(e, e.target)) { e.path = null; return; } // a hull holds at its gun's range (iteration 67)
   if (g.known && (!e.path || e.pi >= e.path.length || state.t - e.pathT > 3)) {
     const lim = g.kind === 'camp' ? tune.leash : g.kind === 'fort' ? 11 : g.kind === 'hunt' ? 999 : 36;
     let dx = g.known.x - g.home.x, dz = g.known.z - g.home.z; const L = Math.hypot(dx, dz);

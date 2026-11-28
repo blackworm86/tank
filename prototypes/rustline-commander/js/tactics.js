@@ -140,7 +140,8 @@ function groupPlan(g) {
   if (g.n0 == null) {
     g.n0 = g.members.length;
     let k = 0; // roles: rockets hunt hulls, technicals circle, a share of riflemen go round the flank
-    for (const m of ms) m.role = m.veh ? 'circle' : ENEMY[m.kind] && ENEMY[m.kind].rocket ? 'rocket' : m.fixed ? 'fixed' : !(ENEMY[m.kind] && ENEMY[m.kind].noFlank) && (k++ % Math.max(2, Math.round(1 / tune.flank_share))) === 1 ? 'flank' : 'pin';
+    let nf = 0;
+    for (const m of ms) { m.role = m.veh ? 'circle' : ENEMY[m.kind] && ENEMY[m.kind].rocket ? 'rocket' : m.fixed ? 'fixed' : !(ENEMY[m.kind] && ENEMY[m.kind].noFlank) && (k++ % Math.max(2, Math.round(1 / tune.flank_share))) === 1 ? 'flank' : 'pin'; if (m.role === 'flank') m.flankN = nf++; }
     g.flankSide = rng() < 0.5 ? 1 : -1;
   }
   const loss = 1 - ms.length / g.n0;
@@ -164,7 +165,8 @@ function raiderRole(e, w) {
     else return true;
   }
   if (!g.known || e.role === 'fixed' || e.role === 'rocket') return false;
-  const T = g.known, threats = threatsFor(e, 50), t = threats[0] || null;
+  // iteration 67: the nearest foe it knows of is its mark (a squad as well as the tank), the group's last sighting otherwise
+  const threats = threatsFor(e, 50), t = threats[0] || null, T = t && !t.veh && Math.hypot(t.x - e.x, t.z - e.z) < Math.hypot(g.known.x - e.x, g.known.z - e.z) ? t : g.known;
   const leash = g.kind === 'camp' ? { x: g.home.x, z: g.home.z, r: tune.leash + 6 } : g.kind === 'fort' ? { x: g.home.x, z: g.home.z, r: 14 } : null;
   if (e.moving && e.path && e.pi < e.path.length && state.t - (e.roleT || -99) < tune.cover_rethink) return true;
   if (state.t - (e.roleT || -99) < tune.cover_rethink) return !!t; // holding a chosen spot
@@ -177,21 +179,24 @@ function raiderRole(e, w) {
     if (sp) { setDest(e, sp.x, sp.z); return true; }
     return false;
   }
-  if (e.role === 'pin' && t && L > 9) { // a building near at hand: in, and fire from the windows
-    const b = e.wantB && !e.wantB.ruined && e.wantB.occ.length < e.wantB.cap ? e.wantB : world.buildings.find(b => !b.ruined && b.occ.length < b.cap && Math.hypot(b.door.x - e.x, b.door.z - e.z) < 9 && Math.hypot(b.door.x - T.x, b.door.z - T.z) > 8 && Math.hypot(b.door.x - T.x, b.door.z - T.z) < w.range * 1.05 && (!leash || Math.hypot(b.door.x - leash.x, b.door.z - leash.z) < leash.r));
+  if ((e.role === 'pin' || e.role === 'flank') && t && L > 9) { // a building within foe_bld_range: in, and fire from the windows
+    const b = e.wantB && !e.wantB.ruined && e.wantB.occ.length < e.wantB.cap ? e.wantB : world.buildings.find(b => !b.ruined && b.occ.length < b.cap && Math.hypot(b.door.x - e.x, b.door.z - e.z) < tune.foe_bld_range && Math.hypot(b.door.x - T.x, b.door.z - T.z) > 8 && Math.hypot(b.door.x - T.x, b.door.z - T.z) < w.range * 1.05 && (!leash || Math.hypot(b.door.x - leash.x, b.door.z - leash.z) < leash.r));
     if (b && Math.hypot(b.out.x - e.x, b.out.z - e.z) < 1.8) { enterBuilding(e, b); e.wantB = null; return true; }
     if (b) { e.wantB = b; setDest(e, b.out.x, b.out.z); return true; }
   }
-  let cx = e.x, cz = e.z; const o = { range: w.range * 0.8, minD: 7, walkK: 0.3, leash };
+  // a band at foe_band of its range: no closer than it needs, cover within foe_cover_r, height valued (iteration 67)
+  const band = w.range * tune.foe_band;
+  let cx = e.x, cz = e.z, R = tune.foe_cover_r; const o = { range: w.range * 0.85, minD: band * 0.7, walkK: 0.2, leash, highK: tune.foe_high_k };
   if (e.role === 'flank') { // round to the side of the target, cover to cover
     const px = -dz / L * g.flankSide, pz = dx / L * g.flankSide;
-    const fx = T.x + px * tune.flank_dist - dx / L * 6, fz = T.z + pz * tune.flank_dist - dz / L * 6;
+    const side = (e.flankN || 0) % 2 ? -1 : 1, fx = T.x + px * side * tune.flank_dist - dx / L * 6, fz = T.z + pz * side * tune.flank_dist - dz / L * 6; // flankers split to both sides
     const fl = Math.hypot(fx - e.x, fz - e.z);
     if (fl > 5) { const st = Math.min(8, fl); cx = e.x + (fx - e.x) / fl * st; cz = e.z + (fz - e.z) / fl * st; Object.assign(o, { toward: { x: fx, z: fz }, progK: 1, walkK: 0.1 }); }
     else e.role = 'pin';
-  } else if (L > w.range * 0.8) { const st = Math.min(8, L - w.range * 0.7); cx += dx / L * st; cz += dz / L * st; Object.assign(o, { toward: T, progK: 0.6 }); } // closing in, cover to cover
+  } else if (L > band + 3) { const st = Math.min(9, L - band); cx += dx / L * st; cz += dz / L * st; Object.assign(o, { toward: { x: T.x - dx / L * band, z: T.z - dz / L * band }, progK: 0.5 }); } // closing to the band, cover to cover
+  else if (L < band * 0.6) { const st = Math.min(6, band - L); cx -= dx / L * st; cz -= dz / L * st; } // too close: back to the band
   if (suppressed(e)) Object.assign(o, { progK: 0, walkK: 0.6, toward: null }); // pinned down: the nearest cover will do
-  const here = scoreSpot(e, e.x, e.z, threats, o), sp = bestSpot(e, cx, cz, 5, threats, o);
+  const here = scoreSpot(e, e.x, e.z, threats, o), sp = bestSpot(e, cx, cz, R, threats, o);
   if (sp && (sp.s > here + tune.cover_margin || o.toward) && Math.hypot(sp.x - e.x, sp.z - e.z) > 1) { setDest(e, sp.x, sp.z); return true; }
   e.path = null; return !!t;
 }

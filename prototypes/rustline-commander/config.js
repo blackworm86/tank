@@ -470,8 +470,13 @@ window.CONFIG = {
   ai_retreat_odds: { value: 2.5, min: 1, max: 6, step: 0.5 },     // or enemies near it (vehicles x3) per soldier
   ai_bld_level: { value: 4, min: 0, max: 9, step: 1 },            // squad level that takes buildings on its own
   ai_bld_range: { value: 14, min: 4, max: 40, step: 1 },          // how far it looks for one
-  flank_share: { value: 0.34, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
+  flank_share: { value: 0.5, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
   flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
+  foe_band: { value: 0.75, min: 0.3, max: 1, step: 0.05 },      // raiders on foot hold at this share of their weapon's range (iteration 67)
+  foe_cover_r: { value: 9, min: 3, max: 14, step: 1 },          // how far round a raider looks for cover
+  foe_high_k: { value: 0.8, min: 0, max: 3, step: 0.1 },        // score a raider gives each metre of height
+  foe_bld_range: { value: 18, min: 0, max: 30, step: 1 },       // a raider takes a free building with its door this close
+  foe_veh_band: { value: 0.7, min: 0.3, max: 1, step: 0.05 },   // an enemy vehicle stops at this share of its gun's range once it sees its target
   reinforce_loss: { value: 0.3, min: 0.1, max: 0.9, step: 0.05 }, // losses at which a raider group calls the nearest calm group
   reinforce_range: { value: 90, min: 20, max: 200, step: 5 },   // how far that call reaches
   retreat_loss: { value: 0.6, min: 0.3, max: 1, step: 0.05 },   // losses at which a raider group falls back
