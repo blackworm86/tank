@@ -13,7 +13,7 @@ const FMFIRE = [0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0, 0.7, 0, 0.35, 1, 1, 0, 0, 0.3, 0
 /** Sets fire round (x, y, z): a burning patch on the ground, and a few of the burnable cells within r metres (fire_ignite times how readily they burn, fire_ignite_max at most). */
 function igniteArea(x, y, z, r, src) {
   if (!state.fires) { state.fires = []; state.fireKeys = new Set(); }
-  if (state.fires.length < tune.fire_max) state.fires.push({ ground: true, x, y: hAt(x, z), z, until: state.t + tune.fire_ground_s, src, tick: 0 });
+  groundFire(x, z, src, 0);
   if (!world.structs) return;
   let n = 0; // a few spots catch (fire_ignite), the fire spreads from them
   for (const S of world.structs) {
@@ -27,6 +27,24 @@ function igniteArea(x, y, z, r, src) {
           if (n < tune.fire_ignite_max && rng() < FMFIRE[m] * tune.fire_ignite) { burnCell(S, l, src); n++; }
         }
   }
+}
+/**
+ * Iteration 79: the fire spreads on the ground. How readily the ground at (x,z) burns: trees most, the dry scrub of dirt and
+ * sand some, rock, roads, concrete and water never.
+ */
+function groundFuel(x, z) {
+  const h = hAt(x, z), ix = Math.floor(x), iz = Math.floor(z);
+  let t = getV(ix, Math.floor(h) - 1, iz); if (!t) t = getV(ix, Math.floor(h) - 2, iz);
+  return t === V.TREE ? 1.6 : t === V.GREEN ? 1.2 : t === V.WOOD || t === V.JUNK || t === V.BAG ? 1 : t === V.DIRT ? 0.7 : t === V.SAND ? 0.45 : 0;
+}
+/** A burning patch on the ground at (x,z), once a patch of ground (1.25 m); gen: how many spreads from where it was lit. */
+function groundFire(x, z, src, gen) {
+  if (!state.fires) { state.fires = []; state.fireKeys = new Set(); }
+  const key = 'g' + Math.round(x / 1.25) + ',' + Math.round(z / 1.25);
+  if (state.fireKeys.has(key) || state.fires.length >= tune.fire_max) return false;
+  state.fireKeys.add(key);
+  state.fires.push({ ground: true, x, y: hAt(x, z), z, until: state.t + tune.fire_ground_s * (gen ? 0.7 + rng() * 0.6 : 1), src, tick: rng() * 0.3, gen, t0: state.t });
+  return true;
 }
 /** Fine cell l of S catches fire (once; never past fire_max fires). */
 function burnCell(S, l, src) {
@@ -52,10 +70,17 @@ function updateFires(dt) {
     const f = L[i];
     if (f.ground) { if (state.t > f.until) { L.splice(i, 1); continue; } }
     else { const S = world.structs[f.S]; if (!S || !S.cells[f.l]) { state.fireKeys.delete(f.S * 16777216 + f.l); L.splice(i, 1); continue; } }
+    if (f.ground && f.tick - dt <= 0 && (f.gen || 0) < tune.fire_ground_gens && state.t - (f.t0 || 0) > 0.8) { // it creeps to the ground next to it
+      for (let j = 0; j < 2; j++) {
+        const a = rng() * 6.28, nx = f.x + Math.cos(a) * 1.3, nz = f.z + Math.sin(a) * 1.3;
+        if (rng() < tune.fire_ground_spread * groundFuel(nx, nz)) groundFire(nx, nz, f.src, (f.gen || 0) + 1);
+      }
+    }
     f.tick -= dt; if (f.tick > 0) continue; f.tick = 0.5;
     const p = firePos(f);
     if (state.fx && rng() < fxP) state.fx.push({ kind: 'smoke', x: p.x + (rng() - 0.5) * 0.4, y: p.y + 0.2, z: p.z + (rng() - 0.5) * 0.4, t: 0, life: 0.7, s: 0.45, rise: 2.2, col: rng() < 0.5 ? 0xff7a1a : 0xffb030 });
-    if (state.fx && rng() < fxP * 0.5) state.fx.push({ kind: 'smoke', x: p.x + (rng() - 0.5) * 0.6, y: p.y + 1, z: p.z + (rng() - 0.5) * 0.6, t: 0, life: 3 + rng() * 1.5, s: 0.8 + rng() * 0.4, rise: 4.5, col: rng() < 0.5 ? 0x2a2420 : 0x3a302a });
+    // black smoke, thick and rising high, lit orange from below while it is low (iteration 79)
+    if (state.fx && rng() < fxP * 0.8) state.fx.push({ kind: 'smoke', x: p.x + (rng() - 0.5) * 0.8, y: p.y + 1.2, z: p.z + (rng() - 0.5) * 0.8, t: 0, life: 4.5 + rng() * 2.5, s: 1 + rng() * 0.7, rise: 7 + rng() * 4, col: rng() < 0.5 ? 0x141110 : 0x1e1916, heat: 1 });
     if (state.fx && rng() < fxP * 0.35 * tune.fx_embers) state.fx.push({ kind: 'ember', x: p.x + (rng() - 0.5) * 0.6, y: p.y + 0.3, z: p.z + (rng() - 0.5) * 0.6, t: 0, life: 1 + rng() * 1.2, s: 0.09 + rng() * 0.06, rise: 2.5 + rng() * 2.5, vx: (rng() - 0.5) * 0.8, vz: (rng() - 0.5) * 0.8 });
     if (!f.ground) {
       const S = world.structs[f.S], m = S.cells[f.l], C = S.cells;

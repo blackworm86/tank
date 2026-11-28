@@ -19,10 +19,10 @@ function pfxTexture(puff) {
   } else {
     // a puff: overlapping soft blobs (a fixed pattern, not the game's rng: it is only a picture)
     let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 14; i++) {
-      const a = rnd() * 6.28, d = rnd() * N * 0.2, x = N / 2 + Math.cos(a) * d, y = N / 2 + Math.sin(a) * d, rr = N * (0.16 + rnd() * 0.16);
+    for (let i = 0; i < 26; i++) {
+      const a = rnd() * 6.28, d = Math.sqrt(rnd()) * N * 0.24, x = N / 2 + Math.cos(a) * d, y = N / 2 + Math.sin(a) * d, rr = N * (0.1 + rnd() * 0.15);
       const r = g.createRadialGradient(x, y, 0, x, y, rr);
-      r.addColorStop(0, 'rgba(255,255,255,0.42)'); r.addColorStop(0.6, 'rgba(255,255,255,0.18)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      r.addColorStop(0, 'rgba(255,255,255,0.5)'); r.addColorStop(0.55, 'rgba(255,255,255,0.24)'); r.addColorStop(1, 'rgba(255,255,255,0)');
       g.fillStyle = r; g.fillRect(0, 0, N, N);
     }
   }
@@ -43,23 +43,39 @@ function pfxLayer(max, additive, puff) {
     uniforms: { map: { value: pfxTexture(puff) }, fogCol: { value: new THREE.Color() }, fogNear: { value: 100 }, fogFar: { value: 300 }, lit: { value: puff ? 1 : 0 }, occ: { value: 0.35 } },
     vertexShader: `
       attribute vec3 iPos; attribute vec3 iSz; attribute vec4 iCol;
-      varying vec2 vUv; varying vec2 vLoc; varying vec4 vCol; varying float vDepth;
+      uniform float lit;
+      varying vec2 vUv; varying vec2 vLoc; varying vec4 vCol; varying float vDepth; varying float vHeat; varying vec2 vRot;
       void main() {
         vec4 mv = modelViewMatrix * vec4(iPos, 1.0);
         float c = cos(iSz.y), s = sin(iSz.y);
-        vec2 p = position.xy * vec2(1.0, iSz.z);   // a flame stands taller than wide
-        mv.xy += vec2(c * p.x - s * p.y, s * p.x + c * p.y) * iSz.x;
-        vUv = uv; vLoc = p; vCol = iCol; vDepth = -mv.z;
+        // iSz.z: a flame's height over its width; for smoke, the heat of the fire under it (a glow from below)
+        vec2 p = position.xy * vec2(1.0, lit > 0.5 ? 1.0 : iSz.z);
+        vec2 r = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+        mv.xy += r * iSz.x;
+        vUv = uv; vLoc = r; vCol = iCol; vDepth = -mv.z; vHeat = lit > 0.5 ? iSz.z : 0.0; vRot = vec2(c, s);
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
       uniform sampler2D map; uniform vec3 fogCol; uniform float fogNear, fogFar, lit, occ;
-      varying vec2 vUv; varying vec2 vLoc; varying vec4 vCol; varying float vDepth;
+      varying vec2 vUv; varying vec2 vLoc; varying vec4 vCol; varying float vDepth; varying float vHeat; varying vec2 vRot;
       void main() {
-        float a = texture2D(map, vUv).a * vCol.a;
+        float a0 = texture2D(map, vUv).a, a = a0 * vCol.a;
         if (a < 0.004) discard;
         vec3 c = vCol.rgb;
-        if (lit > 0.5) c *= 0.72 + 0.5 * (vLoc.y + 0.5);   // smoke: lit from above, darker underneath
+        if (lit > 0.5) {
+          // smoke as a volume: each puff a lumpy ball, its normal from its round shape and the bumps of its texture,
+          // lit by the sun from above and the side, dark in its own shadow; a fire under it glows orange on its belly
+          const float e = 0.035;
+          vec2 g = vec2(texture2D(map, vUv + vec2(e, 0.0)).a - texture2D(map, vUv - vec2(e, 0.0)).a,
+                        texture2D(map, vUv + vec2(0.0, e)).a - texture2D(map, vUv - vec2(0.0, e)).a);
+          g = vec2(vRot.x * g.x - vRot.y * g.y, vRot.y * g.x + vRot.x * g.y);
+          vec2 q = vLoc * 2.0;
+          vec3 n = normalize(vec3(q * 0.75 - g * 2.2, sqrt(max(0.06, 1.0 - dot(q, q)))));
+          float d = dot(n, normalize(vec3(-0.35, 0.8, 0.5))) * 0.5 + 0.5;
+          c = c * mix(0.4, 1.3, d) + vec3(0.1, 0.095, 0.09) * d * d;   // black smoke still shows grey where the sun is on it
+          c += vHeat * vec3(1.0, 0.36, 0.07) * smoothstep(0.35, -0.6, q.y) * (0.6 + 0.4 * (1.0 - d));
+          a = 1.0 - pow(1.0 - a, 1.4);                                   // thicker in its heart
+        }
         float f = smoothstep(fogNear, fogFar, vDepth);
         if (lit > 0.5) c = mix(c, fogCol, f); else a *= 1.0 - f * 0.7;
         // smoke: plain alpha; fire: premultiplied, it adds its light and also dims what is behind a little,
@@ -86,11 +102,12 @@ function initParticles() {
 /** Keeps the tunable look in step with config (fx_fire_occlude). */
 function pfxTune() { PFX.fire.mesh.material.uniforms.occ.value = tune.fx_fire_occlude; }
 
+const SMK = [];   // this frame's smoke, sorted far to near before it is drawn (puffs over puffs read as one volume)
 function pfxPut(L, x, y, z, size, rot, r, g, b, a, tall) {
   if (L.n >= L.max || a <= 0.003 || size <= 0) return;
   const i = L.n++;
   L.pos[i * 3] = x; L.pos[i * 3 + 1] = y; L.pos[i * 3 + 2] = z;
-  L.sz[i * 3] = size; L.sz[i * 3 + 1] = rot; L.sz[i * 3 + 2] = tall || 1;
+  L.sz[i * 3] = size; L.sz[i * 3 + 1] = rot; L.sz[i * 3 + 2] = tall == null ? 1 : tall;
   L.col[i * 4] = r; L.col[i * 4 + 1] = g; L.col[i * 4 + 2] = b; L.col[i * 4 + 3] = a;
 }
 /** A flame's colour at k (0 born, 1 gone): white-yellow, orange, deep red. */
@@ -110,6 +127,7 @@ function drawParticles() {
   S.n = 0; F.n = 0; pfxTune();
   const wx = tune.fx_wind_x, wz = tune.fx_wind_z, fs = tune.fx_flame_size, sa = tune.fx_smoke_alpha, gl = tune.fx_glow;
   const flashes = [];
+  SMK.length = 0;
   for (const f of state.fx || []) {
     if (f.t < 0) continue; // not born yet (a delayed puff)
     const k = f.t / f.life, h = pfxHash(f.x, f.z), rot0 = h * 6.28;
@@ -138,9 +156,10 @@ function drawParticles() {
       // a puff of smoke: swells, rises with an easing, drifts with the wind, fades in and out
       const c = f.col != null ? f.col : 0x6f6259, r = (c >> 16 & 255) / 255, g = (c >> 8 & 255) / 255, b = (c & 255) / 255;
       const ease = 1 - (1 - k) * (1 - k), sz = f.s * (0.8 + ease * 1.6) * 1.5;
-      const a = Math.min(1, k / 0.1) * Math.pow(1 - k, 1.3) * sa;
-      const dr = f.t * (0.6 + k);
-      pfxPut(S, f.x + wx * dr, f.y + f.rise * ease, f.z + wz * dr, sz, rot0 + f.t * (h - 0.5) * 0.8, r, g, b, a);
+      const a = Math.min(1, k / 0.1) * Math.pow(1 - k, 1.3) * (f.heat ? tune.fx_black_smoke : sa);
+      const dr = f.t * (0.4 + k * 1.6);   // the higher, the more the wind takes it
+      const tx = Math.sin(f.t * 0.9 + rot0 * 3) * 0.3 * k, tz = Math.cos(f.t * 0.8 + rot0 * 2) * 0.3 * k;   // a slow churn
+      SMK.push([f.x + wx * dr + tx, f.y + f.rise * ease, f.z + wz * dr + tz, sz, rot0 + f.t * (h - 0.5) * 0.6, r, g, b, a, (f.heat || 0) * Math.pow(Math.max(0, 1 - k * 2.2), 2)]);
     }
   }
   // every burning fire flickers each frame: a glow on the ground and three dancing flames
@@ -149,7 +168,7 @@ function drawParticles() {
   const step = Math.max(1, Math.ceil(L.length / 260));
   for (let i = 0; i < L.length; i += step) {
     const f = L[i], p = firePos(f), h = pfxHash(p.x, p.z);
-    const life = f.ground ? Math.min(1, (f.until - T) / 2) : 1;   // a patch on the ground dies down in its last seconds
+    const life = f.ground ? Math.min(1, (f.until - T) / 2, 0.25 + Math.max(0, T - (f.t0 == null ? -9 : f.t0)) / 1.8) : 1;   // a patch on the ground grows in its first seconds and dies down in its last
     if (life <= 0) continue;
     const wob = 0.8 + 0.2 * Math.sin(T * 11 + h * 40) * Math.sin(T * 7.3 + h * 13);
     const base = f.ground ? p.y + 0.15 : p.y - 0.05;
@@ -163,6 +182,11 @@ function drawParticles() {
     }
     if (lights.length < PFX.lights.length && !lights.some(q => (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 64)) lights.push({ x: p.x, y: base + 1.2, z: p.z, w: wob * life, fire: true });
   }
+  // smoke far to near
+  const cp = R3.camera.position;
+  for (const q of SMK) q[11] = (q[0] - cp.x) ** 2 + (q[1] - cp.y) ** 2 + (q[2] - cp.z) ** 2;
+  SMK.sort((a, b) => b[11] - a[11]);
+  for (const q of SMK) pfxPut(S, q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8], q[9]);
   // the lights: the biggest blasts first, then fires
   flashes.sort((a, b) => b.w - a.w);
   const use = flashes.slice(0, 2).map(q => ({ x: q.x, y: q.y + 1, z: q.z, w: Math.min(3, q.w), fire: false })).concat(lights);

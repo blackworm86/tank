@@ -438,6 +438,8 @@ window.CONFIG = {
   fire_max: { value: 400, min: 0, max: 2000, step: 50 },          // fires burning at once at most
   fire_dps: { value: 14, min: 0, max: 100, step: 1 },             // damage a second to whoever stands within fire_r of a fire (fire type: dk_fire_*)
   fire_r: { value: 1.3, min: 0.3, max: 4, step: 0.1 },
+  fire_ground_spread: { value: 0.35, min: 0, max: 1, step: 0.01 }, // chance, twice a half second, a burning patch catches the ground next to it, times how readily it burns (iteration 79)
+  fire_ground_gens: { value: 8, min: 0, max: 30, step: 1 },        // how far a ground fire creeps: spreads from where it was lit, at most
   fire_ground_s: { value: 8, min: 0, max: 30, step: 0.5 },        // seconds a burning patch on the ground lasts
   fire_ignite: { value: 0.35, min: 0.01, max: 1, step: 0.01 },    // chance a burnable cell in an incendiary's reach catches, times how readily it burns
   fire_ignite_max: { value: 24, min: 1, max: 200, step: 1 },      // cells an incendiary sets alight at most (the fire spreads from them)
@@ -448,6 +450,7 @@ window.CONFIG = {
   fx_wind_x: { value: 0.7, min: -4, max: 4, step: 0.1 },          // the wind that carries smoke and flames, metres a second
   fx_wind_z: { value: 0.35, min: -4, max: 4, step: 0.1 },
   fx_fire_occlude: { value: 0.35, min: 0, max: 1, step: 0.05 },  // how much a flame dims what is behind it (0: pure glow, washes out on pale ground)
+  fx_black_smoke: { value: 0.85, min: 0.1, max: 1, step: 0.02 },  // how thick a fire's black smoke is
   fx_embers: { value: 1, min: 0, max: 4, step: 0.1 },             // sparks from fires and blasts
   fire_light: { value: 30, min: 0, max: 120, step: 0.5 },           // the flickering light a fire or a blast throws on the ground
   fire_inc_r: { value: 0.9, min: 0.5, max: 4, step: 0.1 },        // reach of an incendiary's flames, times its blast radius

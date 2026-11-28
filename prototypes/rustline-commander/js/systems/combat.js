@@ -152,7 +152,7 @@ function blastFx(x, y, z, r) {
   state.fx.push({ kind: 'flash', x, y, z, t: 0, life: 0.28, s: r * 1.3 });
   for (let i = 0; i < 5; i++) state.fx.push({ kind: 'smoke', x: x + (rng() - 0.5) * r, y: y + rng(), z: z + (rng() - 0.5) * r, t: -i * 0.05, life: 1.6 + rng(), s: 0.8 + r * 0.4, rise: 3 + rng() * 2, col: i % 2 ? 0x6f6259 : 0x8a7b6c });
   // iteration 78: a dark column that lingers, a hot core of flame and a spray of sparks
-  for (let i = 0; i < 3; i++) state.fx.push({ kind: 'smoke', x: x + (rng() - 0.5) * r * 0.5, y: y + 0.5, z: z + (rng() - 0.5) * r * 0.5, t: -0.1 - i * 0.12, life: 2.8 + rng(), s: 0.6 + r * 0.35, rise: 4 + r, col: 0x3a322c });
+  for (let i = 0; i < 3; i++) state.fx.push({ kind: 'smoke', x: x + (rng() - 0.5) * r * 0.5, y: y + 0.5, z: z + (rng() - 0.5) * r * 0.5, t: -0.1 - i * 0.12, life: 3.2 + rng(), s: 0.7 + r * 0.4, rise: 4.5 + r, col: 0x221d1a, heat: 0.7 });
   for (let i = 0; i < 4; i++) state.fx.push({ kind: 'smoke', x: x + (rng() - 0.5) * r * 0.6, y: y + 0.2, z: z + (rng() - 0.5) * r * 0.6, t: -i * 0.03, life: 0.45 + rng() * 0.2, s: 0.4 + r * 0.3, rise: 1.5 + r * 0.6, col: 0xffa030 });
   const ne = Math.round(Math.min(18, 4 + r * 4) * tune.fx_embers);
   for (let i = 0; i < ne; i++) { const a = rng() * 6.28, v = 2 + rng() * 4 * Math.min(2, r); state.fx.push({ kind: 'ember', x, y: y + 0.3, z, t: 0, life: 0.5 + rng() * 0.7, s: 0.1 + rng() * 0.07, rise: 1.5 + rng() * 3, vx: Math.cos(a) * v, vz: Math.sin(a) * v }); }
