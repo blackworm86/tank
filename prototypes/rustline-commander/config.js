@@ -161,8 +161,6 @@ window.CONFIG = {
 
   // ---- Radio (js/systems/vehicle.js, js/loadout.js) ----
   radio_range: { value: 28, min: 8, max: 120, step: 1 },        // base radio radius, units
-  radioman_range: { value: 1.6, min: 1, max: 4, step: 0.1 },      // a radioman hears the tank this much farther
-  radio_relay: { value: 14, min: 0, max: 50, step: 1 },           // and relays orders to friends this near him
 
   // ---- Main weapons, coax and rounds (js/loadout.js) ----
   tank_ac_damage: { value: 22, min: 2, max: 150, step: 1 },     // autocannon round
@@ -239,7 +237,7 @@ window.CONFIG = {
   rifle_damage: { value: 6, min: 1, max: 50, step: 1 },
   rifle_rate: { value: 1.2, min: 0.1, max: 5, step: 0.05 },     // seconds between shots
   rifle_acc: { value: 0.5, min: 0.05, max: 1, step: 0.05 },
-  sniper_range: { value: 50, min: 10, max: 90, step: 1 },
+  sniper_range: { value: 80, min: 10, max: 90, step: 1 },
   sniper_sight: { value: 54, min: 20, max: 100, step: 1 },        // how far a sniper spots enemies
   sniper_standoff: { value: 24, min: 8, max: 50, step: 1 },       // a sniper keeps this far from the enemy
   climb_max: { value: 12, min: 2, max: 30, step: 1 },              // the tallest natural rock face a sniper or a scout scales (m)
@@ -298,6 +296,18 @@ window.CONFIG = {
   eng_radius: { value: 4, min: 1, max: 15, step: 0.5 },           // engineers repair our vehicles this close
   eng_repair: { value: 4, min: 0, max: 30, step: 0.5 },           // hp/s
   eng_build_time: { value: 7, min: 1, max: 60, step: 1 },         // seconds between sandbag rows
+  medic_power: { value: 100, min: 0, max: 500, step: 10 },        // a medic's healing each sector, hp for hp (iteration 63)
+  medic_save_cost: { value: 25, min: 0, max: 100, step: 5 },      // power a save from death costs him
+  eng_calm: { value: 5, min: 0, max: 30, step: 0.5 },             // seconds out of the fight before an engineer repairs
+  eng_scrap_hp: { value: 0.3, min: 0, max: 3, step: 0.05 },       // scrap each hp his repairs cost
+  grenade_cd: { value: 9, min: 1, max: 60, step: 0.5 },           // seconds between an engineer's grenades
+  grenade_range: { value: 16, min: 4, max: 40, step: 1 },
+  grenade_damage: { value: 40, min: 5, max: 200, step: 5 },
+  grenade_blast: { value: 1.6, min: 0.5, max: 4, step: 0.1 },
+  nest_time: { value: 4, min: 0, max: 30, step: 0.5 },            // seconds a machine gunner stands before his nest is up
+  nest_rate: { value: 0.75, min: 0.3, max: 1, step: 0.05 },       // his time between bursts in the nest
+  nest_sup: { value: 1.6, min: 1, max: 4, step: 0.1 },            // and how much longer it pins them down
+  radio_op_range: { value: 18, min: 4, max: 60, step: 1 },        // a radio operator's own ring
   scout_sight: { value: 54, min: 10, max: 120, step: 1 },
   scout_speed: { value: 1.25, min: 0.5, max: 2, step: 0.05 },
 

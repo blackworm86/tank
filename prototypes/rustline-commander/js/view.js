@@ -755,7 +755,7 @@ function renderWorld() {
   // rings: radio, dispersion circle, gun line
   const tk = state.tank;
   const show = !!tk && tk.alive && scene !== 'title';
-  R3.radio.visible = show;
+  R3.radio.visible = show; if (!show && R3.opRings) for (const l of R3.opRings) l.visible = false;
   R3.aim.visible = R3.aim2.visible = R3.gunLine.visible = show && state.mode === 'tank' && !!state.aimP;
   R3.gunRed.visible = R3.gunLine.visible && !!state.fireLine && state.fireLine.block >= 0;
   R3.aimS.visible = R3.aim.visible && !!state.aimS && !!state.fireLine2;
@@ -764,6 +764,9 @@ function renderWorld() {
   R3.hitX2.visible = R3.aimS.visible && state.fireLine2.block >= 0 && state.fireLine2.block < 32;
   if (show) {
     ringPoints(R3.radio, tk.x, tk.z, tankStats().radio, 0.35, true);
+    const ops = relays(); R3.opRings = R3.opRings || []; // the linked radio operators' own rings (loadout.js)
+    while (R3.opRings.length < ops.length) R3.opRings.push(makeLoop(64, R3.radio.material));
+    R3.opRings.forEach((l, i) => { l.visible = i < ops.length; if (l.visible) ringPoints(l, ops[i].x, ops[i].z, tune.radio_op_range, 0.35, true); });
     R3.radio.material.opacity = state.mode === 'cmd' ? 1 : 0.6;
     if (R3.aim.visible) {
       // the main weapon's scatter where its round really lands: on the first thing in the way, or at the mouse;

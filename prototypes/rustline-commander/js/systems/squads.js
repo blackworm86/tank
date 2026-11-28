@@ -15,7 +15,7 @@ function squadName(slots) {
       at: n > 1 ? 'Squadra anticarro' : 'Anticarro', ltank: n > 1 ? 'Plotone carri' : 'Carro di supporto', jeep: 'Jeep' }[t];
   }
   const tr = traitsOf(slots).find(t => t.squad);
-  return tr ? tr.squad : 'Squadra mista';
+  return tr ? tr.squad : 'Squadra';
 }
 /** The squads' colours: on their cards, rings, paths and minimap numbers. */
 const SQ_COLORS = ['#4fe3e0', '#ffd36a', '#ff8ad8', '#9fe35a', '#b48cff', '#ff9a4a'];
@@ -437,11 +437,12 @@ function enterBuilding(m, b) {
   const used = new Set(b.occ.map(o => o.slotI)); let k = 0; while (used.has(k)) k++;
   const s = b.slots[Math.min(b.slots.length - 1, Math.floor(k * b.slots.length / b.cap))];
   m.garrison = b; m.slotI = k; b.occ.push(m);
-  m.x = s.x; m.z = s.z; m.y = m.vy = b.g; m.path = null; m.moving = false; m.dest = null; m.face = null;
+  m.floorY = m.kind === 'sniper' ? Math.max(0, Math.floor(b.h / 3) - 1) * 3 : 0; // the sniper takes the top floor (iteration 63)
+  m.x = s.x; m.z = s.z; m.y = m.vy = b.g + m.floorY; m.path = null; m.moving = false; m.dest = null; m.face = null;
 }
 function exitBuilding(m, i) {
   const b = m.garrison; if (!b) return;
-  b.occ = b.occ.filter(o => o !== m); m.garrison = null;
+  b.occ = b.occ.filter(o => o !== m); m.garrison = null; m.floorY = 0;
   const p = spotNear(b.out.x, b.out.z, i || 0); m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z);
 }
 /** Everyone of the squad inside a building comes out by its door. Returns how many. */

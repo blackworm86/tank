@@ -26,7 +26,7 @@ function updateUnits(dt) {
       if (e.team === 1) raiderThink(e, w);
       if (!e.veh && !e.fixed && !e.garrison && !e.moving && raised(e) && state.t - (e.strandT || -99) > 2) unstrand(e);
     }
-    if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g; } // inside a building, at a window
+    if (e.garrison) { e.path = null; e.moving = false; e.y = e.vy = e.garrison.g + (e.floorY || 0); } // inside a building, at a window (a sniper on the top floor)
     else if (e.rideOn) { seatPos(e); e.path = null; e.moving = false; } // on a jeep's seat: it goes where the jeep goes
     else {
       moveAlong(e, dt);
@@ -62,12 +62,13 @@ function updateUnits(dt) {
         if (!e.veh && e.moving && gait(e) === 'run') aligned = false; // running: no fire on the move
         const lg = legNow(e); if (lg && lg.fire === 'none') aligned = false; // a leg of the plan told not to fire
       }
-      if (e.cool <= 0 && aligned && (!e.moving || e.veh || w.kind === 'bullet' || w.move)) { fire(e, t, w); e.revealed = true; e.cool = w.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate); }
+      const fw = e.kind === 'at' && !e.team && !t.veh ? weapon('pistol') : w; // the anti-tank keeps his rockets for hulls: a pistol on men
+      if (e.cool <= 0 && aligned && (!e.moving || e.veh || fw.kind === 'bullet' || fw.move)) { fire(e, t, fw); e.revealed = true; e.cool = fw.rate * (0.85 + rng() * 0.3) * (e.team ? 1 : (1 - (e.rank || 0) * tune.rank_rate) * modOf(e).rate * (e.nest ? tune.nest_rate : 1)); }
     } else {
       if (!e.moving && e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
       if (e.veh && UT[e.kind].w) e.turretYaw = turnToward(e.turretYaw, watchYaw(e), Math.min(turretRate(e), tune.turret_return * 2) * dt);
     }
-    if (e.kind === 'medic' || e.kind === 'eng') roleSkill(e, dt);
+    if (e.kind === 'medic' || e.kind === 'eng' || e.kind === 'mg') roleSkill(e, dt);
   }
   // soldiers keep a little space between them
   const inf = state.ents.filter(e => e.alive && !e.veh && !e.fixed && !e.inside && !e.rideOn);
@@ -298,7 +299,8 @@ function suppressing(e) {
 function legNow(e) { const o = e.squad && e.squad.order; return o && o.t === 'move' && !o.done ? o.pts[o.i] : null; }
 function pickTarget(e, w) {
   const sight = (e.team ? tune.raider_sight * (w.sight || 1) : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
-  const R = w.indirect ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
+  const spot = e.kind === 'sniper' && !e.team; // the sniper fires on what his side sees, as far as his rifle reaches (iteration 63)
+  const R = w.indirect || spot ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
   if (e.pref && e.pref.alive && dist2(e, e.pref) <= R * R && (w.indirect ? seenByTeam(e.pref, e.team) : canSee(e, e.pref))) return e.pref;
   if (e.pref && e.pref.alive && suppressing(e) && !w.indirect && dist2(e, e.pref) <= w.range * w.range) return e.pref; // suppression: at where it is, seen or not
   const c = [];
@@ -308,13 +310,14 @@ function pickTarget(e, w) {
     const d = dist2(e, o); if (d > R * R) continue;
     if (e.team === 1 && (lurking(o) || stealthy(o)) && d > tune.ambush_reveal ** 2) continue; // an ambush, or a stealthy soldier, still unseen
     if (w.min && d < w.min * w.min) continue;
+    if (e.kind === 'at' && !e.team && !o.veh && d > 14 * 14) continue; // men only within his pistol's reach
     c.push([d, o]);
   }
   if (w.kind === 'ap' || w.kind === 'rpg') for (const it of c) if (it[1].veh) it[0] *= 0.15; // anti-tank guns and rockets hunt vehicles first
   c.sort((a, b) => a[0] - b[0]);
   for (let i = 0; i < Math.min(4, c.length); i++) {
     const o = c[i][1];
-    if (w.indirect ? seenByTeam(o, e.team) : canSee(e, o)) return o;
+    if (w.indirect ? seenByTeam(o, e.team) : canSee(e, o) && (!spot || c[i][0] <= sight * sight || seenByTeam(o, e.team))) return o;
   }
   return null;
 }
@@ -462,7 +465,7 @@ function fire(e, t, w) {
       if (!sh.hit && cover && rng() < tune.cover_chip * (w.chip || 1)) chipCover(t, e);
     }
     // machine guns pin infantry down: slower, worse aim for a while; so does every round of a suppression order
-    if ((w.chip || (suppressing(e) && t === e.pref)) && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup; }
+    if ((w.chip || (suppressing(e) && t === e.pref)) && !t.veh && t.alive) { if (!suppressed(t) && t.team === 1) floatText(t.x, t.y + 2.4, t.z, 'soppresso', '#9fd8ff'); t.supT = state.t + tune.suppress_time * modOf(e).sup * (e.nest ? tune.nest_sup : 1); }
     sfx(w.snd || 'small', e.x, e.z);
   } else if (w.kind === 'rpg') {
     launch({ kind: 'rpg', team: e.team, owner: e, dmg: w.dmg, blast: w.blast }, mx, my, mz, t.x + (rng() - 0.5) * 1.5, t.y + chestH(t), t.z + (rng() - 0.5) * 1.5, tune.rpg_speed, 3);

@@ -100,7 +100,7 @@ function explode(p, x, y, z, direct) {
       let a = p.dmg * (1 - dd / R) * (e.veh ? tune.splash_veh : 1) * (p.dtype === 'ap' || p.dtype === 'heat' ? tune.splash_pierce : 1); // a piercing round's splash is a small one
       if (p.shell === 'frag' && e.team === 1 && !e.veh) e.supT = state.t + tune.suppress_time * 1.5; // splinters pin them down
       if (p.owner && e.team === p.owner.team) a *= 0.5;
-      const cq = e.veh || e.rideOn ? 0 : coverFrom(e, x, z);
+      const cq = e.veh || e.rideOn || p.grenade ? 0 : coverFrom(e, x, z); // a grenade lands behind the cover, inside the room
       if (cq === 2) a *= tune.cover_blast; else if (cq === 1) a *= tune.cover_blast_light;
       dmgTo(e, a, 'blast', p.owner, { x, z, top: p.kind === 'mortar', dtype: p.dtype === 'frag' || p.dtype === 'fire' ? p.dtype : 'he' });
     }

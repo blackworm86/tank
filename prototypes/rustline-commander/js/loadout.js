@@ -296,27 +296,17 @@ function scatterCrates() {
 /** What each kind of soldier does, for the barracks. */
 const ROLE_DESC = {
   recruit: 'Poco efficace, nessun bonus. Con l\'esperienza sceglie un incarico.',
-  rifle: 'Fucile affidabile. Due o più: squadra d\'assalto.',
-  mg: 'Raffiche che sopprimono: chi è colpito mira peggio e rallenta.',
-  medic: 'Cura chi gli sta vicino, corre dai feriti e può salvare chi cade.',
-  eng: 'Ripara i mezzi vicini (anche il carro), alza sacchi di sabbia da fermo.',
-  radio: 'Sente la radio da più lontano e fa da ponte: chi gli è vicino riceve gli ordini.',
-  scout: 'Vede lontano, corre, i nemici lo notano tardi.',
-  sniper: 'Tiro lungo da una posizione alta.',
+  rifle: 'Fucile affidabile: la spina dorsale della squadra.',
+  mg: 'Più lento; sopprime di più; da fermo alza un nido di mitragliatrice (cadenza e soppressione).',
+  medic: 'Cura chi gli sta vicino con 100 di potere per settore; corre dai feriti e può salvare chi cade.',
+  eng: 'Fuori dal fuoco ripara i mezzi (anche il carro) coi rottami; granate sulla fanteria, anche negli edifici.',
+  radio: 'Raggio radio suo: se tocca quello del carro collega squadra e vicini; fa da ponte con altri operatori.',
+  scout: 'Riceve ordini anche fuori portata radio; vede lontano, corre; debole in combattimento.',
+  sniper: 'Ordini fuori portata radio, tiro lunghissimo, piano più alto degli edifici, spara su chi vedono gli alleati.',
   at: 'Lanciarazzi a carica cava contro i mezzi, lento a ricaricare; debole con la fanteria.',
 };
 /** The squads' specialisations: read from who is in the squad, each with its bonus or malus. */
-const TRAITS = [
-  { id: 'assalto', name: 'Assalto', desc: '+15% precisione', test: c => c.rifle >= 2, mod: { acc: 1.15 }, squad: 'Squadra d\'assalto' },
-  { id: 'copertura', name: 'Fuoco di copertura', desc: 'soppressione +60%', test: c => c.mg >= 2 || (c.mg >= 1 && c.rifle >= 2), mod: { sup: 1.6 }, squad: 'Squadra d\'appoggio' },
-  { id: 'medica', name: 'Supporto medico', desc: '-20% danni subiti', test: c => c.medic >= 1 && c.n >= 3, mod: { taken: 0.8 }, squad: 'Squadra con medico' },
-  { id: 'genio', name: 'Genio', desc: 'al riparo: -20% colpi presi', test: c => c.eng >= 1 && c.n >= 2, mod: { coverK: 0.8 }, squad: 'Squadra del genio' },
-  { id: 'comando', name: 'Comando', desc: '+12% cadenza di tiro', test: c => c.radio >= 1 && c.n >= 2, mod: { rate: 0.88 }, squad: 'Squadra comando' },
-  { id: 'ricognizione', name: 'Ricognizione', desc: '+30% vista, +10% velocità, -10% precisione', test: c => c.scout >= 2 || (c.scout >= 1 && c.n <= 2), mod: { sight: 1.3, speed: 1.1, acc: 0.9 }, squad: 'Pattuglia' },
-  { id: 'specialisti', name: 'Specialisti', desc: '+6% precisione e cadenza', test: c => c.n >= 3 && c.kinds === c.n, mod: { acc: 1.06, rate: 0.94 }, squad: 'Specialisti' },
-  { id: 'lenta', name: 'Lenta', bad: true, desc: '-15% velocità: armi pesanti', test: c => c.mg + c.at >= 2, mod: { speed: 0.85 } },
-  { id: 'sbandati', name: 'Sbandati', bad: true, desc: '-15% precisione: nessuno che spari sul serio', test: c => c.n >= 2 && !c.rifle && !c.mg && !c.sniper && !c.scout && !c.recruit, mod: { acc: 0.85 } },
-];
+const TRAITS = []; // the make-up bonuses are off for now (iteration 63): they come back if the game needs them
 const NO_MOD = Object.freeze({ acc: 1, sup: 1, taken: 1, coverK: 1, rate: 1, sight: 1, speed: 1, scatter: 1 });
 /** The specialisations a squad of these kinds gets. */
 function traitsOf(kinds) {
@@ -339,21 +329,27 @@ function squadMod(sq) {
 function modOf(e) { return e && e.team === 0 && e.squad && !e.veh ? squadMod(e.squad) : NO_MOD; }
 
 // ---- The radio: the tank's ring, stretched by radiomen ------------------------------------------------------------
-/** Radiomen who hear the tank (their own reach is longer); cached for the step. */
+/**
+ * Radio operators linked to the tank (iteration 63): one whose own ring (radio_op_range) touches the
+ * tank's, and in turn one whose ring touches a linked operator's. Cached for the step.
+ */
 function relays() {
   if (state.relayN === state.stepN && state.relayL) return state.relayL;
-  const tk = state.tank, R = tankStats().radio * tune.radioman_range;
-  state.relayL = tk && tk.alive ? state.ents.filter(e => e.alive && e.team === 0 && e.kind === 'radio' && !e.inside && dist2(e, tk) <= R * R) : [];
-  state.relayN = state.stepN;
-  return state.relayL;
+  const tk = state.tank, R = tankStats().radio, r = tune.radio_op_range, out = [];
+  if (tk && tk.alive) {
+    const ops = state.ents.filter(e => e.alive && e.team === 0 && e.kind === 'radio' && !e.inside);
+    for (const o of ops) if (dist2(o, tk) <= (R + r) ** 2) out.push(o);
+    for (let k = 0; k < out.length; k++) for (const o of ops) if (!out.includes(o) && dist2(o, out[k]) <= (2 * r) ** 2) out.push(o); // the chain
+  }
+  state.relayL = out; state.relayN = state.stepN;
+  return out;
 }
-/** True when soldier m hears the tank's radio: inside the ring, a radioman inside his longer reach, or near one who does. */
+/** True when soldier m gets the tank's orders: scouts and snipers always; else inside the tank's ring or a linked operator's. */
 function heardAt(m) {
   const tk = state.tank; if (!tk || !tk.alive || !m) return false;
-  if (m === tk || m.inside) return true;
+  if (m === tk || m.inside || m.kind === 'scout' || m.kind === 'sniper') return true;
   const R = tankStats().radio; if (dist2(m, tk) <= R * R) return true;
-  const rl = relays(); if (m.kind === 'radio' && rl.includes(m)) return true;
-  return rl.some(r => dist2(r, m) <= tune.radio_relay ** 2);
+  return relays().some(r => dist2(r, m) <= tune.radio_op_range ** 2);
 }
 /** How far a friendly unit spots enemies. */
 function sightOf(f) {
@@ -424,17 +420,24 @@ function minimapBlips(k) {
 }
 
 // ---- Each role's skill, every step -------------------------------------------------------------------------
-/** The medic, the engineer: what they do on their own beside fighting. */
+/** The medic, the engineer, the machine gunner: what they do on their own beside fighting. */
 function roleSkill(e, dt) {
-  if (e.team !== 0 || e.inside || e.garrison) return;
+  if (e.team !== 0 || e.inside) return;
+  if (e.kind === 'eng') engGrenade(e); // from a window too
+  if (e.garrison) return;
   if (e.kind === 'medic') medicSkill(e, dt);
   else if (e.kind === 'eng') engSkill(e, dt);
+  else if (e.kind === 'mg') mgNest(e);
 }
+/** A medic's healing power (iteration 63): medic_power at the start of each sector, spent hp for hp. */
+function medPower(e) { return e.med ?? (e.med = tune.medic_power); }
 function medicSkill(e, dt) {
   let tended = false;
+  if (medPower(e) <= 0) return; // nothing left in the bag
   for (const o of state.ents) {
     if (!o.alive || o.team !== 0 || o.veh || o.inside || o.hp >= o.maxhp || dist2(o, e) > tune.medic_radius ** 2) continue;
-    const h = Math.min(o.maxhp - o.hp, tune.medic_heal * dt); o.hp += h; tended = true;
+    const h = Math.min(o.maxhp - o.hp, tune.medic_heal * dt, e.med); o.hp += h; e.med -= h; tended = true;
+    if (e.med <= 0) { say(e.squad ? e.squad.name : 'Medico', 'Il medico ha finito le bende.', '#e0a070'); break; }
     o.healAcc = (o.healAcc || 0) + h;
     if (o.healAcc >= 5) { floatText(o.x, o.y + 2.2, o.z, '+' + Math.round(o.healAcc), '#7fe07a'); o.healAcc = 0; }
   }
@@ -453,18 +456,21 @@ function medicSkill(e, dt) {
  */
 function medicSave(e, kind) {
   if (e.team !== 0 || e.veh || e.kind === 'tank' || kind === 'drown' || kind === 'crush' || (e.saved || 0) >= 2) return false;
-  const m = state.ents.find(o => o.alive && o !== e && o.kind === 'medic' && o.team === 0 && !o.inside && dist2(o, e) < tune.medic_save_radius ** 2);
+  const m = state.ents.find(o => o.alive && o !== e && o.kind === 'medic' && o.team === 0 && !o.inside && medPower(o) >= tune.medic_save_cost && dist2(o, e) < tune.medic_save_radius ** 2);
   if (!m || rng() >= tune.medic_save) return false;
-  e.saved = (e.saved || 0) + 1; e.hp = e.maxhp * 0.3; e.supT = state.t + 2;
+  e.saved = (e.saved || 0) + 1; e.hp = e.maxhp * 0.3; e.supT = state.t + 2; m.med -= tune.medic_save_cost;
   floatText(e.x, e.y + 2.4, e.z, 'salvato dal medico', '#7fe07a');
   if (e.squad) say(e.squad.name, 'Medico! ...È vivo, lo rimettiamo in piedi!', '#7fe07a');
   return true;
 }
 function engSkill(e, dt) {
-  // repairs our vehicles beside him, the command tank too
-  for (const v of state.ents) {
+  // repairs our vehicles beside him, the command tank too: out of the fight only, paid in scrap (iteration 63)
+  const calm = !e.target && state.t - (e.combatT || -99) > tune.eng_calm;
+  if (calm && state.scrap > 0) for (const v of state.ents) {
     if (!v.alive || v.team !== 0 || !v.veh || v.hp >= v.maxhp || dist2(v, e) > (tune.eng_radius + v.rad) ** 2) continue;
-    const h = Math.min(v.maxhp - v.hp, tune.eng_repair * dt); v.hp += h; v.fixAcc = (v.fixAcc || 0) + h;
+    const h = Math.min(v.maxhp - v.hp, tune.eng_repair * dt, state.scrap / Math.max(0.01, tune.eng_scrap_hp));
+    v.hp += h; v.fixAcc = (v.fixAcc || 0) + h; e.scrapAcc = (e.scrapAcc || 0) + h * tune.eng_scrap_hp;
+    if (e.scrapAcc >= 1) { const n = Math.floor(e.scrapAcc); state.scrap = Math.max(0, state.scrap - n); e.scrapAcc -= n; }
     if (v.fixAcc >= 8) { floatText(v.x, v.y + 3, v.z, '+' + Math.round(v.fixAcc) + ' riparato', '#9fd8ff'); v.fixAcc = 0; }
     break;
   }
@@ -474,7 +480,11 @@ function engSkill(e, dt) {
   const sq = e.squad, holding = sq && sq.order && (sq.order.t === 'hold' || (sq.order.t === 'move' && sq.order.done));
   if (!th && !holding) return;
   e.buildT = state.t;
-  const a = th ? angTo(e, th) : e.heading, fx = Math.sin(a), fz = Math.cos(a), g0 = hAt(e.x, e.z);
+  if (placeBags(e, th ? angTo(e, th) : e.heading)) { floatText(e.x, e.y + 2.2, e.z, 'sacchi di sabbia', '#e0c890'); sfx('crunch', e.x, e.z); }
+}
+/** Three sandbags in a row in front of soldier e, toward bearing a. How many went down. */
+function placeBags(e, a) {
+  const fx = Math.sin(a), fz = Math.cos(a), g0 = hAt(e.x, e.z);
   let n = 0;
   for (const s of [-1, 0, 1]) {
     const x = Math.floor(e.x + fx * 1.4 + fz * s), z = Math.floor(e.z + fz * 1.4 - fx * s); if (!inMap(x, z)) continue;
@@ -482,7 +492,39 @@ function engSkill(e, dt) {
     if (state.ents.some(o => o.alive && Math.floor(o.x) === x && Math.floor(o.z) === z)) continue;
     placeFine(x, g, z, V.BAG); n++; // on the fine grid (js/structs.js)
   }
-  if (n) { floatText(e.x, e.y + 2.2, e.z, 'sacchi di sabbia', '#e0c890'); sfx('crunch', e.x, e.z); }
+  return n;
+}
+/**
+ * The engineer's grenade (iteration 63): every grenade_cd seconds at the nearest enemy soldier within
+ * grenade_range he sees, or who holds a building; splinters that walls and windows do not stop.
+ */
+function engGrenade(e) {
+  if (state.t - (e.nadeT ?? -99) < tune.grenade_cd || (e.squad && roe(e) === 'hold')) return;
+  let best = null, bd = tune.grenade_range ** 2;
+  for (const o of state.ents) {
+    if (!o.alive || o.team !== 1 || o.veh || o.inside) continue;
+    const d = dist2(e, o); if (d < 9 || d >= bd) continue;
+    if (o.garrison || canSee(e, o)) { bd = d; best = o; }
+  }
+  if (!best) return;
+  e.nadeT = state.t;
+  const D = Math.sqrt(bd), tx = best.x + (rng() - 0.5) * 1.2, tz = best.z + (rng() - 0.5) * 1.2;
+  launch({ kind: 'mortar', grenade: true, team: 0, owner: e, dmg: tune.grenade_damage, blast: tune.grenade_blast, dtype: 'frag' }, e.x, e.y + 1.7, e.z, tx, best.y + 0.6, tz, D / (1.1 + D / 24), 14);
+  floatText(e.x, e.y + 2.4, e.z, 'granata!', '#ffd36a');
+}
+/**
+ * The machine gunner's nest (iteration 63): still for nest_time with a threat about or told to hold, he
+ * stacks sandbags in front and his gun is set: faster fire, longer suppression, till he moves.
+ */
+function mgNest(e) {
+  if (e.moving) { e.nest = false; e.stillT = state.t; return; }
+  if (e.nest) return;
+  if (e.stillT == null) e.stillT = state.t; // never moved: still from now
+  const th = (e.target && e.target.alive && e.target) || (e.threat && e.threat.alive && state.t - (e.combatT || -99) < 8 && e.threat);
+  const sq = e.squad, holding = sq && sq.order && (sq.order.t === 'hold' || (sq.order.t === 'move' && sq.order.done));
+  if ((!th && !holding) || state.t - e.stillT < tune.nest_time) return;
+  e.nest = true; placeBags(e, th ? angTo(e, th) : e.heading);
+  floatText(e.x, e.y + 2.2, e.z, 'nido di mitragliatrice', '#e0c890'); sfx('crunch', e.x, e.z);
 }
 
 // ---- The workshop tabs (js/systems/workshop.js) ------------------------------------------------------------

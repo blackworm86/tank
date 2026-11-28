@@ -141,7 +141,9 @@ function drawMinimap(x0, y0, S) {
   if (typeof minimapMarks === 'function') minimapMarks(k);
   minimapBlips(k);
   ctx.strokeStyle = 'rgba(79,227,224,0.85)'; ctx.lineWidth = 1.2 / k; ctx.setLineDash([3 / k, 2 / k]);
-  ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(tk.x, tk.z, tankStats().radio, 0, Math.PI * 2); ctx.stroke();
+  for (const o of relays()) { ctx.beginPath(); ctx.arc(o.x, o.z, tune.radio_op_range, 0, Math.PI * 2); ctx.stroke(); } // linked radio operators
+  ctx.setLineDash([]);
   // the player's view: the screen's corners carried down to the ground
   if (R3.ready && R3.camera) {
     const pts = [[0, 0], [W, 0], [W, H], [0, H]].map(([sx, sy]) => { const { o, d } = screenRay(sx, sy); const t = d.y < -0.02 ? Math.min(600, (cam.y - o.y) / d.y) : 600; return { x: o.x + d.x * t, z: o.z + d.z * t }; });
@@ -345,6 +347,7 @@ function drawHUD() {
       const lifted = dragging && m && (dragging.m === m || (pk && state.picked.has(dragging.m)));
       unitIcon(k, ix, iy, 17, lifted ? 'rgba(168,216,112,0.25)' : m && m.alive ? '#a8d870' : '#5a3a32');
       if (m && m.alive && m.rank && m.kind !== 'recruit') chevrons(ix, iy - 11, m.rank, 0.7);
+      if (m && m.alive && m.kind === 'medic') { const f = Math.max(0, medPower(m)) / tune.medic_power; ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(ix - 8, iy + 10, 16, 3); ctx.fillStyle = f > 0.3 ? '#7fe07a' : '#e0a050'; ctx.fillRect(ix - 8, iy + 10, 16 * f, 3); } // the medic's bandages
       const job = !!(m && jobOptions(m).length); // jobs.js: a new Job to choose, the gold arrow opens it
       if (job) { const p = 0.6 + 0.4 * Math.sin(performance.now() / 180); ctx.fillStyle = 'rgba(255,211,106,' + p + ')'; ctx.beginPath(); ctx.moveTo(ix + 7, iy - 19); ctx.lineTo(ix + 13, iy - 11); ctx.lineTo(ix + 1, iy - 11); ctx.closePath(); ctx.fill(); }
       if (m && !m.alive) { // fallen: crossed out till he leaves the card (pruneFallen), fading in the last second
