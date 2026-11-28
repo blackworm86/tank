@@ -68,7 +68,7 @@ function newRun(carry) {
   cam.yawT = cam.yaw = Math.round((behind - Math.PI / 4) / q4) * q4 + Math.PI / 4;
   if (!carry) {
     say('Radio', 'Comandante, il battaglione è disperso. Sei solo: trova uomini lungo la strada e raggiungi l\'esercito.', '#9fe3a0');
-    say('Radio', 'Click sinistro: arma principale (X cambia colpo: HE, AP, FRAG). Click destro: mitragliatrice coassiale.', '#9fe3a0');
+    say('Radio', 'Click sinistro: arma principale (Tab cambia colpo: HE, AP, FRAG). Click destro: mitragliatrice coassiale.', '#9fe3a0');
   }
   if (state.node) setupMap();
 }

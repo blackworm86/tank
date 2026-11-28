@@ -45,7 +45,6 @@ function handleInput() {
     if (MS.rp || !tk.alive) state.menu = null; // a new right-click: a new order (and a new menu)
     else { menuInput(); return; }
   }
-  if (pressed('Tab') && tk.alive && !state.rename) setTacticalPause(!state.tpause); // Tab works as Space
   if (pressed('KeyQ')) cam.yawT -= Math.PI / 2;
   if (pressed('KeyE') && !state.canShop) cam.yawT += Math.PI / 2;
   if (MS.wheel) cam.dist = Math.max(tune.cam_dist_min, Math.min(tune.cam_dist_max, cam.dist * (MS.wheel > 0 ? 1.1 : 0.9)));

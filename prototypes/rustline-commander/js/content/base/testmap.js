@@ -156,11 +156,11 @@ on('playStep', () => {
   if (!state.test || !state.testTargets) return;
   const T = state.testTargets;
   for (let i = T.back.length - 1; i >= 0; i--) if (state.t >= T.back[i].t) { const b = T.back.splice(i, 1)[0]; addTarget(b.kind, b.x, b.z); }
-  if (pressed('KeyT')) testNextWeapon(); // T: the next main weapon, to try how each one hurts
+  if (pressed('KeyY')) testNextWeapon(); // Y: the next main weapon, to try how each one hurts (T is an active system's key)
   const m = ammoMax(); if (state.ammo && m) { state.ammo.he = Math.max(state.ammo.he, Math.round(m * 0.6)); state.ammo.ap = Math.max(state.ammo.ap, m - Math.round(m * 0.6)); state.ammo.frag = Math.max(state.ammo.frag, 10); state.ammo.inc = Math.max(state.ammo.inc || 0, 10); } // rounds never run out here
 });
 /**
- * The test map's weapon switch (T): mounts the next main weapon, owned at once, racks full. The HUD's line says what it
+ * The test map's weapon switch (Y): mounts the next main weapon, owned at once, racks full. The HUD's line says what it
  * fires: its damage, its penetration and the round loaded (X changes it).
  */
 function testNextWeapon() {
@@ -168,7 +168,7 @@ function testNextWeapon() {
   if (!state.weaponsOwned.includes(id)) state.weaponsOwned.push(id);
   state.weapon = id; state.stats = null; state.lookKey++; state.ammo = freshAmmo();
   const W = weaponStats(id);
-  say('Test', WEAPONS[id].name + ': danno ' + Math.round(W.dmg) + (W.pen ? ', perforazione ' + W.pen + ' mm' : '') + (W.dtype ? ', solo ' + DTYPES[W.dtype].name : W.kind === 'shell' ? ', X cambia colpo (HE, AP, FRAG)' : ', proiettili') + '. T: arma successiva.', '#ffd36a');
+  say('Test', WEAPONS[id].name + ': danno ' + Math.round(W.dmg) + (W.pen ? ', perforazione ' + W.pen + ' mm' : '') + (W.dtype ? ', solo ' + DTYPES[W.dtype].name : W.kind === 'shell' ? ', Tab cambia colpo (HE, AP, FRAG)' : ', proiettili') + '. Y: arma successiva.', '#ffd36a');
 }
 /** The fog switch as it was before the test map, put back when a campaign starts (null: nothing to put back). */
 let TEST_FOG = null;
@@ -188,6 +188,6 @@ function startTestMap() {
   placeTargets();
   say('Test', 'Mappa di test: nessun nemico vero. Rampe, strada, gola nella montagna, altopiano con una rampa, scarpata, fiume con un guado, villaggi e rocce.', '#9fe3a0');
   if (world.testYard) say('Test', 'Galleria degli asset a destra della partenza (88 x 60 m): case, fienile, chiesa, bunker, distributore; palazzi in mattoni, a L, a U, a corte, a telaio, una torre di 12 piani e uno scheletro; cisterne, silos, capannone, container, traliccio, cavalli di frisia, muri, staccionate, sacchi di sabbia, balle, auto, casse e barili. Tutto intero, per provare danni e crolli.', '#9fe3a0');
-  say('Test', 'T: cambia arma (25mm, mitragliatrice, lanciagranate, 75mm, 105mm, lanciarazzi HEAT); X: tipo di colpo (HE, AP, FRAG, INC incendiario). Sopra i bersagli: i numeri del danno (grigio: fermato dalla corazza, giallo: fianco o retro).', '#ffd36a');
+  say('Test', 'Y: cambia arma (25mm, mitragliatrice, lanciagranate, 75mm, 105mm, lanciarazzi HEAT); Tab: tipo di colpo (HE, AP, FRAG, INC incendiario). Sopra i bersagli: i numeri del danno (grigio: fermato dalla corazza, giallo: fianco o retro).', '#ffd36a');
   say('Test', 'Davanti a te ' + TEST_TARGETS.length + ' bersagli da 15 a 70 m (alcuni dietro sacchi): non si muovono e non sparano, abbattuti ricompaiono dopo ' + TEST_RESPAWN + ' s. Colpi infiniti. Le squadre sparano ai bersagli a tiro: Q nel menu ordini (Non sparare) le ferma. Nuovi: la jeep con mitragliatrice e, col click destro su un bersaglio, il Fuoco di soppressione (S).', '#ffd36a');
 }

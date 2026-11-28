@@ -94,7 +94,7 @@ function buyAmmo(type, n) {
 
 // ---- Advanced systems (3 slots on the modular APC, up to 5 with its frame) --------------------------------------
 /**
- * Systems: passive ones work while mounted; active ones fire with the key of their slot (1-5) while
+ * Systems: passive ones work while mounted; active ones fire with their key (R T F G C V, iteration 60) while
  * driving, then recharge (cd seconds). Bought at garages (each sells a couple) or found in rare crates.
  */
 const SYSTEMS = adopt('system', {});
@@ -186,7 +186,13 @@ function smokeBlocks(a, b) {
   }
   return false;
 }
-/** The tank's systems each step: coax on the right button, active keys 1-5, X for rounds, repairs, salvos, the field hospital. */
+/**
+ * The keys of the active systems (iteration 60): R T F G C V, left to right and top to bottom, given in the
+ * order the active systems sit in their slots (passive ones take none). sysKey(id): the code, or null.
+ */
+const SYS_KEYS = ['KeyR', 'KeyT', 'KeyF', 'KeyG', 'KeyC', 'KeyV'];
+function sysKey(id) { const k = state.systems.filter(s => SYSTEMS[s].active).indexOf(id); return k >= 0 ? SYS_KEYS[k] || null : null; }
+/** The tank's systems each step: coax on the right button, the active systems on R T F G C V, Tab for rounds, repairs, salvos, the field hospital. */
 function tankSystems(tk, dt) {
   tk.reload2 = Math.max(0, (tk.reload2 || 0) - dt);
   const driving = state.mode === 'tank' && !state.tpause && !state.menu && !state.menuBlock;
@@ -204,8 +210,8 @@ function tankSystems(tk, dt) {
       if (tk.heat >= 1) { tk.jammed = true; sfx('crunch', tk.x, tk.z); }
     }
   }
-  if (driving) state.systems.forEach((id, i) => { if (SYSTEMS[id].active && pressed('Digit' + (i + 1))) activateSystem(id); });
-  if (driving && pressed('KeyX')) cycleShell();
+  if (driving) for (const id of state.systems) { const k = SYSTEMS[id].active && sysKey(id); if (k && pressed(k)) activateSystem(id); }
+  if (driving && pressed('Tab')) cycleShell();
   if (state.salvo && state.salvo.n > 0 && state.t >= state.salvo.next) { fireRocket(tk); state.salvo.n--; state.salvo.next = state.t + 0.25; }
   if (state.t < (state.repairUntil || 0)) tk.hp = Math.min(tk.maxhp, tk.hp + tk.maxhp * 0.35 / 4 * dt);
   if (modOn('autorep') && tk.hp < tk.maxhp && state.t - state.hurtT > tune.mod_autorep_wait) tk.hp = Math.min(tk.maxhp, tk.hp + tune.mod_autorep * dt);
@@ -506,7 +512,7 @@ registerShopTab('weapon', {
         button(x0 + 540, yy + 5, 120, 36, '+5 (' + Math.min(5, Math.max(0, room)) * c + ')', () => buyAmmo(k, 5), { off: room <= 0 || state.scrap < c, size: 13 });
         button(x0 + 670, yy + 5, 126, 36, 'Riempi (' + Math.max(0, room) * c + ')', () => buyAmmo(k, 0), { off: room <= 0 || state.scrap < c, size: 13 });
       });
-      text('In marcia X cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 400, 13, HC.dim, 'left');
+      text('In marcia Tab cambia il tipo caricato. Le mitragliatrici non consumano colpi.', x0 + 24, cy + 400, 13, HC.dim, 'left');
     } else text('La mitragliatrice pesante non usa colpi contati.', x0 + 24, cy + 176, 14, HC.dim, 'left');
   },
 });
@@ -515,7 +521,7 @@ registerShopTab('systems', {
   draw(x0, y0, w, h, cy) {
     // advanced systems: the slots, the store, this garage's stock
     const n = sysSlots(), cw = Math.floor((w - 48 - 4 * 10) / 5);
-    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti 1-5 usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
+    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti R T F G C V usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
     const card = (bx0, by, id, label, fn, opts) => {
       button(bx0, by, cw, 78, '', fn, opts);
       const S0 = SYSTEMS[id];

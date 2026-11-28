@@ -253,6 +253,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Fiumi e ponti sempre attraversabili: un ponte (o la strada e le sponde a 3 celle da esso) colpito non lascia mai un vuoto: ciò che salta crolla in una rampa di macerie (1 m ogni ramp_run celle) giù dalle sponde e da ciò che resta in piedi, mai più di bridge_rubble (1 m) sotto l'acqua; un buco nell'impalcato diventa un avvallamento, un ponte saltato una V di rottami che scende nel fiume e risale, lenta ma percorribile da carro e fanteria; i pezzi caduti sopra non lasciano buchi. Ogni fiume ha un guado (river_fords, il fiume largo ne ha 2), con le sponde che scendono al guado come una pista che il carro sale
 - [x] Andatura del carro e caduti: il carro va di base al passo della fanteria (march_speed 3,8 m/s, i soldati 4,2) così le squadre gli stanno dietro; Bloc Maiusc passa alla velocità massima e indietro, Shift tenuto dà l'altra andatura finché è premuto; il pannello del carro mostra l'andatura (FANTERIA / MASSIMA). Un soldato ucciso resta sulla sua squadra con una X rossa per fallen_show (4) secondi, poi lascia la squadra; una squadra senza più nessuno sparisce dal pannello e le altre si rinumerano; la caserma rimpiazza anche chi ha già lasciato la squadra
 - [x] Animazione di arrampicata: chi scala una parete (cecchino, esploratore, cecchino predone) le sta di fronte, appoggiato alla roccia, con le mani che salgono sopra la testa una dopo l'altra mentre le gambe spingono a turno; il ritmo segue i metri guadagnati (climb_anim), così chi è inchiodato dal fuoco resta appeso e chi scende la fa al contrario; l'arma è in spalla con la canna in alto finché è sulla parete. Camminando i soldati muovono anche le braccia
+- [x] Tasti (redesign): Spazio alterna Carro e Comando (il Comando resta in pausa); Tab fa scorrere i proiettili; i sistemi attivi montati si usano con R T F G C V nell'ordine in cui stanno, e la lettera è scritta sul loro riquadro; Bloc Maiusc e Shift per l'andatura; in Comando i numeri scelgono le squadre e Shift le aggiunge; la mappa di test cambia arma con Y. La specifica del redesign è nel brief (Redesign, iterations 60-67)
 
 ## Map rules
 - M1 Rilievo: il terreno ha due sole forme di dislivello: la rampa, al massimo 1 m ogni ramp_run (2) celle, e la scogliera, un gradino di map_cliff (3 m) o più, parete che il carro non sale né scende. Niente gradini di 2 m, niente buche o punte di una cella; i pendii ripidi diventano terrazze di roccia alte map_cliff + 1. Il carro guida esattamente sulla superficie disegnata (gli spigoli di ogni colonna sono la media delle colonne vicine che non sono una scogliera).
@@ -268,6 +269,91 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - M10 Edifici: ogni edificio ha una porta e il pavimento libero (alberi e rottami tolti); i soldati entrano dalla porta fino alla capienza (garrison_cap).
 - M11 Fiumi: ogni fiume ha almeno un guado (il fiume largo 2) con le sponde che scendono a 1 m ogni 2; un ponte colpito non lascia mai un vuoto: impalcato, strada e sponde a 3 celle crollano in una rampa di macerie (1 m ogni ramp_run, mai più di bridge_rubble sotto l'acqua, mai sopra il terreno com'era costruito).
 - M8 Controllo: mapReport() verifica che ogni campo, avamposto e il cancello della fortezza siano raggiungibili dalla partenza (5 mappe di prova: nessuno irraggiungibile, nessuno spuntone, niente costruito sulle strade). Un carro guidato da un programma raggiunge tutti gli 8 obiettivi su 5 mappe su 5, compresa la mappa di test.
+
+## Redesign (iterations 60-67)
+La specifica del 2026-11-28, nelle tue parole; vale sopra le regole più vecchie che la contraddicono.
+
+> AI alleati e nemici
+> -----
+> il comportamento dei propri soldati e carri/veicoli non è soddisfacente; voglio che i soldati, in base alla loro esperienza, siano più scaltri, cerchino riparo e posizioni di vantaggio, ripieghino verso il carro se la situazione è disperata.
+> lo stesso vale per i nemici; la maggior parte si dirige direttamente contro il carro del giocatore, non cerca coperture, non cerca di fiancheggiare il giocatore e le sue squadre
+>
+> In tutti i casi posizioni sopraelevate e edifici occupati devono dare grandi vantaggi a chi le occupa.
+>
+> Soldati, Squadre, Veicoli
+> -----
+> i soldati partono tutti da Recluta - livello più basso, poco efficaci in combattimento, nessun bonus.
+> Acquisiscono esperienza uccidendo unità nemiche (unità più forti danno più esperienza; ad alti livelli di esperienza, uccidere unità di livello inferiore concede meno XP o nessuna.
+>
+> la Recluta può evolvere in:
+> - fuciliere
+> - esploratore: non ha bisogno di essere in raggio radio per ricevere ordini; debole e poco efficiente in combattimento.
+> - medico: cura i soldati vicini, parte da 100 "potere" e lo spende per curare.
+> - geniere: ripara veicoli al prezzo di scrap, ma solo quando non è ingaggiato in combattimento; può lanciare granate, efficaci contro la fanteria anche negli edifici.
+>
+> a loro volta i quattro "job" possono evolvere in specializzazioni:
+> - fuciliere -> Mitragliere: più lento nel movimento, può sopprimere più facilmente i nemici, può costruire un nido di mitragliatrice fisso.
+> - esploratore -> Cecchino: come l'esploratore non ha bisogno di essere in raggio radio per ricevere ordini; estremamente efficace contro la fanteria a lunga e lunghissima gittata; entra negli edifici occupando il piano più alto possibile, può usare il raggio di vista degli alleati per acquisire bersagli.
+> - geniere -> Anticarro: debole contro la fanteria, può ingaggiare veicoli corazzati con un lanciarazzi a carica cava (richiede cooldown).
+> - medico -> Operatore Radio: ha un raggio radio proprio che, se si sovrappone a quello del carro, mette in contatto l'operatore, la sua squadra e le unità nel suo raggio in contatto con il carro. può fare da "ripetitore" con altri operatori radio
+>
+> un soldato che sceglie un nuovo Job perde le capacità del Job precedente.
+>
+> per tutti i Job sono disponibili diversi livelli di XP, che conferiscono più salute, velocità e precisione nel tiro.
+>
+> il giocatore può controllare al massimo 4 squadre di 6 soldati l'una.
+>
+> ad ogni squadra può essere assegnata 1 Jeep (la Jeep porta fino a 4 soldati, che possono sparare dai finestrini con le proprie armi) oppure 1 Half Track (l'Half Track porta fino a 6 soldati, che possono sparare dai finestrini; l'Half Track è anche dotato di una mitragliatrice pesante.
+>
+> Jeep e Half Track non occupano "slot" per le squadre.
+>
+> Sono disponibili anche Carri Leggeri di supporto, efficaci contro la fanteria, e Cacciacarri, efficaci contro i carri e i veicoli. Carri Leggeri e Cacciacarri occupano uno slot squadra. Per ora non evolvono in combattimento; vedremo più avanti se e come possano evolvere.
+>
+> COMANDI DA TASTIERA
+> -----
+> WASD - movimento del carro
+> Q, E - ruota il punto di vista
+> Tab - cicla tra i proiettili disponibili
+> Caps Lock - passa da velocità "al passo della fanteria" e "velocità massima"
+> Maiusc (modalità Carro) - passa momentaneamente alla velocità opposta (finché è premuto)
+> Barra Spaziatrice - passa tra modalità Carro e Comando
+> 1, 2, 3, 4 - nella modalità comando seleziona la squadra corrispondente
+> Maisuc (modalità Comando) - seleziona più squadre, sia con il mouse che cliccando il numero della squadra
+>
+> a questi comandi aggiungeremo altri comandi per la modalità Comando e per le Formazioni
+>
+> UPGARDE E MODIFICHE AL CARRO
+> -----
+>
+> Il carro del giocatore ha 9 sistemi standard:
+> - Torretta
+> - Stabilizzatore
+> - Arma Principale
+> - Mitragliatrice Coassiale
+> - Corazza
+> - Motore
+> - cingoli/ruote
+> - Vano Truppe
+> - Radio
+>
+> Voglio che ciascuno di questi sistemi sia migliorabile spendendo scrap, iniziamo semplicemente migliorando le statistiche dei sistemi (la torretta gira più veloce, i cingoli consentono di salire rampe più ripide e più velocemente, l'arma principale si ricarica più velocemente ecc.), come in FTL migliorando i sistemi.
+>
+> Ai sistemi standard il giocatore può comprare (o trovare a seguito di eventi/missioni):
+>
+> - Armi principali avanzate, che sostituiscono quella di default;
+> - Sistemi avanzati, installabili negli slot "Sistema Avanzato" del mezzo. Gli slot del mezzo sono limitati; 4 per il carro modulare, 3 per il carro leggero, 2 per il carro pesante.
+>
+> ripulisci il vecchio sistema di upgrade, trova sistemi già inseriti nel documento di design e assegnali a miglioramenti dei sistemi standard oppure a sistemi avanzati - alcuni sistemi avanzati potrebbero dare poteri attivi/attivabili al giocatore; in quel caso dobbiamo assegnare dei tasti - per esempio E, R, F, C.
+
+Decisioni:
+- La modalità Comando resta in pausa (come prima).
+- I poteri attivi stanno sui tasti R T F G C V, da sinistra a destra e dall'alto in basso, nell'ordine dei sistemi attivi montati.
+- La promozione la sceglie il giocatore, subito, dalla scheda della squadra.
+- Mortaio, cannone anticarro trainato e autoblindo escono dal gioco.
+
+Piano: 60 tasti · 61 nove sistemi standard a livelli e slot avanzati (4 modulare, 3 leggero, 2 pesante) al posto di moduli, punti di attacco, deposito e placche · 62 reclute, Job, livelli di XP, al massimo 4 squadre da 6 · 63 capacità dei Job · 64 Jeep e Half Track per squadra, Carro leggero e Cacciacarri · 65 vantaggio di quota e di edificio · 66 IA alleata · 67 IA nemica · poi formazioni e altri comandi.
+
+Mappatura dei vecchi pezzi (61): Torretta ← anello, servo · Stabilizzatore ← giroscopio, stabilizzatore · Arma principale ← freno di bocca, canna lunga, caricatore · Coassiale ← pesante, raffreddata ad acqua, binata · Corazza ← placche e composito frontali e laterali · Motore ← diesel, turbo, V12 · Cingoli ← larghi, da corsa · Vano truppe ← maniglie, vano · Radio ← radio, antenna, lungo raggio, ripetitore. Sistemi avanzati passivi: gabbia, minigonne, ERA, termico, autoriparazione, rastrelliera, infermeria, lama, sensori/radar. Attivi: fumo, turbo, riparazione, ping, salva. Tolti: cannone binato, seconda torretta, telaio, rastrelliera sul tetto.
 
 ## Your systems
 - carro con controlli tank e torretta che si allinea con ritardo · in the slice

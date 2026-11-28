@@ -296,7 +296,7 @@ function drawHUD() {
       if (on) rrect(tx - 3, 78, tw + 6, 16, 3, 'rgba(255,224,138,0.18)', '#ffe08a');
       text(s, tx, 86, 12, on ? '#ffe08a' : state.ammo[k] ? HC.text : '#7a6a58', 'left'); tx += tw + 10;
     }
-    text('X', tx + 2, 86, 11, HC.dim, 'left');
+    text('Tab', tx + 2, 86, 11, HC.dim, 'left');
   } else text('Colpi non contati', 24, 86, 12, '#ffe08a', 'left');
   const ht = tk.heat || 0; // the coax's heat: it locks when full
   text(tk.jammed ? 'COASS. CALDA' : 'Dx coass.', 234, 82, 10, tk.jammed ? '#ff7a5a' : '#8fe0ff', 'right');
@@ -307,15 +307,16 @@ function drawHUD() {
     const S2 = SYSTEMS[id], bx = 24 + i * 42, wait = S2.active ? sysWait(id) : 0;
     rrect(bx, 96, 39, 16, 3, S2.active ? (wait ? 'rgba(60,40,30,0.9)' : 'rgba(30,70,80,0.9)') : 'rgba(40,40,36,0.8)', S2.active ? '#8fe0ff' : '#6a6458');
     if (wait) { ctx.fillStyle = 'rgba(143,224,255,0.35)'; ctx.fillRect(bx, 96, 39 * (1 - wait / S2.cd), 16); }
-    text((S2.active ? (i + 1) + ' ' : '') + S2.short.slice(0, S2.active ? 4 : 6), bx + 19.5, 104, 9, S2.active ? '#eaf7ff' : '#b8b0a0');
+    const key = S2.active && sysKey(id);
+    text((key ? key.slice(3) + ' ' : '') + S2.short.slice(0, key ? 4 : 6), bx + 19.5, 104, 9, S2.active ? '#eaf7ff' : '#b8b0a0');
   });
   // mode tag
   if (tp) {
     rrect(W / 2 - 170, 10, 340, 26, 6, 'rgba(70,52,16,0.94)', '#ffd27a');
-    text('PAUSA TATTICA · ordini · WASD vista · Spazio/Tab riprende', W / 2, 23, 13, '#ffd27a');
+    text('PAUSA TATTICA · ordini · WASD vista · Spazio riprende', W / 2, 23, 13, '#ffd27a');
   } else {
     rrect(W / 2 - 95, 10, 190, 26, 6, cmd ? 'rgba(18,56,58,0.88)' : 'rgba(60,40,22,0.88)', cmd ? HC.cyan : '#d9a35a');
-    text('CARRO · Spazio/Tab: pausa tattica e ordini', W / 2, 23, 13, '#ffd9a0');
+    text('CARRO · Spazio: comando e ordini', W / 2, 23, 13, '#ffd9a0');
   }
 
   // minimap and objective
@@ -404,12 +405,14 @@ function drawHUD() {
   // controls
   const lines = cmd
     ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'Trascina un soldato su un\'altra squadra']
-    : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio o Tab: pausa tattica (ordini)', 'Q/E: ruota camera   Rotella: zoom'];
+    : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio: modo comando (pausa, ordini)', 'Tab: cambia proiettile   R T F G C V: sistemi attivi', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
   else {
-    panel(W - 300, H - 108, 286, 94);
-    lines.forEach((l, i) => text(l, W - 290, H - 91 + i * 20, 13, HC.dim, 'left'));
+    ctx.font = '13px ' + FONT; // the panel fits its longest line and grows with the lines
+    const pw = Math.max(286, ...lines.map(l => ctx.measureText(l).width + 20)), ph = lines.length * 18 + 14;
+    panel(W - pw - 14, H - ph - 14, pw, ph);
+    lines.forEach((l, i) => text(l, W - pw - 4, H - ph + 3 + i * 18, 13, HC.dim, 'left'));
   }
 
 }

@@ -199,7 +199,7 @@ function fireCannon(tk, S) {
   tk.reload = S.reload; tk.recoil = state.weapon === 'c75' || state.weapon === 'c105' ? 1 : 0.35; tk.spread += S.fireSpread;
   state.lastShot = state.t;
   muzzle(mx, my, mz, 1.3); sfx('cannon', tk.x, tk.z); cam.shake = Math.max(cam.shake, tune.shake * 0.6);
-  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel colpo. Spazio o Tab: pausa tattica. Lì scegli una squadra (click o 1-6) e click destro: il menu degli ordini, che partono alla ripresa.', '#9fe3a0'); }
+  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel colpo. Spazio: modo comando, in pausa. Lì scegli una squadra (click o 1-6) e click destro: il menu degli ordini, che partono alla ripresa.', '#9fe3a0'); }
 }
 /**
  * The hull's machine gun: one round along the gun line into the dispersion circle. The first enemy
@@ -238,7 +238,7 @@ function fireTankMG(tk, S, sec) {
   if (sec) tk.spread += tune.spread_fire * 0.03; else { tk.reload = S.reload; tk.recoil = 0.25; tk.spread += S.fireSpread; }
   state.lastShot = state.t;
   sfx('mg', tk.x, tk.z);
-  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel tiro. Spazio o Tab: pausa tattica. Lì scegli una squadra (click o 1-6) e click destro per muoverla: partirà alla ripresa.', '#9fe3a0'); }
+  if (state.tut === 1) { state.tut = 2; say('Radio', 'Bel tiro. Spazio: modo comando, in pausa. Lì scegli una squadra (click o 1-6) e click destro per muoverla: partirà alla ripresa.', '#9fe3a0'); }
 }
 /** Sends a projectile on a ballistic arc from (x,y,z) to (tx,ty,tz). */
 function launch(p, x, y, z, tx, ty, tz, speed, g) {

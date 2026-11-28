@@ -139,7 +139,7 @@ function panCamera(dt) {
   cam.y += (Math.min(40, hAt(cam.x, cam.z)) - cam.y) * Math.min(1, dt * 3);
 }
 /**
- * Space or Tab: the tactical pause, the one place orders are given. Time stops; the squads are
+ * Space: the tactical pause (Comando mode), the one place orders are given. Time stops; the squads are
  * picked and told what to do, the view moves with WASD; the orders start the moment play resumes.
  */
 function setTacticalPause(on) {
@@ -147,7 +147,7 @@ function setTacticalPause(on) {
   if (!on) { state.menu = null; state.dragSoldier = null; }
   const before = state.pauseOrders || new Map(), n = on ? 0 : state.squads.filter(sq => before.has(sq) && before.get(sq) !== sq.order).length;
   state.pauseOrders = on ? new Map(state.squads.map(sq => [sq, sq.order])) : null; // to tell at the resume who got new orders
-  say('Radio', on ? 'Pausa tattica: scegli le squadre e dai gli ordini; partono quando riprendi (Spazio o Tab).' : n ? 'Ordini ricevuti, si parte!' : 'Si riprende.', '#ffd27a');
+  say('Radio', on ? 'Pausa tattica: scegli le squadre e dai gli ordini; partono quando riprendi (Spazio).' : n ? 'Ordini ricevuti, si parte!' : 'Si riprende.', '#ffd27a');
 }
 function enemyUnderMouse() {
   let best = null, bd = 26 * 26;
