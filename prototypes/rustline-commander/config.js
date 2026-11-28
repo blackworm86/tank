@@ -472,6 +472,11 @@ window.CONFIG = {
   ai_bld_range: { value: 14, min: 4, max: 40, step: 1 },          // how far it looks for one
   flank_share: { value: 0.5, min: 0, max: 0.6, step: 0.02 },   // share of a raider group's riflemen sent round the flank
   flank_dist: { value: 16, min: 8, max: 30, step: 1 },          // how far to the side of the target the flankers go
+  task_time: { value: 40, min: 10, max: 120, step: 5 },          // seconds a soldier keeps at a task the player gave before giving up (iteration 71)
+  smoke_throw: { value: 22, min: 8, max: 40, step: 1 },           // how far a soldier throws a smoke grenade
+  smoke_nade_r: { value: 4.5, min: 2, max: 10, step: 0.5 },       // the smoke cloud's radius
+  smoke_nade_time: { value: 12, min: 4, max: 30, step: 1 },       // seconds the smoke lasts
+  squad_smokes: { value: 2, min: 0, max: 6, step: 1 },            // smoke grenades each squad has per sector
   retreat_speed: { value: 1.25, min: 1, max: 1.8, step: 0.05 }, // falling back on the tank, the soldiers run this much faster (iteration 70)
   watch_arc: { value: 90, min: 30, max: 180, step: 5 },          // degrees of the sector a watching squad covers
   watch_acc: { value: 1.15, min: 1, max: 1.6, step: 0.05 },      // aim of a squad set in its sector

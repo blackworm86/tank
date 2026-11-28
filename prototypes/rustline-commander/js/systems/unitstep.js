@@ -68,6 +68,7 @@ function updateUnits(dt) {
       if (!e.moving && e.face != null) e.heading = turnToward(e.heading, e.face, (e.veh ? hullTurn(e) * Math.PI / 180 : w && w.turn ? w.turn * Math.PI / 180 : 6) * dt);
       if (e.veh && UT[e.kind].w) e.turretYaw = turnToward(e.turretYaw, watchYaw(e), Math.min(turretRate(e), tune.turret_return * 2) * dt);
     }
+    if (e.task && !e.team) taskStep(e, dt); // squads.js: a task the player gave (iteration 71)
     if (e.kind === 'medic' || e.kind === 'eng' || e.kind === 'mg') roleSkill(e, dt);
   }
   // soldiers keep a little space between them

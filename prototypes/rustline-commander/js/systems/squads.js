@@ -358,7 +358,7 @@ function roleUpkeep(sq, ms) {
   const marching = sq.order.t === 'move' && !sq.order.done;
   let told = false;
   for (const m of ms) {
-    if (m.veh || m.inside || m.garrison) continue;
+    if (m.veh || m.inside || m.garrison || m.task) continue; // a soldier on a task (iteration 71) does it first
     const th = (m.target && m.target.alive && m.target) || (m.shotBy && m.shotBy.alive && state.t - m.shotT < 6 && m.shotBy) || null;
     if (th) { m.combatT = state.t; m.threat = th; }
     if (m.kind === 'sniper') { sniperUpkeep(m, sq); continue; }
@@ -509,6 +509,7 @@ function squadUpkeep(sq, dt) {
     if (!heard) { sq.order = { t: 'hold' }; say(sq.name, 'Segnale perso, teniamo la posizione.', '#e0a070'); return; }
     sq.formFace = tk.heading;
     if (!followInForm(sq, ms)) ms.forEach((m, i) => {
+      if (m.task) return; // on a task (iteration 71)
       if (m.kind === 'sniper' && !m.veh) return; // its own post (roleUpkeep)
       if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
       const a = tk.heading + Math.PI + (i - (ms.length - 1) / 2) * 0.45 + (sq.id % 2 ? 0.6 : -0.6) * (1 + (sq.id >> 1) * 0.5), r = 7 + (sq.id >> 1) * 2 + (m.veh ? 3 : 0) + (m.kind === 'medic' ? 4 : 0);
@@ -544,7 +545,7 @@ function squadUpkeep(sq, dt) {
     else if (ms.every(m => !m.path || m.pi >= m.path.length || (m.dest && dist2(m, m.dest) < 9 && o.i < o.pts.length - 1))) {
       if (o.i < o.pts.length - 1) { o.i++; const p = o.pts[o.i]; o.cover = goTo(sq, p.x, p.z, p.how, p.face) > 0; sq.tick = 0.4; }
       else if (o.final && o.final.alive) { for (const m of ms) if (m.pref === o.lastSupp) m.pref = null; orderSuppress(sq, o.final, true); } // the plan's end: stop and fire on it till it falls
-      else { o.done = true; for (const m of ms) if (o.lastSupp && m.pref === o.lastSupp) m.pref = null; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
+      else { o.done = true; if (o.fortify) fortifyNow(sq, ms, o); for (const m of ms) if (o.lastSupp && m.pref === o.lastSupp) m.pref = null; if (o.ambush) say(sq.name, 'In posizione. Aspettiamo che si avvicinino.'); else if (o.cover) say(sq.name, 'In posizione, al coperto.'); }
     }
   }
   roleUpkeep(sq, ms);
@@ -591,13 +592,110 @@ function escortUpkeep(sq, ms) {
   const h = u.heading || 0, back = u.veh ? u.rad + 5 : 5, ax = u.x - Math.sin(h) * back, az = u.z - Math.cos(h) * back;
   const k = formOf(sq).k === 'free' ? 'wedge' : formOf(sq).k, inf = ms.filter(m => !m.veh), veh = ms.filter(m => m.veh);
   const put = (m, p) => {
-    if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
+    if ((state.t - (m.combatT || -99) < 6 && !m.veh) || m.task) return; // fighting, or on a task: not now
     const d2 = (m.x - p.x) ** 2 + (m.z - p.z) ** 2; m.formCatch = d2 > tune.form_catch_d ** 2; // far behind: it hurries (formation.js)
     if (d2 > 4 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2)) setDest(m, p.x, p.z);
   };
   inf.forEach((m, i) => put(m, formPoint(k, i, tune.form_gap, ax, az, h)));
   veh.forEach((v, i) => put(v, formPoint(k, i, tune.form_veh_gap, ax - Math.sin(h) * (inf.length ? tune.form_veh_gap : 0), az - Math.cos(h) * (inf.length ? tune.form_veh_gap : 0), h)));
   sq.formFace = h; sq.tick = Math.min(sq.tick, 0.6);
+}
+
+// ---- Job skills on order (iteration 71): one soldier's task, or the squad's fortifying --------------------------
+/** The soldier of kind k (any kind when k is null) in the chosen squads nearest (x,z), free of tasks; or null. */
+function pickDoer(sel, k, x, z) {
+  let best = null, bd = 1e9;
+  for (const sq of sel) { if (!inRadio(sq)) continue; for (const m of alive(sq)) {
+    if (m.veh || m.inside || m.rideOn || m.task || (k && m.kind !== k)) continue;
+    const d = (m.x - x) ** 2 + (m.z - z) ** 2; if (d < bd) { bd = d; best = m; } } }
+  return best;
+}
+/** Gives soldier m a task {k, ...}: it lasts while his squad's order stays the same and task_time has not run out. */
+function giveTask(m, t, msg) {
+  if (!m) return false;
+  if (m.garrison && t.k !== 'nade') exitBuilding(m, m.squad ? m.squad.members.indexOf(m) : 0);
+  m.task = Object.assign(t, { ord: m.squad && m.squad.order, t0: state.t, goT: -9 });
+  if (msg && m.squad) say(m.squad.name, msg);
+  sfx('radio'); return true;
+}
+/** Walks m toward (x,z) every 1.5 s while farther than r. True when he is there. */
+function taskGo(m, x, z, r) {
+  if ((m.x - x) ** 2 + (m.z - z) ** 2 <= r * r) { if (m.path && m.task.going) { m.path = null; m.task.going = false; } return true; }
+  if (state.t - m.task.goT > 1.5 || !m.path || m.pi >= m.path.length) { m.task.goT = state.t; m.task.going = true; setDest(m, x, z); }
+  return false;
+}
+/** A thrown smoke grenade lands: a cloud enemies cannot see through (smoke_nade_r wide, smoke_nade_time long). */
+function smokeAt(x, z) {
+  const r = tune.smoke_nade_r;
+  state.smokes.push({ x, z, r, until: state.t + tune.smoke_nade_time });
+  for (let i = 0; i < 16; i++) { const a = rng() * 6.28, q = rng() * r; state.fx.push({ kind: 'smoke', x: x + Math.cos(a) * q, y: hAt(x, z) + 1, z: z + Math.sin(a) * q, t: -rng() * 0.5, life: tune.smoke_nade_time, s: 2.2, rise: 0.3, col: 0xcfc8bd }); }
+  sfx('rpg', x, z);
+}
+/** A soldier throws something from where he stands to (x,z): a grenade's splinters, or smoke. */
+function throwAt(m, x, z, smoke) {
+  const D = Math.hypot(x - m.x, z - m.z);
+  launch(smoke ? { kind: 'mortar', grenade: true, smoke: true, team: 0, owner: m, dmg: 0, blast: 0.1, dtype: 'frag' }
+    : { kind: 'mortar', grenade: true, team: 0, owner: m, dmg: tune.grenade_damage, blast: tune.grenade_blast, dtype: 'frag' },
+    m.x, m.y + 1.7, m.z, x, hAt(x, z) + 0.6, z, D / (1.1 + D / 24), 14);
+  floatText(m.x, m.y + 2.4, m.z, smoke ? 'fumogeno!' : 'granata!', smoke ? '#cfc8bd' : '#ffd36a');
+}
+/** One step of soldier m's task: walk, then do it; drops it when done, when his squad gets a new order, or after task_time. */
+function taskStep(m, dt) {
+  const t = m.task, sq = m.squad, tk = state.tank;
+  if ((sq && sq.order !== t.ord) || state.t - t.t0 > tune.task_time) { if (m.carry) dropCarry(m); m.task = null; return; }
+  if (t.k === 'nade' || t.k === 'smoke') { // within reach of the spot, then it flies
+    const r = t.k === 'nade' ? tune.grenade_range : tune.smoke_throw;
+    if (!taskGo(m, t.x, t.z, r * 0.9)) return;
+    if (t.k === 'nade' && state.t - (m.nadeT ?? -99) < tune.grenade_cd * 0.4) return; // the last one has only just gone
+    if (t.k === 'nade') m.nadeT = state.t; else sq.smokes = (sq.smokes ?? tune.squad_smokes) - 1;
+    throwAt(m, t.x, t.z, t.k === 'smoke'); m.task = null; return;
+  }
+  if (t.k === 'fix') { // beside the hull till it is whole (engSkill repairs, out of the fight, for scrap)
+    const v = t.v; if (!v.alive || v.hp >= v.maxhp - 0.5 || state.scrap <= 0) { if (sq) say(sq.name, v.alive && v.hp >= v.maxhp - 0.5 ? 'Riparato!' : 'Non si può riparare.'); m.task = null; return; }
+    taskGo(m, v.x - Math.sin(v.heading) * (v.rad + 0.8), v.z - Math.cos(v.heading) * (v.rad + 0.8), tune.eng_radius + v.rad - 0.5); return;
+  }
+  if (t.k === 'heal') { // beside the wounded man till he is well (medicSkill tends him)
+    const o = t.o; if (!o.alive || o.hp >= o.maxhp - 0.5 || medPower(m) <= 0) { m.task = null; return; }
+    taskGo(m, o.x + 0.8, o.z + 0.4, tune.medic_radius * 0.6); return;
+  }
+  if (t.k === 'fetch') { // to the pickup, then back to the tank with it
+    const p = t.p;
+    if (!m.carry) {
+      if (p.taken) { m.task = null; return; } // someone (the tank) got there first
+      if (!taskGo(m, p.x, p.z, 1.4)) return;
+      p.taken = true; m.carry = p; floatText(m.x, m.y + 2.2, m.z, 'preso', '#ffd36a'); m.task.goT = -9; return;
+    }
+    if (!tk.alive) { dropCarry(m); m.task = null; return; }
+    if (!taskGo(m, tk.x - Math.sin(tk.heading) * (tk.rad + 1.2), tk.z - Math.cos(tk.heading) * (tk.rad + 1.2), tk.rad + 2.5)) return;
+    deliverCarry(m); m.task = null;
+  }
+}
+/** What soldier m carries reaches the tank: scrap counted, a crate opened (put down beside the hull if there is no room). */
+function deliverCarry(m) {
+  const p = m.carry; m.carry = null; if (!p) return;
+  if (p.ammo || p.loot) { if (!takeCrate(p)) { p.taken = false; p.x = m.x; p.z = m.z; say('Equipaggio', 'Nessuno spazio: la cassa resta a terra accanto al carro.', '#e0a070'); } return; }
+  state.scrap += p.value; floatText(m.x, m.y + 2, m.z, '+' + p.value + ' rottami', '#ffd36a'); sfx('coin');
+}
+/** A soldier who falls (or gives up) drops what he carries where he stands. */
+function dropCarry(m) { const p = m.carry; if (!p) return; m.carry = null; p.taken = false; p.x = m.x; p.z = m.z; }
+/** The untaken pickup within 2.5 m of (x,z), or null. */
+function pickupAt(x, z) { let best = null, bd = 2.5 * 2.5; for (const p of state.pickups) { if (p.taken) continue; const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; best = p; } } return best; }
+/** Fortifica qui: the squad goes there; on arriving its engineers lay sandbags and its machine gunners dig a nest, facing face. */
+function orderFortify(sq, x, z, face) {
+  if (face == null) { const en = nearestEnemyTo(x, z, 0, 60); face = en ? Math.atan2(en.x - x, en.z - z) : headingTo(alive(sq), x, z); }
+  orderMove(sq, x, z, 'auto', false, face); sq.order.fortify = { face };
+  say(sq.name, 'Ricevuto, ci fortifichiamo lì.', '#e0c890');
+}
+/** The squad has arrived on a fortify order: bags and nests. */
+function fortifyNow(sq, ms, o) {
+  let n = 0;
+  for (const m of ms) {
+    if (m.veh || m.garrison || m.inside) continue;
+    if (m.kind === 'eng') { n += placeBags(m, o.fortify.face); m.buildT = state.t; }
+    else if (m.kind === 'mg') { n += placeBags(m, o.fortify.face); m.nest = true; m.stillT = state.t; floatText(m.x, m.y + 2.2, m.z, 'nido di mitragliatrice', '#e0c890'); }
+  }
+  if (n) { sfx('crunch', ms[0].x, ms[0].z); say(sq.name, 'Posizione fortificata.', '#e0c890'); } else say(sq.name, 'Niente da costruire qui.', '#e0a070');
+  o.fortify = null;
 }
 
 // ---- Quick orders (iteration 69): Z X C in both modes ------------------------------------------------------------
@@ -646,7 +744,7 @@ function issueOrder(kind, append, pt, face, tgt) {
   if (!sel.length) { say('Radio', 'Nessuna squadra selezionata: click o tasti 1-6.', '#e0a070'); return false; }
   pt = pt || state.mouse3; if (!pt) return false;
   if (kind === 'attack' && !tgt) tgt = nearestEnemyTo(pt.x, pt.z, 0, 4);
-  if (kind === 'move' || kind === 'cover' || kind === 'ambush' || kind === 'watch') tgt = null;
+  if (kind === 'move' || kind === 'cover' || kind === 'ambush' || kind === 'watch' || kind === 'fortify') tgt = null;
   if (kind === 'suppress' && !(tgt && tgt.alive)) return false;
   let any = false;
   for (const sq of sel) {
@@ -666,6 +764,7 @@ function issueOrder(kind, append, pt, face, tgt) {
     { let n = 0; for (const m of alive(sq)) if (m.rideOn && m.rideOn.squad !== sq) { dismount(m); n++; } if (n) say(sq.name, 'Giù dal mezzo, ci andiamo a piedi.'); } // riders on another squad's vehicle walk; on their own, it drives them
     if (kind === 'ambush') orderAmbush(sq, pt.x, pt.z, face);
     else if (kind === 'watch') orderWatch(sq, pt.x, pt.z, face);
+    else if (kind === 'fortify') orderFortify(sq, pt.x, pt.z, face);
     else if (kind === 'suppress') orderSuppress(sq, tgt);
     else if (tgt) orderAttack(sq, tgt);
     else orderMove(sq, pt.x, pt.z, kind === 'move' ? 'none' : kind === 'cover' ? 'cover' : kind === 'attack' ? 'assault' : 'auto', append, face);

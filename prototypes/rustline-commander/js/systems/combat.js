@@ -56,6 +56,7 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.hp <= 0 && !medicSave(e, kind)) kill(e, src, kind);
 }
 function kill(e, src, kind) {
+  if (e.carry) dropCarry(e); // what he carried stays where he fell (iteration 71)
   e.alive = false; e.hp = 0; e.deathT = state.t; e.path = null; e.moving = false; e.selected = false;
   emit('kill', e, src, kind); // enemies.js: a bomber's charge, a fuel depot going up
   if (e.veh) {
@@ -87,6 +88,7 @@ function kill(e, src, kind) {
 }
 /** A shell, rocket or mortar round goes off: voxels fly, units in the radius are hurt. */
 function explode(p, x, y, z, direct) {
+  if (p.smoke) { smokeAt(x, z); return; } // a smoke grenade (iteration 71)
   const removed = blastVoxels(x, y, z, p.blast, { dtype: p.dtype, dmg: p.dmg, pen: p.pen, vx: p.vx, vy: p.vy, vz: p.vz });
   spawnDebris(removed, x, y, z, 40);
   blastFx(x, y, z, p.blast);

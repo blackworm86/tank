@@ -30,6 +30,18 @@ function menuItems(g, append) {
   const onTank = Math.hypot(p.x - tk.x, p.z - tk.z) < tk.rad + 0.9;
   const b = inf && !onTank && !g.tgt ? buildingAt(p.x, p.z) : null;
   const all = f => () => { let any = false; for (const sq of sel) { if (inRadio(sq)) { f(sq); any = true; } else say(sq.name, 'Fuori portata radio: non vi sentiamo.', '#e0a070'); } if (any) sfx('radio'); };
+  // iteration 71: the Job skills on order
+  const has = k => sel.some(sq => inRadio(sq) && alive(sq).some(m => m.kind === k && !m.inside && !m.rideOn));
+  const sendTask = (k, t, msg) => () => { const m = pickDoer(sel, k, p.x, p.z); if (!m) { say('Radio', 'Nessuno libero per farlo, o fuori portata radio.', '#e0a070'); return; } giveTask(m, t(), msg); };
+  const fu = g.fu, vfix = onTank ? (tk.hp < tk.maxhp ? tk : null) : fu && fu.veh && fu.hp < fu.maxhp ? fu : null;
+  if (vfix) items.push({ key: 'Y', alt: ['C', 'K', 'J'], label: 'Ripara: ' + (vfix === tk ? 'il carro' : UT[vfix.kind].name), col: '#9fd8ff', desc: DESC.fix, off: !has('eng'), act: sendTask('eng', () => ({ k: 'fix', v: vfix }), 'Il geniere va a riparare.') });
+  if (fu && !fu.veh && fu.hp < fu.maxhp) items.push({ key: 'Y', alt: ['C', 'K', 'J'], label: 'Cura: ' + UT[fu.kind].name, col: '#7fe07a', desc: DESC.heal, off: !has('medic'), act: sendTask('medic', () => ({ k: 'heal', o: fu }), 'Il medico va da lui.') });
+  const pk = !onTank && !g.tgt ? pickupAt(p.x, p.z) : null;
+  if (pk) items.push({ key: 'Y', alt: ['C', 'K', 'J'], label: 'Raccogli: ' + (pk.ammo ? 'cassa di munizioni' : pk.loot ? 'cassa' : pk.value + ' rottami'), col: '#ffd36a', desc: DESC.fetch, act: sendTask(null, () => ({ k: 'fetch', p: pk }), 'Lo prendiamo e lo portiamo al carro.') });
+  if (!onTank && has('eng')) items.push({ key: 'C', alt: ['Y', 'K', 'J'], label: g.tgt ? 'Granata su: ' + UT[g.tgt.kind].name.toLowerCase() : 'Granata qui', col: '#ffd36a', desc: DESC.nade, act: sendTask('eng', () => ({ k: 'nade', x: g.tgt ? g.tgt.x : p.x, z: g.tgt ? g.tgt.z : p.z }), 'Granata in arrivo!') });
+  if (!onTank) { const left = sel.reduce((a, sq) => a + Math.max(0, sq.smokes ?? tune.squad_smokes), 0);
+    items.push({ key: 'K', alt: ['Y', 'C', 'J'], label: 'Fumogeno qui (' + left + ')', col: '#cfc8bd', desc: DESC.smoke(), off: !left, act: () => { const sq2 = sel.find(sq => inRadio(sq) && (sq.smokes ?? tune.squad_smokes) > 0); const m = sq2 && pickDoer([sq2], null, p.x, p.z); if (m) giveTask(m, { k: 'smoke', x: p.x, z: p.z }, 'Fumogeno!'); else say('Radio', 'Niente fumogeni, o fuori portata radio.', '#e0a070'); } }); }
+  if (!onTank && !g.tgt && (has('eng') || has('mg'))) items.push({ key: 'J', alt: ['K', 'Y', 'C'], label: 'Fortifica qui', col: '#e0c890', desc: DESC.fortify, act: () => issueOrder('fortify', false, p, g.face) });
   if (g.fr && !onTank) { // a unit of ours not among the chosen: escort it (iteration 70)
     const u = g.fr, nm = u.veh ? UT[u.kind].name : u.squad ? u.squad.name : UT[u.kind].name;
     items.push({ key: 'Z', alt: ['J', 'K'], label: 'Scorta: ' + nm, col: '#9fe3a0', desc: DESC.escort, act: all(sq => orderEscort(sq, u)) });
@@ -75,6 +87,12 @@ function menuItems(g, append) {
 }
 /** What each order does, shown at the menu's foot under the highlighted row. */
 const DESC = {
+  nade: 'Il geniere più vicino si avvicina a tiro e lancia una granata lì: le schegge passano coperture e finestre.',
+  smoke: () => 'Un soldato lancia un fumogeno lì: per ' + Math.round(tune.smoke_nade_time) + ' s i nemici non vedono attraverso. ' + Math.round(tune.squad_smokes) + ' per squadra a settore.',
+  fix: 'Il geniere va accanto al mezzo e lo ripara, lontano dal fuoco e pagando in rottami.',
+  heal: 'Il medico va dal ferito e lo cura finché ha bende.',
+  fortify: 'La squadra va lì: i genieri mettono sacchi di sabbia, i mitraglieri scavano il nido, verso il nemico o dove trascini.',
+  fetch: 'Il soldato più vicino va a prenderlo e lo porta al carro; se cade, resta dove è caduto.',
   retreat: 'Corrono al carro senza fermarsi a sparare e si mettono dietro lo scafo, dal lato lontano dal nemico.',
   watch: () => 'Vanno lì e restano: sparano solo a chi entra nell\'arco di ' + Math.round(tune.watch_arc) + '° (trascina per orientarlo), mirando meglio.',
   escort: 'Restano alle spalle di quell\'unità, nella loro formazione, e la seguono dove va.',

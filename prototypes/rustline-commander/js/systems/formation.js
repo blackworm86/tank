@@ -119,7 +119,7 @@ function followInForm(sq, ms) {
   const k = formOf(sq).k === 'free' ? 'wedge' : formOf(sq).k, inf = ms.filter(m => !m.veh), veh = ms.filter(m => m.veh);
   const put = (m, p) => {
     if (m.kind === 'sniper' && !m.veh) return; // its own post (roleUpkeep)
-    if (state.t - (m.combatT || -99) < 6 && !m.veh) return; // fighting: stays in its cover till it is over
+    if ((state.t - (m.combatT || -99) < 6 && !m.veh) || m.task) return; // fighting, or on a task (iteration 71): not now
     const d2 = (m.x - p.x) ** 2 + (m.z - p.z) ** 2; m.formCatch = d2 > tune.form_catch_d ** 2; // far off its slot: it hurries
     if (d2 > 4 && (!m.path || m.pi >= m.path.length || state.t - m.pathT > 2)) setDest(m, p.x, p.z);
   };
