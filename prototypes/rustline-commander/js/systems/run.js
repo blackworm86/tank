@@ -12,16 +12,16 @@ function newRun(carry) {
   genWorld();
   Object.assign(state, {
     ents: [], squads: [], proj: [], debris: [], fx: [], tracers: [], marks: [], pickups: [], floats: [], msgs: [], groups: [],
-    fit: {}, depot: [], hpSel: null, lookKey: 1, blips: [], radarT: 0,
+    lv: {}, lookKey: 1, blips: [], radarT: 0,
     hull: HULL_PICK.id, weapon: HULLS[HULL_PICK.id].weapon, stats: null, statsStep: -1, stepN: 0,
     scrap: tune.start_scrap, kills: 0, camps: 0, mode: 'tank', tpause: false, arm: null, gest: null, devSq: 0, devKind: 'rifle', devEnemy: 'r_rifle', tut: 0, nextId: 1, endT: 0, result: null,
-    hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 'modules', shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
+    hurtT: -9, aimP: null, mouse3: null, snd: 0, shopTab: 'standard', shopMsg: '', roster: [], lastShot: -9, tagsWon: 0, campHint: false, fortHint: false,
     boss: null, menu: null, picked: null, rename: null, dragSoldier: null, event: null, campsKnown: false, goScene: null,
     systems: [], owned: [], weaponsOwned: [HULLS[HULL_PICK.id].weapon], ammo: null, shell: 'he', sysCd: {}, smokes: [], eraLeft: 3,
     techKills: 0, crushes: 0, newAch: [], turboUntil: 0, repairUntil: 0, salvo: null, relayL: null,
   });
   // the next sector: the tank, its parts and its scrap come along
-  if (carry) Object.assign(state, { fit: JSON.parse(JSON.stringify(carry.fit || {})), depot: (carry.depot || []).map(f => Object.assign({}, f)), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
+  if (carry) Object.assign(state, { lv: Object.assign({}, carry.lv || {}), hull: carry.hull, weapon: carry.weapon, scrap: carry.scrap, kills: carry.kills, camps: carry.camps,
     systems: carry.systems.slice(), owned: carry.owned.slice(), weaponsOwned: carry.weaponsOwned.slice(), shell: carry.shell, techKills: carry.techKills, crushes: carry.crushes, newAch: carry.newAch.slice() });
   state.ammo = carry && carry.ammo ? Object.assign({}, carry.ammo) : freshAmmo();
   const s = world.sites, rm = s.roadMain;

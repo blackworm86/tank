@@ -113,19 +113,5 @@ registerShopTab('repair', {
     button(x0 + 24, cy + 72, 250, 44, 'Ripara 50 (' + repairCost(Math.min(50, Math.max(0, miss))) + ')', () => repair(false), { off: miss <= 0 });
     button(x0 + 294, cy + 72, 250, 44, 'Ripara tutto (' + repairCost(Math.max(0, miss)) + ')', () => repair(true), { off: miss <= 0 });
     text('Il carro si ripara qui, tra un settore e l\'altro (e dai genieri sul campo). Ogni rottame conta.', x0 + 24, cy + 140, 14, HC.dim, 'left');
-    // the plates: they stop less and less as they wear, nothing at 0, until they are made whole here
-    text('Placche di corazza', x0 + 24, cy + 186, 17, HC.text, 'left');
-    const pl = hardpoints().map(p => ({ p, f: state.fit[p.id] })).filter(o => o.f && MODULES[o.f.id].plate);
-    if (!pl.length) text('Nessuna placca montata: si comprano come moduli (fronte, fianchi).', x0 + 24, cy + 212, 13, HC.dim, 'left');
-    pl.forEach(({ p, f }, i) => {
-      const yy = cy + 200 + i * 50, M = MODULES[f.id], c = plateRepairCost(f);
-      rrect(x0 + 24, yy, 700, 44, 5, 'rgba(0,0,0,0.3)', '#5a4030');
-      text(p.name + ': ' + M.name, x0 + 36, yy + 14, 14, RARITY[M.r].col, 'left');
-      bar(x0 + 36, yy + 26, 300, 9, f.cond, f.cond > 0.5 ? '#8fd86a' : f.cond > 0 ? '#e0a050' : '#5a3a32');
-      text(f.cond > 0 ? Math.round(f.cond * 100) + '%: ferma il ' + Math.round(M.plate.k * f.cond * 100) + '% invece del ' + Math.round(M.plate.k * 100) + '%' : 'Distrutta: non ferma più niente', x0 + 346, yy + 31, 12, f.cond > 0 ? HC.dim : '#e0503a', 'left');
-      button(x0 + 560, yy + 6, 156, 32, c ? 'Ripara (' + c + ')' : 'Integra', () => repairPlate(p.id), { off: !c || state.scrap < c, size: 13 });
-    });
-    const wp = wornPlates(), wc = wp.reduce((a, o) => a + plateRepairCost(o.f), 0);
-    if (wp.length > 1) button(x0 + 740, cy + 200, 220, 44, 'Ripara tutte (' + wc + ')', repairAllPlates, { off: state.scrap < wc, size: 14 });
   },
 });

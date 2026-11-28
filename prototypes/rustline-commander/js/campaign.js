@@ -105,7 +105,7 @@ function carryOut() {
     });
     if (mem.length) squads.push({ name: sq.name, named: !!sq.named, color: sq.color, roe: roeOf(sq).k, gait: gaitOf(sq).k, slots, mem });
   }
-  return { hp: tk.hp / tk.maxhp, fit: JSON.parse(JSON.stringify(state.fit || {})), depot: (state.depot || []).map(f => Object.assign({}, f)), systems: state.systems.slice(), owned: state.owned.slice(), weaponsOwned: state.weaponsOwned.slice(),
+  return { hp: tk.hp / tk.maxhp, lv: Object.assign({}, state.lv), systems: state.systems.slice(), owned: state.owned.slice(), weaponsOwned: state.weaponsOwned.slice(),
     ammo: Object.assign({}, state.ammo), shell: state.shell, techKills: state.techKills, crushes: state.crushes, newAch: (state.newAch || []).slice(), hull: state.hull, weapon: state.weapon, scrap: state.scrap, kills: state.kills, camps: state.camps, squads, lost, time: (state.carryT || 0) + state.t };
 }
 /** Who would come along now, and who would stay behind (for the exit prompt). */
@@ -226,7 +226,7 @@ function leaveSector() {
   const n = state.node;
   n.ws = n.ws || { name: 'Officina da campo', field: true };
   Object.assign(n.ws, { x: state.tank.x - 4, z: state.tank.z - 4 }); // recruits and reinforcements gather by the tank
-  state.shopSite = n.ws; state.leaving = true; state.shopTab = workshopOffers(n.ws).length ? 'modules' : 'repair'; state.shopMsg = ''; state.confirm = null; state.tank.speed = 0;
+  state.shopSite = n.ws; state.leaving = true; state.shopTab = 'standard'; state.shopMsg = ''; state.confirm = null; state.tank.speed = 0;
   state.goScene = 'shop'; sfx('radio');
 }
 /** The tank leaves the map: the soldiers in radio reach come, the others stay behind. */
@@ -320,7 +320,7 @@ const EVENTS = [
     ] },
   { id: 'mercante', fac: 'mercanti', fig: 'rifle', title: 'La carovana dei mercanti', text: 'Camion carichi di ferraglia e un mercante dal sorriso d\'oro. "Pezzi buoni, comandante. Prezzi onesti... quasi."',
     choices: [
-      { label: 'Compra un modulo a sorpresa (90 rottami)', need: () => state.scrap >= 90, act: () => { state.scrap -= 90; const p = freeUpgrade(); if (p) return 'Il meccanico ti cede: ' + p + ' (montato se ha posto, se no in magazzino).'; state.scrap += 90; return 'Non ha niente di meglio di quello che hai: ti rende i rottami.'; } },
+      { label: 'Paga un miglioramento a sorpresa (90 rottami)', need: () => state.scrap >= 90, act: () => { state.scrap -= 90; const p = freeUpgrade(); if (p) return 'Il meccanico lavora sul carro: ' + p + '.'; state.scrap += 90; return 'Non ha niente di meglio di quello che hai: ti rende i rottami.'; } },
       { label: 'Riparazioni (50 rottami, +50% integrità)', need: () => state.scrap >= 50 && state.tank.hp < state.tank.maxhp, act: () => { state.scrap -= 50; state.tank.hp = Math.min(state.tank.maxhp, state.tank.hp + state.tank.maxhp * 0.5); return 'Saldature fresche sullo scafo.'; } },
       { label: 'Assolda le sue guardie (80 rottami)', need: () => state.scrap >= 80, act: () => { state.scrap -= 80; joinSquad(['mg', 'rifle'], 'Guardie della carovana', state.tank.x - 4, state.tank.z - 4); return 'Due guardie armate passano al tuo servizio.'; } },
     ] },

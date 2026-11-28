@@ -27,11 +27,11 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.kind === 'tank' && state.god) return;
   const D = dmgProfile(kind, hit); // js/damage.js: its type and penetration
   let res = 'full', side = null;
-  if (e.kind === 'tank') { // the command tank keeps its own armour: sides, modules, plates
+  if (e.kind === 'tank') { // the command tank keeps its own armour: sides, the standard armour, advanced systems
     if (kind === 'bullet' || kind === 'heavy') amt *= kind === 'heavy' ? 0.3 : tune.small_arms_vs_tank;
     if (kind !== 'crush' && kind !== 'drown') {
       side = armorSide(e, hit, src);
-      amt *= tune['armor_' + side] * tankModDmg(side, kind, src) * platesTake(side, kind, amt); // modules.js: the plates on that side
+      amt *= tune['armor_' + side] * tankModDmg(side, kind, src) * armorTake(side); // modules.js: the standard armour's level
       if (kind !== 'bullet' && kind !== 'heavy') { e.lastHit = { side, t: state.t }; floatText(e.x, e.y + 4.2, e.z, SIDE_NAME[side] + ' x' + tune['armor_' + side].toFixed(1), side === 'front' ? '#c8c8c8' : side === 'side' ? '#ffd36a' : '#ff8a4a'); }
     }
   } else if (e.veh && D.dtype) { // any other vehicle: the round's penetration against the face's thickness

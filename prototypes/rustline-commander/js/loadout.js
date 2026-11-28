@@ -141,8 +141,8 @@ function buySystem(id) {
 /** The mounted systems' effect on the tank's numbers (called by tankStats). */
 function applyMods(s) {
   s.sight = tune.tank_sight * (modOn('thermal') ? tune.mod_thermal : 1);
-  if (modOn('loader') && s.wkind === 'shell') s.reload *= 1 - tune.mod_loader;
-  if (modOn('relay')) s.radio *= tune.mod_relay;
+  if (modOn('blade')) s.climb += tune.mod_blade_climb;
+  if (modOn('radar')) { s.sensor = Math.max(s.sensor, tune.mod_radar_map); s.radar = tune.mod_radar_blip; s.radarT = tune.mod_radar_every; }
   if (state.t < (state.turboUntil || 0)) { s.speed *= 1.6; s.accel *= 2; }
 }
 /** The mounted protection against a hit on the command tank: a damage multiplier. */
@@ -150,6 +150,7 @@ function tankModDmg(side, kind, src) {
   let k = 1;
   if (modOn('cage') && (kind === 'rocket' || (kind === 'blast' && src && ENEMY[src.kind] && ENEMY[src.kind].rocket))) k *= 1 - tune.mod_cage;
   if (modOn('skirts') && (side === 'side' || side === 'rear')) k *= 1 - tune.mod_skirts;
+  if (modOn('blade') && side === 'front') k *= 1 - tune.mod_blade;
   if (modOn('era') && (kind === 'rocket' || kind === 'shell') && (state.eraLeft ?? 3) > 0) {
     state.eraLeft = (state.eraLeft ?? 3) - 1; floatText(state.tank.x, state.tank.y + 3.6, state.tank.z, 'carica reattiva! (' + state.eraLeft + ')', '#ffd36a'); return 0;
   }

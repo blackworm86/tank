@@ -254,6 +254,7 @@ I primi 2–3 minuti sono pattuglie leggere; il primo campo fortificato (bunker,
 - [x] Andatura del carro e caduti: il carro va di base al passo della fanteria (march_speed 3,8 m/s, i soldati 4,2) così le squadre gli stanno dietro; Bloc Maiusc passa alla velocità massima e indietro, Shift tenuto dà l'altra andatura finché è premuto; il pannello del carro mostra l'andatura (FANTERIA / MASSIMA). Un soldato ucciso resta sulla sua squadra con una X rossa per fallen_show (4) secondi, poi lascia la squadra; una squadra senza più nessuno sparisce dal pannello e le altre si rinumerano; la caserma rimpiazza anche chi ha già lasciato la squadra
 - [x] Animazione di arrampicata: chi scala una parete (cecchino, esploratore, cecchino predone) le sta di fronte, appoggiato alla roccia, con le mani che salgono sopra la testa una dopo l'altra mentre le gambe spingono a turno; il ritmo segue i metri guadagnati (climb_anim), così chi è inchiodato dal fuoco resta appeso e chi scende la fa al contrario; l'arma è in spalla con la canna in alto finché è sulla parete. Camminando i soldati muovono anche le braccia
 - [x] Tasti (redesign): Spazio alterna Carro e Comando (il Comando resta in pausa); Tab fa scorrere i proiettili; i sistemi attivi montati si usano con R T F G C V nell'ordine in cui stanno, e la lettera è scritta sul loro riquadro; Bloc Maiusc e Shift per l'andatura; in Comando i numeri scelgono le squadre e Shift le aggiunge; la mappa di test cambia arma con Y. La specifica del redesign è nel brief (Redesign, iterations 60-67)
+- [x] Nove sistemi standard (redesign): Torretta, Stabilizzatore, Arma principale, Coassiale, Corazza, Motore, Cingoli e ruote, Vano truppe, Radio, ciascuno con 3 livelli comprati coi rottami nella scheda Sistemi dell'officina (il livello n costa n volte std_cost); ogni livello si vede sullo scafo coi pezzi dei vecchi moduli. Spariti moduli, punti di attacco, carico, magazzino e placche che si consumano; i pezzi gratis (depositi, meccanico) sono un livello a caso. Slot dei sistemi avanzati: 4 APC modulare, 3 carro leggero, 2 carro da battaglia. Caricatore e ripetitore diventano livelli di Arma e Radio; lama apripista e radar diventano sistemi avanzati passivi; tolti cannone binato, torretta pesante, telai, sensori sismici e radar tattico
 
 ## Map rules
 - M1 Rilievo: il terreno ha due sole forme di dislivello: la rampa, al massimo 1 m ogni ramp_run (2) celle, e la scogliera, un gradino di map_cliff (3 m) o più, parete che il carro non sale né scende. Niente gradini di 2 m, niente buche o punte di una cella; i pendii ripidi diventano terrazze di roccia alte map_cliff + 1. Il carro guida esattamente sulla superficie disegnata (gli spigoli di ogni colonna sono la media delle colonne vicine che non sono una scogliera).
@@ -406,7 +407,7 @@ Mappatura dei vecchi pezzi (61): Torretta ← anello, servo · Stabilizzatore �
 - mappe a forma libera, geografie combinate, valli e conche · in the slice
 - missioni resisti, scorta, sabotaggio, caccia; piste su più settori · in the slice
 - nemici speciali, mezzi leggeri e pesanti, cani e sciami · in the slice
-- punti di attacco per scafo, moduli casuali visibili, placche che si consumano · in the slice
+- 9 sistemi standard a livelli (visibili sullo scafo) e slot dei sistemi avanzati 4/3/2 · in the slice
 
 ## Keep
 -

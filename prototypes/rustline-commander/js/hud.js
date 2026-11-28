@@ -280,7 +280,6 @@ function drawHUD() {
     text('Bloc Maiusc', 234, py, 10, HC.dim, 'right');
   }
   text(HULLS[state.hull || 'apc'].short.toUpperCase(), 24, 29, 12, HC.dim, 'left');
-  plateStatus().forEach((p, i) => { rrect(86 + i * 18, 24, 14, 10, 2, p.cond > 0.5 ? '#8fd86a' : p.cond > 0 ? '#e0a050' : 'rgba(0,0,0,0.3)', p.cond > 0 ? null : '#e0503a'); }); // modules.js: one pip a plate
   gearIcon(184, 29, 6, HC.gold); text(String(state.scrap), 194, 29, 13, HC.gold, 'left');
   bar(24, 40, 210, 13, tk.hp / tk.maxhp, tk.hp / tk.maxhp > 0.35 ? '#8fd86a' : '#e0503a');
   text(Math.ceil(tk.hp) + ' / ' + Math.round(tk.maxhp), 129, 47, 11, '#10140c');

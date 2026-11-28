@@ -4,14 +4,14 @@
 // The command vehicle: the hulls, what unlocks them between runs, and its live numbers. (split from sim.js: docs/architecture/rustline-modular-plan.md)
 'use strict';
 
-// ---- Tank parts: the hardpoints and modules live in modules.js ----------------------------------------
+// ---- Tank parts: the standard systems live in modules.js, the advanced ones in loadout.js ----------------------------------------
 /**
  * The hulls the run can start with. Numbers live in config.js as hull_<id>_* multipliers on the
  * tank's own values (the battle tank is the 1.0 of everything).
  */
 const HULLS = {
-  apc: { name: 'APC modulare', short: 'APC', desc: ['Veloce, corazza leggera.', 'Cannoncino 25mm + coass.', 'Tutto si smonta e rimonta.'], weapon: 'ac25', slots: 3, weightK: 1, rad: 2.0 },
-  light: { name: 'Carro leggero', short: 'Leggero', desc: ['Velocissimo, sottile.', 'Cannone 75mm + coass.', '2 sistemi avanzati.'], weapon: 'c75', slots: 2, weightK: 0.5, rad: 1.9 },
+  apc: { name: 'APC modulare', short: 'APC', desc: ['Veloce, corazza leggera.', 'Cannoncino 25mm + coass.', '4 sistemi avanzati.'], weapon: 'ac25', slots: 4, weightK: 1, rad: 2.0 },
+  light: { name: 'Carro leggero', short: 'Leggero', desc: ['Velocissimo, sottile.', 'Cannone 75mm + coass.', '3 sistemi avanzati.'], weapon: 'c75', slots: 3, weightK: 0.5, rad: 1.9 },
   mbt: { name: 'Carro da battaglia', short: 'MBT', desc: ['Corazza spessa,', 'cannone 105mm + coass.', '2 sistemi avanzati.'], weapon: 'c105', slots: 2, weightK: 0.15, rad: 2.2 },
 };
 const HULL_IDS = ['apc', 'light', 'mbt'];
@@ -26,7 +26,7 @@ const meta = loadMeta();
 function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* not kept */ } }
 
 // ---- Tank numbers ------------------------------------------------------------------------------------
-/** The command tank's live numbers: config, the hull, its base systems, weapon and advanced systems. */
+/** The command tank's live numbers: config, the hull, its standard systems, weapon and advanced systems. */
 function tankStats() {
   if (state.statsStep === state.stepN && state.stats) return state.stats;
   const s = {
@@ -36,7 +36,7 @@ function tankStats() {
     radio: tune.radio_range, barrel: 2.6, seats: 0, hullArmor: 1, sensor: 0, radar: 0, radarT: 0, slots: 0, mgHeat: 1, mgCool: 1, mgRate: 1,
   };
   const G = { dmg: 1, reload: 1, spread: 1, barrel: 1 };
-  for (const m of fittedMods()) { // modules.js: what is mounted on the hardpoints
+  for (const m of stdMods()) { // modules.js: the standard systems' levels
     if (m.gunDmg) G.dmg *= m.gunDmg; if (m.gunReload) G.reload *= m.gunReload; if (m.gunSpread) G.spread *= m.gunSpread; if (m.gunBarrel) G.barrel *= m.gunBarrel;
     if (m.slots) s.slots += m.slots;
     if (m.dmg) s.dmg *= m.dmg; if (m.blast) s.blast *= m.blast; if (m.reload) s.reload += m.reload; if (m.reloadSet) s.reload = m.reloadSet;

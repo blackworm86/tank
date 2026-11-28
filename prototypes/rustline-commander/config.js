@@ -200,32 +200,35 @@ window.CONFIG = {
 
   // ---- Advanced systems (js/loadout.js, js/content/base/arsenal.js) ----
   sys_cost: { value: 170, min: 0, max: 1000, step: 10 },          // an advanced system at a garage (active ones x1.35)
-  mod_relay: { value: 1.4, min: 1, max: 3, step: 0.05 },          // radio range with the onboard relay
   mod_medbay: { value: 2, min: 0, max: 20, step: 0.5 },           // hp/s the field hospital gives soldiers near the hull
   smoke_radius: { value: 8, min: 2, max: 20, step: 1 },
   mod_rocket_damage: { value: 70, min: 5, max: 300, step: 5 },    // rocket pod (second weapon)
   mod_cage: { value: 0.45, min: 0, max: 0.9, step: 0.05 },        // rocket damage the cage stops
   mod_skirts: { value: 0.3, min: 0, max: 0.9, step: 0.05 },       // side and rear damage the skirts stop
+  mod_blade: { value: 0.25, min: 0, max: 0.9, step: 0.05 },       // front damage the dozer blade stops
+  mod_blade_climb: { value: 0.5, min: 0, max: 4, step: 0.1 },    // metres more the blade lets the hull climb
+  mod_radar_map: { value: 95, min: 0, max: 300, step: 5 },       // the search radar: map revealed this far
+  mod_radar_blip: { value: 85, min: 0, max: 300, step: 5 },      // enemies shown as blips this far
+  mod_radar_every: { value: 5, min: 0.5, max: 20, step: 0.5 },   // seconds between sweeps
   mod_thermal: { value: 1.4, min: 1, max: 3, step: 0.05 },        // tank sight multiplier
   mod_autorep: { value: 1.5, min: 0, max: 20, step: 0.5 },        // hp/s once out of fire
   mod_autorep_wait: { value: 6, min: 0, max: 30, step: 1 },
-  mod_loader: { value: 0.25, min: 0, max: 0.8, step: 0.05 },      // reload time the autoloader cuts
   mod_rack_ammo: { value: 1.5, min: 1, max: 3, step: 0.1 },       // rounds carried multiplier
 
-  // ---- Vehicle modules, plates and the workshop (js/modules.js, js/systems/workshop.js) ----
-  cap_apc: { value: 9, min: 2, max: 30, step: 1 },              // the load the APC's hardpoints carry
-  cap_light: { value: 5, min: 2, max: 30, step: 1 },            // the light tank's
-  cap_mbt: { value: 10, min: 2, max: 30, step: 1 },             // the battle tank's
-  module_cost_k: { value: 1, min: 0.2, max: 4, step: 0.05 },     // every module's price, times this
-  module_refund: { value: 0.5, min: 0, max: 1, step: 0.05 },     // share of a module's price a sale pays back
-  ws_none: { value: 0.15, min: 0, max: 1, step: 0.05 },          // chance a workshop has no module to sell
-  ws_offers_max: { value: 3, min: 1, max: 6, step: 1 },          // otherwise it offers 1 to this many
-  mod_rare_w: { value: 0.4, min: 0, max: 3, step: 0.05 },        // weight of a rare module (a common one is 1; grows along the campaign)
-  mod_exc_w: { value: 0.12, min: 0, max: 3, step: 0.02 },        // weight of an exceptional one
-  plate_wear: { value: 1, min: 0, max: 5, step: 0.1 },           // how fast plates wear (damage over their durability)
-  plate_wear_bullet: { value: 0.15, min: 0, max: 1, step: 0.05 },  // bullets wear them this much less
-  plate_repair_k: { value: 0.45, min: 0, max: 2, step: 0.05 },   // a wrecked plate costs this share of its price to make whole
-  part_refund: { value: 0.7, min: 0, max: 1, step: 0.05 },      // share of a part's cost paid back when it is taken off
+  // ---- The 9 standard systems (js/modules.js; iteration 61): each level costs std_cost x the level ----
+  std_max_level: { value: 3, min: 1, max: 6, step: 1 },          // levels each standard system has
+  std_cost: { value: 50, min: 0, max: 500, step: 5 },            // scrap for level 1 (level n: n times this)
+  std_turret_k: { value: 0.35, min: 0, max: 1, step: 0.05 },     // turret traverse per level
+  std_stab_k: { value: 0.2, min: 0, max: 0.4, step: 0.02 },      // spread on the move cut per level (aim half of it)
+  std_gun_k: { value: 0.1, min: 0, max: 0.25, step: 0.01 },      // reload cut per level (damage and spread 0.8 of it)
+  std_coax_k: { value: 0.6, min: 0, max: 2, step: 0.05 },        // coax heat it bears per level (cooling half, rate 0.12)
+  std_armor_k: { value: 0.12, min: 0, max: 0.3, step: 0.01 },    // damage the armour stops per level (rear half)
+  std_armor_hp: { value: 40, min: 0, max: 200, step: 5 },        // integrity per armour level
+  std_engine_k: { value: 0.1, min: 0, max: 0.4, step: 0.02 },    // speed per level (acceleration 4x)
+  std_tracks_k: { value: 0.1, min: 0, max: 0.4, step: 0.02 },    // turn per level (climb: 1.5 m times it; at the top it stays under map_cliff)
+  std_bay_k: { value: 2, min: 0, max: 6, step: 1 },              // seats per level
+  std_radio_k: { value: 0.35, min: 0, max: 1, step: 0.05 },      // radio range per level
+
 
   // ---- Friendly soldiers (js/systems/units.js, js/systems/entities.js, js/systems/unitstep.js) ----
   turret_return: { value: 2, min: 0.2, max: 6, step: 0.1 },      // rad/s an idle vehicle turret swings back to the front

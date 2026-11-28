@@ -18,9 +18,9 @@ registerSystem('skirts', { name: 'Minigonne', short: 'Gonne', desc: 'Passivo: -3
 registerSystem('era', { name: 'Corazza reattiva a cariche', short: 'ERA', desc: 'Passivo: annulla i primi 3 colpi pesanti di ogni settore.' });
 registerSystem('thermal', { name: 'Visore termico', short: 'Termico', desc: 'Passivo: il mezzo vede il 40% più lontano.' });
 registerSystem('autorep', { name: 'Kit autoriparante', short: 'Autorip', desc: 'Passivo: lontano dal fuoco lo scafo si ripara.' });
-registerSystem('loader', { name: 'Caricatore automatico', short: 'Caricat', desc: 'Passivo: -25% tempo di ricarica dell\'arma principale.' });
 registerSystem('rack', { name: 'Rastrelliera extra', short: 'Rastrel', desc: 'Passivo: +50% colpi trasportati.' });
-registerSystem('relay', { name: 'Ripetitore di bordo', short: 'Ripetit', desc: 'Passivo: +40% raggio radio.' });
+registerSystem('blade', { name: 'Lama apripista', short: 'Lama', look: 'f_blade', desc: 'Passivo: -25% danni frontali, sale +0.5 m.' });
+registerSystem('radar', { name: 'Radar di scoperta', short: 'Radar', look: 'r_radar', desc: 'Passivo: rivela la mappa fino a 95, blip dei nemici entro 85 ogni 5 s.' });
 registerSystem('medbay', { name: 'Infermeria da campo', short: 'Infermer', desc: 'Passivo: i soldati entro 8 m dal mezzo guariscono.' });
 registerSystem('smoke', { name: 'Lanciafumogeni', short: 'Fumo', active: true, cd: 30, desc: 'Attivo: cortina di fumo, i nemici non vedono attraverso per 9 s.',
   use(tk) {
