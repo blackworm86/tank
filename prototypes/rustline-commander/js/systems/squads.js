@@ -87,7 +87,8 @@ function setDest(m, x, z) {
   const vs = state.ents.filter(v => v.alive && v.veh && v !== m && dist2(v, m) < 60 * 60 && (m.veh || dist2(v, m) > (v.rad + mr) ** 2) && !(v.moving || (v.kind === 'tank' && Math.abs(v.speed) > 0.5)))
     .map(v => ({ x: v.x, z: v.z, r: Math.min(v.rad + mr, Math.sqrt(dist2(v, m)) - 0.4) }));
   PF.avoid = (px, pz) => { for (const v of vs) if ((px - v.x) ** 2 + (pz - v.z) ** 2 < v.r * v.r) return true; return false; };
-  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 12000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null;
+  PF.climb = climber(m) ? tune.climb_max : 0;
+  m.path = findPath(m.x, m.z, x, z, 1, m.veh ? 9000 : 12000, m.veh ? 1 : 3, m.veh ? tune.tank_ground_climb : 1); PF.avoid = null; PF.climb = 0;
   if ((!m.path || m.path.length < 2) && !m.veh && raised(m)) { // stranded on a roof with no way down: he climbs down beside it
     const p = spotNear(m.x, m.z, m.id % 6); m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z);
     m.path = findPath(m.x, m.z, x, z, 1, 6000, 3, 1);

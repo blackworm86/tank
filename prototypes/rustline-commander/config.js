@@ -235,6 +235,9 @@ window.CONFIG = {
   sniper_range: { value: 50, min: 10, max: 90, step: 1 },
   sniper_sight: { value: 54, min: 20, max: 100, step: 1 },        // how far a sniper spots enemies
   sniper_standoff: { value: 24, min: 8, max: 50, step: 1 },       // a sniper keeps this far from the enemy
+  climb_max: { value: 12, min: 2, max: 30, step: 1 },              // the tallest natural rock face a sniper or a scout scales (m)
+  climb_rate: { value: 1.1, min: 0.2, max: 4, step: 0.1 },         // metres a second up or down a rock face
+  climb_cost: { value: 1.2, min: 0.2, max: 6, step: 0.1 },         // path cost per metre climbed (higher: they look longer for a way round)
   ambush_trigger: { value: 0.6, min: 0.2, max: 1, step: 0.05 },   // an ambush opens fire when the enemy is within this share of its range
   ambush_reveal: { value: 8, min: 2, max: 30, step: 1 },          // raiders see an unsprung ambush only this close
   ambush_bonus: { value: 1.6, min: 1, max: 3, step: 0.1 },        // aim multiplier for 4 s after an ambush springs

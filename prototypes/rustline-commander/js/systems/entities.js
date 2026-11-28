@@ -13,6 +13,12 @@ function spawn(kind, x, z, extra) {
     path: null, pi: 0, moving: false, target: null, pref: null, squad: null, group: null, inCover: false, recoil: 0,
   }, extra || {});
   e.maxhp = e.hp = unitHp(e);
+  // a unit that would stand where it cannot get to the fight from (a mesa top, a rock, a walled pocket) is
+  // moved to the nearest spot it can (iteration 56); a fixed gun, the command tank and a test dummy stay put
+  if (kind !== 'tank' && !e.fixed && !e.inside && !e.dummy && !canReach(x, z, e.veh)) {
+    const p = reachSpotNear(x, z, e.veh);
+    if (p) { e.x = p.x; e.z = p.z; e.y = e.vy = hAt(p.x, p.z); if (e.homeSpot && e.homeSpot.x === x && e.homeSpot.z === z) e.homeSpot = { x: p.x, z: p.z }; }
+  }
   state.ents.push(e);
   return e;
 }
@@ -94,6 +100,8 @@ function unstrand(m) {
   m.x = p.x; m.z = p.z; m.y = m.vy = hAt(p.x, p.z); m.path = null;
 }
 /** True for a soldier standing on top of a structure (a roof, a wall) well above the ground. */
+/** A soldier who scales natural rock faces (UT or ENEMY climb: the sniper, the scout, the raiders' sniper). */
+function climber(e) { return !e.veh && !!((UT[e.kind] && UT[e.kind].climb) || (typeof ENEMY !== 'undefined' && ENEMY[e.kind] && ENEMY[e.kind].climb)); }
 function raised(m) { return hAt(m.x, m.z) - groundAt(m.x, m.z) > 2; }
 function spotNear(x, z, i) {
   // the ground height there: a centre on a wall top measures from the ground beside it

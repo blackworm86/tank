@@ -17,7 +17,7 @@
  */
 const HORDE_SPECIAL = {
   r_bomber: { name: 'Kamikaze', short: 'Kamik.', w: 'bomb', hp: () => tune.raider_hp * 0.6, speed: () => tune.inf_speed * tune.bomber_speed, charge: true },
-  r_sniper: { name: 'Cecchino predone', short: 'Cecch.', w: 'r_sniper', hp: () => tune.raider_hp * 0.9, speed: () => tune.inf_speed * 0.85, perch: true },
+  r_sniper: { name: 'Cecchino predone', short: 'Cecch.', w: 'r_sniper', hp: () => tune.raider_hp * 0.9, speed: () => tune.inf_speed * 0.85, perch: true, climb: true },
   r_mortar: { name: 'Mortaista predone', short: 'Mort.', w: 'r_mortar', hp: () => tune.raider_hp * 0.9, speed: () => tune.inf_speed * 0.8, stay: true },
   r_flame: { name: 'Lanciafiamme', short: 'Fiamme', w: 'flame', hp: () => tune.raider_hp * 1.4, speed: () => tune.inf_speed * 0.95, close: 6.5 },
   r_rabble: { name: 'Straccione', short: 'Stracc.', w: 'r_pistol', hp: () => tune.raider_hp * 0.55, speed: () => tune.inf_speed * 1.05 },

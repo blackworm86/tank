@@ -246,7 +246,7 @@ function spawnWave(n, tier, from) {
   for (let tries = 0; !p && tries < 60; tries++) {
     const a = rng() * 6.28, r = 58 + rng() * 14, x = tk.x + Math.sin(a) * r, z = tk.z + Math.cos(a) * r;
     if (x < 6 || z < 6 || x > N - 6 || z > N - 6) continue;
-    if (!walkable(Math.floor(x), Math.floor(z)) || shallow(x, z)) continue;
+    if (!walkable(Math.floor(x), Math.floor(z)) || shallow(x, z) || !canReach(x, z, false)) continue;
     p = { x, z };
   }
   if (!p) p = { x: N - 10, z: N - 10 };

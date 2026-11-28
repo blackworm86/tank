@@ -20,7 +20,7 @@ function updateUnits(dt) {
     const w = weapon(UT[e.kind].w);
     if (e.think <= 0) {
       e.think = 0.35 + rng() * 0.15;
-      e.target = pickTarget(e, w);
+      e.target = e.climbH != null ? null : pickTarget(e, w); // on a rock face: hands on the rock, no shooting
       e.cover = e.veh || e.rideOn ? 0 : e.target ? coverFrom(e, e.target.x, e.target.z) : coverAround(e);
       e.inCover = e.cover > 0;
       if (e.team === 1) raiderThink(e, w);
@@ -30,9 +30,12 @@ function updateUnits(dt) {
     else if (e.rideOn) { seatPos(e); e.path = null; e.moving = false; } // on a jeep's seat: it goes where the jeep goes
     else {
       moveAlong(e, dt);
-      e.y = e.veh ? surfaceY(e.x, e.z) : hAt(e.x, e.z); // a vehicle rides the drawn ground, ramps and all (as the command tank)
-      if (e.y >= 99) e.y = 0;
-      e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
+      if (e.climbH != null) e.y = e.vy; // on a rock face: moveAlong sets the height
+      else {
+        e.y = e.veh ? surfaceY(e.x, e.z) : hAt(e.x, e.z); // a vehicle rides the drawn ground, ramps and all (as the command tank)
+        if (e.y >= 99) e.y = 0;
+        e.vy += (e.y - e.vy) * Math.min(1, dt * 12);
+      }
       if (deepWater(e.x, e.z)) { dmgTo(e, 999, 'drown', null); continue; }
       if (e.veh && e.team === 0 && e.moving) crushUnder(e, unitSpeed(e));
     }
@@ -246,10 +249,30 @@ function driveAlong(e, dt) {
   if (e.stuckT > tune.unstick_time && e.dest && Math.hypot(e.dest.x - e.x, e.dest.z - e.z) < 5) { e.pi = P.length; e.vs = 0; e.moving = false; e.stuckT = 0; return; }
   if (e.stuckT > tune.unstick_time && e.dest) { const d0 = e.dest; e.stuckT = 0; setDest(e, d0.x + (rng() - 0.5) * 1.5, d0.z + (rng() - 0.5) * 1.5); }
 }
+/**
+ * A climber on a rock face (iteration 56): at the foot (or the lip) of a face taller than a step it goes up
+ * (or down) at climb_rate metres a second, then steps onto the cell beyond. It finishes the climb it started
+ * even when its way changes meanwhile.
+ */
+function climbStep(e, dt) {
+  const C = e.climbWp, dy = e.climbH - e.vy, st = tune.climb_rate * dt * (suppressed(e) ? 0.5 : 1);
+  e.moving = true; e.stuckT = 0;
+  if (Math.abs(dy) > st) { e.vy += Math.sign(dy) * st; return; }
+  e.x = C.x; e.z = C.z; e.y = e.vy = hAt(C.x, C.z); e.climbH = null; e.climbWp = null;
+  if (e.path && e.path[e.pi] === C) e.pi++;
+}
 function moveAlong(e, dt) {
+  if (e.climbH != null) { climbStep(e, dt); return; }
   if (!e.path || e.pi >= e.path.length) { e.moving = false; if (e.veh) e.vs = 0; return; }
   if (e.veh) { driveAlong(e, dt); return; }
   const wp = e.path[e.pi], dx = wp.x - e.x, dz = wp.z - e.z, d = Math.hypot(dx, dz), lastN = e.pi === e.path.length - 1;
+  if (d < 0.7 && d > 0.01 && climber(e)) { // the foot of a face (or its lip): start the climb
+    const dh = hAt(wp.x, wp.z) - hAt(e.x, e.z);
+    if (dh > 1.5 || dh < -3.5) {
+      e.x = wp.x - dx / d * 0.6; e.z = wp.z - dz / d * 0.6; e.heading = Math.atan2(dx, dz);
+      e.climbH = hAt(wp.x, wp.z); e.climbWp = wp; e.moving = true; return;
+    }
+  }
   const sp = unitSpeed(e) * (shallow(e.x, e.z) ? 0.55 : 1);
   if (d > 0.01) e.heading = turnToward(e.heading, Math.atan2(dx, dz), 10 * dt);
   const before = d;

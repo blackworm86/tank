@@ -97,6 +97,7 @@ function recomputeColumn(x, z) {
   let h = 0;
   for (let y = VH - 1; y >= 0; y--) if (world.vox[base + y]) { h = y + 1; break; }
   world.hmap[x + world.N * z] = h;
+  world.navGen = (world.navGen || 0) + 1;
 }
 /** A cell a soldier can stand in: on the map and not deeper than a ford. */
 function walkable(x, z) { return inMap(x, z) && world.hmap[x + world.N * z] >= world.WL - 1; }
@@ -1087,7 +1088,71 @@ function collapse(cx, cz, rad, removed) {
 }
 
 // ---- Paths and cover ----------------------------------------------------------------------------
-const PF = { g: null, from: null, stamp: null, closed: null, cur: 0, N: 0, heap: new MinHeap() };
+const PF = { g: null, from: null, stamp: null, closed: null, cur: 0, N: 0, heap: new MinHeap(), climb: 0 };
+// ---- Where a unit can get to the fight from (iteration 56) ----------------------------------------------
+const NAV = { map: [null, null], gen: [-1, -1], hm: [null, null], t: [0, 0] };
+/** Where the reach map starts: the command tank, or the army's start before it is on the map. */
+function navAnchor() {
+  const tk = state.tank;
+  if (tk && tk.alive) return { x: tk.x, z: tk.z };
+  const s = world.sites && world.sites.start; return s ? { x: s.x + 0.5, z: s.z + 0.5 } : null;
+}
+/**
+ * The cells from which a soldier (veh false) or a vehicle (veh true) can walk or drive to the anchor, with the
+ * same steps findPath allows (a soldier climbs 1 and jumps down 3; a vehicle takes tank_ground_climb on natural
+ * ground and keeps clear of walls). A reverse flood over the 4 neighbours, kept until the ground changes
+ * (recomputeColumn) or the anchor leaves it. null: no anchor, or one standing on a speck (no check then).
+ */
+function navReach(veh) {
+  const A = navAnchor(); if (!A || !world.hmap) return null;
+  const N = world.N, k = veh ? 1 : 0, ax = Math.floor(A.x), az = Math.floor(A.z); if (!inMap(ax, az)) return null;
+  const a = ax + N * az; let M = NAV.map[k];
+  // a few craters change little: the map is kept 10 s after the ground changes (a vehicle's flood takes ~30 ms)
+  if (M && NAV.hm[k] === world.hmap && M.length === N * N && M[a] && (NAV.gen[k] === world.navGen || Math.abs(state.t - NAV.t[k]) < 10)) return M.n < 200 ? null : M;
+  M = new Uint8Array(N * N); const hm = world.hmap, Q = new Int32Array(N * N); let qh = 0, qt = 0;
+  M[a] = 1; Q[qt++] = a;
+  const drop = veh ? 1 : 3;
+  while (qh < qt) {
+    const c = Q[qh++], cx = c % N, cz = (c / N) | 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, nz = cz + dz; if (!walkable(nx, nz)) continue;
+      const n = nx + N * nz; if (M[n]) continue;
+      const up = hm[c] - hm[n]; // the step from n onto c
+      const lim = veh && natTop(n) && natTop(c) ? tune.tank_ground_climb : 1;
+      if (up > lim || -up > Math.max(drop, lim)) continue;
+      if (veh && hardNear(nx, nz)) continue;
+      M[n] = 1; Q[qt++] = n;
+    }
+  }
+  M.n = qt; NAV.map[k] = M; NAV.gen[k] = world.navGen; NAV.hm[k] = world.hmap; NAV.t[k] = state.t;
+  return qt < 200 ? null : M;
+}
+/** True when a soldier (or a vehicle) standing at (x,z) can get from there to the fight. */
+function canReach(x, z, veh) {
+  const M = navReach(veh), ix = Math.floor(x), iz = Math.floor(z);
+  if (!inMap(ix, iz)) return false;
+  return !M || !!M[ix + world.N * iz];
+}
+/**
+ * The nearest free spot to (x,z) a unit can get to the fight from: walkable, not a wall top or a ford, not
+ * taken by another unit (none within 0.9 m). Rings out to 48 m; null when there is none.
+ */
+function reachSpotNear(x, z, veh) {
+  const M = navReach(veh); if (!M) return null;
+  const N = world.N, cx = Math.floor(x), cz = Math.floor(z);
+  for (let r = 0; r <= 48; r++) {
+    let best = null, bd = 1e9;
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const ix = cx + dx, iz = cz + dz; if (!inMap(ix, iz) || !M[ix + N * iz] || perch(ix, iz) || shallow(ix + 0.5, iz + 0.5)) continue;
+      const px = ix + 0.5, pz = iz + 0.5, d = dx * dx + dz * dz;
+      if (d >= bd || state.ents.some(o => o.alive && (o.x - px) ** 2 + (o.z - pz) ** 2 < 0.81)) continue;
+      bd = d; best = { x: px, z: pz };
+    }
+    if (best) return best;
+  }
+  return null;
+}
 /**
  * A* over walkable cells; steps up or down more than maxStep are walls.
  * Returns waypoints [{x,z}] (cell centres) to the goal, or to the nearest reachable cell.
@@ -1127,7 +1192,12 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxSte
       const up = hm[n] - hm[c];
       // natural ground (both columns): a vehicle takes a taller step there, a wall stays a wall
       const lim = natStep > maxStep && natTop(n) && natTop(c) ? natStep : maxStep;
-      if (up > lim || -up > Math.max(maxDrop, lim)) continue;
+      let climbC = 0;
+      if (up > lim || -up > Math.max(maxDrop, lim)) {
+        // a climber (PF.climb, set by setDest) goes up or down a natural face as tall as climb_max, straight at it
+        if (!PF.climb || dx && dz || Math.abs(up) > PF.climb || !natTop(n) || !natTop(c)) continue;
+        climbC = Math.abs(up) * tune.climb_cost;
+      }
       if (natStep > maxStep && hardNear(nx, nz) && (Math.abs(nx - ax) > 2 || Math.abs(nz - az) > 2)) continue; // a vehicle keeps a cell clear of walls and posts
       if (dx && dz) { // no cutting corners
         const a = cx + dx + N * cz, b = cx + N * (cz + dz);
@@ -1135,7 +1205,8 @@ function findPath(sx, sz, tx, tz, maxStep = 1, maxNodes = 7000, maxDrop = maxSte
       }
       let cost = dx && dz ? 1.414 : 1;
       if (hm[n] < world.WL) cost += 1.5;
-      if (-up > maxStep) cost += 2; // a jump down: fine, not preferred
+      if (climbC) cost += climbC; // a climb: slow, taken when the way round is long
+      else if (-up > maxStep) cost += 2; // a jump down: fine, not preferred
       if (perch(nx, nz)) cost += 6;
       const ng = PF.g[c] + cost;
       if (PF.stamp[n] !== PF.cur || ng < PF.g[n]) {
