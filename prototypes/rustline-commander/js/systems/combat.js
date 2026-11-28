@@ -44,6 +44,7 @@ function dmgTo(e, amt, kind, src, hit) {
   if (e.kind === 'tank') amt *= tankStats().hullArmor;
   if (kind === 'blast' && ENEMY[e.kind] && ENEMY[e.kind].blastK) amt *= ENEMY[e.kind].blastK;
   if (e.team === 0 && !e.veh) amt *= modOf(e).taken;
+  if (e.garrison && !e.veh && kind !== 'blast') amt *= tune.bld_taken; // iteration 65: walls around him take part of it
   if (e.kind === 'tank') { state.hurtT = state.t; cam.shake = Math.max(cam.shake, tune.shake * Math.min(1.6, amt / 30)); }
   e.hp -= amt;
   dmgNumber(e, amt, D, res, side, src); // js/damage.js

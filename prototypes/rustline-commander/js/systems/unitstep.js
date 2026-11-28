@@ -301,13 +301,14 @@ function pickTarget(e, w) {
   const sight = (e.team ? tune.raider_sight * (w.sight || 1) : e.kind === 'sniper' ? tune.sniper_sight : tune.sight_range) + (e.rank || 0) * 2;
   const spot = e.kind === 'sniper' && !e.team; // the sniper fires on what his side sees, as far as his rifle reaches (iteration 63)
   const R = w.indirect || spot ? w.range : Math.min(w.range, sight + (e.veh ? 6 : 0));
+  const up = o => Math.max(0, Math.min(tune.high_max, e.y - o.y)) * tune.high_sight; // iteration 65: from above he sees farther (never past his weapon)
   if (e.pref && e.pref.alive && dist2(e, e.pref) <= R * R && (w.indirect ? seenByTeam(e.pref, e.team) : canSee(e, e.pref))) return e.pref;
   if (e.pref && e.pref.alive && suppressing(e) && !w.indirect && dist2(e, e.pref) <= w.range * w.range) return e.pref; // suppression: at where it is, seen or not
   const c = [];
   for (const o of state.ents) {
     if (!o.alive || o.team === e.team || o.inside) continue;
     if (w.noVeh && o.veh) continue; // dogs bite men, not hulls
-    const d = dist2(e, o); if (d > R * R) continue;
+    const d = dist2(e, o); if (d > Math.min(w.range, R + up(o)) ** 2) continue;
     if (e.team === 1 && (lurking(o) || stealthy(o)) && d > tune.ambush_reveal ** 2) continue; // an ambush, or a stealthy soldier, still unseen
     if (w.min && d < w.min * w.min) continue;
     if (e.kind === 'at' && !e.team && !o.veh && d > 14 * 14) continue; // men only within his pistol's reach
@@ -437,6 +438,11 @@ function alertGroup(g, src) {
   g.known = { x: src.x, z: src.z }; g.seenT = state.t;
 }
 /** One shot from a unit at a target. */
+/**
+ * The height advantage (iteration 65): each metre the shooter's eye stands above the target's chest adds
+ * high_acc to his aim (up to high_max metres); each metre below takes high_acc away (the target is in cover of the crest).
+ */
+function heightK(e, t) { const dh = (e.y + eyeH(e)) - (t.y + chestH(t)); return Math.max(0.5, 1 + Math.max(-tune.high_max, Math.min(tune.high_max, dh)) * tune.high_acc); }
 function fire(e, t, w) {
   e.firedT = state.t;
   const yaw = e.veh ? e.turretYaw : e.heading, off = e.veh ? 1.6 : 0.6;
@@ -448,6 +454,9 @@ function fire(e, t, w) {
     let acc = w.acc * Math.max(0.35, Math.min(1, 1.25 - d / w.range * 0.6));
     if (e.moving || (e.rideOn && e.rideOn.moving)) acc *= 0.5; // on the move, or from a jeep on the move
     if (t.moving) acc *= 0.8;
+    acc *= heightK(e, t); // iteration 65: from above he aims better, from below worse
+    if (e.garrison) acc *= tune.bld_acc; // at a window, braced
+    if (t.garrison) acc *= tune.bld_cover; // a man behind a window is a small target
     if (!e.team) acc = Math.min(0.97, acc * rankK(e, 'rank_acc') * modOf(e).acc);
     if (suppressed(e)) acc *= tune.suppress_acc;
     if (e.squad && e.squad.order.sprungT != null && state.t - e.squad.order.sprungT < 4) acc = Math.min(0.97, acc * tune.ambush_bonus);

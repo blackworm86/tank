@@ -308,6 +308,12 @@ window.CONFIG = {
   nest_rate: { value: 0.75, min: 0.3, max: 1, step: 0.05 },       // his time between bursts in the nest
   nest_sup: { value: 1.6, min: 1, max: 4, step: 0.1 },            // and how much longer it pins them down
   radio_op_range: { value: 18, min: 4, max: 60, step: 1 },        // a radio operator's own ring
+  high_acc: { value: 0.05, min: 0, max: 0.2, step: 0.01 },       // aim per metre above the target (iteration 65), less per metre below
+  high_max: { value: 10, min: 0, max: 30, step: 1 },              // metres of height that count
+  high_sight: { value: 1.2, min: 0, max: 4, step: 0.1 },          // metres more he spots per metre above
+  bld_acc: { value: 1.2, min: 1, max: 2, step: 0.05 },            // aim from a window
+  bld_cover: { value: 0.55, min: 0.1, max: 1, step: 0.05 },       // aim at a man behind a window
+  bld_taken: { value: 0.7, min: 0.1, max: 1, step: 0.05 },        // what gets through to a man inside (walls)
   scout_sight: { value: 54, min: 10, max: 120, step: 1 },
   scout_speed: { value: 1.25, min: 0.5, max: 2, step: 0.05 },
 
