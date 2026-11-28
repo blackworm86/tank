@@ -11,7 +11,7 @@ function stepPlay(dt) {
   if (state.tpause) { // frozen: only orders and the camera move
     if (R3.ready) state.mouse3 = pickWorld(MS.x, MS.y);
     handleInput();
-    if (!state.rename) panCamera(dt);
+    if (!state.rename && !state.menu) panCamera(dt); // the menu open: no letter moves the view
     MS.lp = MS.rp = MS.lr = MS.rr = false; MS.wheel = 0;
     return;
   }
@@ -30,7 +30,7 @@ function stepPlay(dt) {
   let lx = 0, lz = 0;
   if (aim) { lx = (aim.x - tk.x) * 0.22; lz = (aim.z - tk.z) * 0.22; const L = Math.hypot(lx, lz); if (L > 12) { lx *= 12 / L; lz *= 12 / L; } }
   const k = Math.min(1, dt * 4);
-  if (state.mode === 'cmd') { if (!state.rename) panCamera(dt); } // command mode: the view is the player's to move
+  if (state.mode === 'cmd') { if (!state.rename && !state.menu) panCamera(dt); } // command mode: the view is the player's to move
   else { cam.x += (tk.x + lx - cam.x) * k; cam.z += (tk.z + lz - cam.z) * k; cam.y += (tk.vy - cam.y) * k; }
   cam.shake *= 0.9;
   MS.lp = MS.rp = MS.lr = MS.rr = false; MS.wheel = 0;
@@ -53,12 +53,20 @@ function handleInput() {
   if (state.tpause) { // squads are picked and ordered only in the tactical pause
     for (let i = 0; i < 6; i++) if (pressed('Digit' + (i + 1))) { if (alt) regroupTo(i); else { selectSquad(state.squads[i], down.has('ShiftLeft') || down.has('ShiftRight')); state.picked = null; } }
     if (pressed('Backquote') || pressed('IntlBackslash')) { for (const s of state.squads) s.selected = alive(s).length > 0; state.picked = null; }
-    if (pressed('KeyG')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderFollow(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
-    if (pressed('KeyZ')) for (const sq of selectedSquads()) { if (inRadio(sq)) orderHold(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); }
+    // iteration 69: H halt, B board or unload, U out; I L O cycle the rules, the gait and the formation of the chosen squads
+    const each = f => { for (const sq of selectedSquads()) { if (inRadio(sq)) f(sq); else say(sq.name, 'Fuori portata radio.', '#e0a070'); } };
+    if (pressed('KeyH')) each(orderHold);
     if (pressed('KeyB')) boardOrUnload();
-    if (pressed('KeyO')) { const sel = selectedSquads(); if (sel.length) { const nf = nextOf(FORMS, formOf(sel[0]).k).k; for (const sq of sel) setForm(sq, nf); } } // iteration 68
-    if (pressed('KeyH')) cycleTankForm(); // P is the pause
+    if (pressed('KeyU')) each(quickOut);
+    const sel = selectedSquads();
+    if (sel.length && pressed('KeyI')) { const n = nextOf(ROES, roeOf(sel[0]).k).k; for (const sq of sel) setRoe(sq, n); }
+    if (sel.length && pressed('KeyL')) { const n = nextOf(GAITS, gaitOf(sel[0]).k).k; for (const sq of sel) setGait(sq, n); }
+    if (sel.length && pressed('KeyO')) { const n = nextOf(FORMS, formOf(sel[0]).k).k; for (const sq of sel) setForm(sq, n); }
   }
+  // the quick orders, in both modes (iteration 69): Z form on me, X the formation while following the tank, C hold fire
+  if (tk.alive && pressed('KeyZ')) quickFollow();
+  if (pressed('KeyX')) cycleTankForm();
+  if (tk.alive && pressed('KeyC')) quickHoldFire();
   if (pressed('F2')) { state.dev = !state.dev; say('Radio', state.dev ? 'Pannello sviluppo aperto (F2). K: nemico sotto il mouse.' : 'Pannello sviluppo chiuso.', '#c8a0ff'); }
   if (state.dev) devInput();
   if (!tk.alive) return;
@@ -67,8 +75,8 @@ function handleInput() {
   if (cmd) {
     if (pressed('KeyV')) state.arm = state.arm === 'move' ? null : 'move';
     if (pressed('KeyF')) state.arm = state.arm === 'attack' ? null : 'attack';
-    if (pressed('KeyC')) state.arm = state.arm === 'cover' ? null : 'cover';
-    if (pressed('KeyR')) state.arm = state.arm === 'ambush' ? null : 'ambush';
+    if (pressed('KeyR')) state.arm = state.arm === 'cover' ? null : 'cover'; // iteration 69: R al riparo, T agguato
+    if (pressed('KeyT')) state.arm = state.arm === 'ambush' ? null : 'ambush';
     // the keyboard's Menu key opens the order menu at the mouse, like a right-click
     if (pressed('ContextMenu') && state.mouse3 && selectedSquads().length) openMenu({ p: { x: state.mouse3.x, y: state.mouse3.y, z: state.mouse3.z }, face: null, tgt: enemyUnderMouse(), kind: null });
   } else state.arm = null;

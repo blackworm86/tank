@@ -548,6 +548,31 @@ function squadUpkeep(sq, dt) {
   }
   roleUpkeep(sq, ms);
 }
+// ---- Quick orders (iteration 69): Z X C in both modes ------------------------------------------------------------
+/** Who a quick order goes to: the chosen squads in Comando, else every squad; only those in radio reach hear it. */
+function quickSquads() {
+  let ts = state.tpause ? selectedSquads() : []; if (!ts.length) ts = state.squads.filter(s => alive(s).length);
+  const heard = ts.filter(inRadio);
+  if (ts.length && !heard.length) say('Radio', 'Nessuna squadra in portata radio.', '#e0a070');
+  return heard;
+}
+/** Z: form on me, every squad that hears it follows the tank. */
+function quickFollow() { const ts = quickSquads(); for (const sq of ts) orderFollow(sq); if (ts.length) sfx('radio'); }
+/** C: hold fire, or (when they all already hold it) back to the rules each had before. */
+function quickHoldFire() {
+  const ts = quickSquads(); if (!ts.length) return;
+  const all = ts.every(sq => roeOf(sq).k === 'hold');
+  for (const sq of ts) {
+    if (all) setRoe(sq, sq.roePrev && sq.roePrev !== 'hold' ? sq.roePrev : 'free');
+    else if (roeOf(sq).k !== 'hold') { sq.roePrev = roeOf(sq).k; setRoe(sq, 'hold'); }
+  }
+  sfx('radio');
+}
+/** U: out of the building and off the vehicle, for the chosen squads. */
+function quickOut(sq) {
+  if (alive(sq).some(m => m.garrison)) { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }
+  if (alive(sq).some(m => m.rideOn || (seatsOf(m) > 0 && ridersOf(m).length))) { dismountSquad(sq); for (const v of alive(sq)) if (seatsOf(v) > 0) unloadVehicle(v); }
+}
 function selectedSquads() { return state.squads.filter(s => s.selected && alive(s).length); }
 /**
  * Changes the plan of every selected squad that heard it and walks a path: f(order, lastStop). Returns how many.

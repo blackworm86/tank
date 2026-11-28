@@ -356,6 +356,7 @@ function drawHUD() {
       unitIcon(k, ix, iy, 17, lifted ? 'rgba(168,216,112,0.25)' : m && m.alive ? '#a8d870' : '#5a3a32');
       if (m && m.alive && m.rank && m.kind !== 'recruit') chevrons(ix, iy - 11, m.rank, 0.7);
       if (m && m.alive && m.kind === 'medic') { const f = Math.max(0, medPower(m)) / tune.medic_power; ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(ix - 8, iy + 10, 16, 3); ctx.fillStyle = f > 0.3 ? '#7fe07a' : '#e0a050'; ctx.fillRect(ix - 8, iy + 10, 16 * f, 3); } // the medic's bandages
+      if (m && m.alive && !m.veh) { const xp = xpProgress(m); if (xp) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(ix - 8, iy + 14, 16, 2); ctx.fillStyle = xp.ready ? '#ffd36a' : '#e0b860'; ctx.fillRect(ix - 8, iy + 14, 16 * xp.f, 2); } } // iteration 69: XP toward the next level
       const job = !!(m && jobOptions(m).length); // jobs.js: a new Job to choose, the gold arrow opens it
       if (job) { const p = 0.6 + 0.4 * Math.sin(performance.now() / 180); ctx.fillStyle = 'rgba(255,211,106,' + p + ')'; ctx.beginPath(); ctx.moveTo(ix + 7, iy - 19); ctx.lineTo(ix + 13, iy - 11); ctx.lineTo(ix + 1, iy - 11); ctx.closePath(); ctx.fill(); }
       if (m && !m.alive) { // fallen: crossed out till he leaves the card (pruneFallen), fading in the last second
@@ -389,6 +390,7 @@ function drawHUD() {
   }
 
   drawJobPick(); // jobs.js: a soldier's choice of Job, beside his card
+  if (!state.jobPick && !state.dragSoldier) drawXpTip(); // jobs.js: the soldier under the mouse, his Job, level and XP
 
   // radio log
   const msgs = state.msgs.filter(m => state.t - m.t < 8).slice(-3);
@@ -413,8 +415,8 @@ function drawHUD() {
   }
   // controls
   const lines = cmd
-    ? ['WASD vista   1-6 squadra   \\ tutte   Alt+1-6 forma', 'Click dx: ordini   Shift+click dx: tappa', 'V F C R + click   G segui   Z fermi   B bordo', 'O formazione squadra   H formazione al carro', 'Trascina un soldato su un\'altra squadra']
-    : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio: modo comando (pausa, ordini)', 'Tab: cambia proiettile   R T F G C V: sistemi attivi', 'Q/E: ruota camera   Rotella: zoom'];
+    ? ['WASD vista   Q/E ruota   1-6 squadra   \\ tutte   Alt+1-6 sposta', 'Click dx: ordini   Shift+click dx: tappa', 'V vai  F assalto  R riparo  T agguato  (+ click)', 'H fermi   B bordo   U esci/scendi', 'I ingaggio   L andatura   O formazione', 'Z seguimi   X formazione col carro   C cessate il fuoco']
+    : ['WASD: guida il carro', 'Bloc Maiusc: passo fanteria / massima   Shift tenuto: l\'altra', 'Mouse: punta   Click: fuoco', 'Spazio: modo comando (pausa, ordini)', 'Tab: cambia proiettile   R T F G V B: sistemi attivi', 'Z seguimi   X formazione col carro   C cessate il fuoco', 'Q/E: ruota camera   Rotella: zoom'];
   if (state.dev) drawDevPanel();
   else if (!state.help) text('F1 comandi · F2 sviluppo', W - 16, H - 14, 11, 'rgba(201,183,154,0.75)', 'right');
   else {
@@ -484,7 +486,7 @@ function drawTitle() {
   text('Un carro, una radio, poche squadre di disperati. La terra bruciata cambia a ogni run.', W / 2, 162, 18, HC.text);
   panel(W / 2 - 470, 220, 450, 300);
   text('Comandi', W / 2 - 450, 246, 18, '#ffd9a0', 'left');
-  CONTROLS.forEach((c, i) => text(c, W / 2 - 450, 276 + i * 24, 14, HC.text, 'left'));
+  { const st = Math.min(24, 228 / CONTROLS.length); CONTROLS.forEach((c, i) => text(c, W / 2 - 450, 274 + i * st, st < 20 ? 13 : 14, HC.text, 'left')); } // the lines fit the panel
   panel(W / 2 + 20, 220, 450, 190);
   drawAchievements(W / 2 + 40, 246);
   drawHullPicker(W / 2 + 20, 420);

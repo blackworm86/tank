@@ -52,7 +52,7 @@ function setForm(sq, k) { sq.form = k; const f = formOf(sq); say(sq.name, 'Forma
 /** The squad's next formation. */
 function cycleForm(sq) { setForm(sq, nextOf(FORMS, formOf(sq).k).k); }
 /** Sets the formation of the squads that follow the tank. */
-function setTankForm(k) { state.tankForm = k; const f = tankForm(); say('Radio', 'Formazione attorno al carro: ' + f.name.toLowerCase() + '.', f.col); }
+function setTankForm(k) { state.tankForm = k; const f = tankForm(); say('Radio', 'Seguendo il carro: ' + f.name.toLowerCase() + '.', f.col); }
 /** The tank's next formation. */
 function cycleTankForm() { setTankForm(nextOf(FORMS, tankForm().k).k); }
 

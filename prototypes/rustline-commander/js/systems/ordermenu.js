@@ -15,14 +15,14 @@ function menuItems(g, append) {
     if (g.tgt && g.tgt.alive) { // Shift + right click on an enemy: what the path does about it
       const t = g.tgt, nm = UT[t.kind].name.toLowerCase(), has = sel.some(sq => sq.order.t === 'move' && !sq.order.done), last = n - 1;
       const sent = k => () => { const c = legAll(k); if (c) { sfx('radio'); mark(t.x, t.z, 0x9fd8ff); } else say('Radio', 'Prima traccia un percorso (click destro, poi Shift + click destro per le tappe).', '#e0a070'); };
-      items.push({ key: 'S', label: 'Sopprimilo lungo il tratto ' + last, col: '#9fd8ff', desc: DESC.legSupp, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; }) });
+      items.push({ key: 'G', label: 'Sopprimilo lungo il tratto ' + last, col: '#9fd8ff', desc: DESC.legSupp, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; }) });
       items.push({ key: 'F', label: 'All\'arrivo: fermi lì, fuoco su di lui', col: '#ff8a6a', desc: DESC.final, off: !has, act: sent(o => { o.final = t; }) });
-      items.push({ key: 'D', label: 'Entrambe le cose', col: '#ffb070', desc: DESC.both, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; o.final = t; }) });
+      items.push({ key: 'K', label: 'Entrambe le cose', col: '#ffb070', desc: DESC.both, off: !has, act: sent((o, p) => { p.supp = t; if (p.fire === 'none') p.fire = null; o.final = t; }) });
       return items;
     }
     items.push({ key: 'V', label: 'Tappa ' + n + ': vai', desc: DESC.move, act: () => issueOrder('move', true, p, g.face) });
     items.push({ key: 'N', label: 'Tappa ' + n + ': vai senza sparare', col: '#b8b0a0', desc: DESC.nofire, act: () => { if (issueOrder('move', true, p, g.face)) legAll((o, q) => { q.fire = 'none'; }); } });
-    if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'C', label: 'Tappa ' + n + ': vai al riparo', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', true, p, g.face) });
+    if (sel.some(sq => alive(sq).some(m => !m.veh))) items.push({ key: 'R', label: 'Tappa ' + n + ': vai al riparo', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', true, p, g.face) });
     items.push({ key: 'F', label: 'Tappa ' + n + ': assalto', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', true, p, g.face, null) });
     return items;
   }
@@ -33,37 +33,37 @@ function menuItems(g, append) {
   if (g.tgt) {
     const nm = UT[g.tgt.kind].name.toLowerCase();
     items.push({ key: 'F', label: 'Attacca: ' + nm, col: '#ff8a6a', desc: DESC.attack, act: () => issueOrder('attack', false, p, g.face, g.tgt) });
-    items.push({ key: 'S', label: 'Fuoco di soppressione su: ' + nm, col: '#9fd8ff', desc: DESC.suppress, act: () => issueOrder('suppress', false, p, g.face, g.tgt) });
+    items.push({ key: 'G', label: 'Fuoco di soppressione su: ' + nm, col: '#9fd8ff', desc: DESC.suppress, act: () => issueOrder('suppress', false, p, g.face, g.tgt) });
   }
   if (onTank) {
-    items.push({ key: 'G', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
+    items.push({ key: 'Z', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
     if (riders && tankStats().seats > 0) items.push({ key: 'B', label: 'Sali a bordo (' + Math.max(0, seatsFree()) + ' posti)', desc: DESC.board, act: () => { let any = false; for (const sq of sel) if (inRadio(sq)) any = orderBoard(sq) || any; if (any) sfx('radio'); } });
   }
   if (b) {
     if (!b.ruined && buildingWalls(b) < b.walls0 * tune.garrison_ruin) b.ruined = true;
-    items.push(b.ruined ? { key: 'E', label: 'Edificio crollato', off: true, desc: 'Troppo distrutto per entrarci.' } : { key: 'E', label: 'Entra nell\'edificio (' + b.occ.length + '/' + b.cap + ')', col: '#b9f59a', desc: DESC.enter, act: () => issueOrder(null, false, p, null, null) });
+    items.push(b.ruined ? { key: 'Y', label: 'Edificio crollato', off: true, desc: 'Troppo distrutto per entrarci.' } : { key: 'Y', label: 'Entra nell\'edificio (' + b.occ.length + '/' + b.cap + ')', col: '#b9f59a', desc: DESC.enter, act: () => issueOrder(null, false, p, null, null) });
   }
   if (!onTank) {
     items.push({ key: 'V', label: g.tgt ? 'Vai lì (senza attaccare)' : 'Vai qui', desc: DESC.move, act: () => issueOrder('move', false, p, g.face) });
     if (!g.tgt) items.push({ key: 'N', label: 'Vai qui senza sparare', col: '#b8b0a0', desc: DESC.nofire, act: () => { if (issueOrder('move', false, p, g.face)) legAll((o, q) => { q.fire = 'none'; }); } });
-    if (inf) items.push({ key: 'C', label: 'Vai al riparo qui', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', false, p, g.face) });
+    if (inf) items.push({ key: 'R', label: 'Vai al riparo qui', col: '#b9f59a', desc: DESC.cover, act: () => issueOrder('cover', false, p, g.face) });
     if (!g.tgt) items.push({ key: 'F', label: 'Assalto fin qui', col: '#ff8a6a', desc: DESC.assault, act: () => issueOrder('attack', false, p, g.face, null) });
-    if (inf) items.push({ key: 'R', label: 'Agguato qui', desc: DESC.ambush(), act: () => issueOrder('ambush', false, p, g.face) });
-    if (sel.some(sq => sq.order.t === 'move' && !sq.order.done)) items.push({ key: 'T', label: 'Aggiungi tappa al percorso', desc: DESC.stop, act: () => issueOrder('move', true, p, g.face) });
-    items.push({ key: 'G', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
+    if (inf) items.push({ key: 'T', label: 'Agguato qui', desc: DESC.ambush(), act: () => issueOrder('ambush', false, p, g.face) });
+    if (sel.some(sq => sq.order.t === 'move' && !sq.order.done)) items.push({ key: 'K', label: 'Aggiungi tappa al percorso', desc: DESC.stop, act: () => issueOrder('move', true, p, g.face) });
+    items.push({ key: 'Z', label: 'Seguimi', desc: DESC.follow, act: all(orderFollow) });
   }
-  items.push({ key: 'Z', label: 'Fermi qui', desc: DESC.hold, act: all(orderHold) });
+  items.push({ key: 'H', label: 'Fermi qui', desc: DESC.hold, act: all(orderHold) });
   { const cur = roeOf(sel[0]), nx = nextOf(ROES, cur.k), g = gaitOf(sel[0]), ng = nextOf(GAITS, g.k);
-    items.push({ key: 'Q', label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
-    items.push({ key: 'A', label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } });
+    items.push({ key: 'I', keep: true, label: 'Ingaggio: ' + cur.name + ' → ' + nx.name, col: nx.col, desc: nx.name + ': ' + nx.desc, act: () => { for (const sq of sel) setRoe(sq, nx.k); } });
+    items.push({ key: 'L', keep: true, label: 'Andatura: ' + g.name + ' → ' + ng.name, col: ng.col, desc: ng.name + ': ' + ng.desc, act: () => { for (const sq of sel) setGait(sq, ng.k); } });
     const fo = formOf(sel[0]), nf = nextOf(FORMS, fo.k), tf = tankForm(), ntf = nextOf(FORMS, tf.k); // iteration 68
-    items.push({ key: 'O', label: 'Formazione: ' + fo.name + ' → ' + nf.name, col: nf.col, desc: nf.name + ': ' + nf.desc, act: () => { for (const sq of sel) setForm(sq, nf.k); } });
-    items.push({ key: 'H', label: 'Al carro: ' + tf.name + ' → ' + ntf.name, col: ntf.col, desc: 'Come si dispongono le squadre che seguono il carro. ' + ntf.name + ': ' + ntf.desc, act: () => setTankForm(ntf.k) }); }
-  if (ms.some(m => m.garrison)) items.push({ key: 'X', label: 'Esci dall\'edificio', desc: 'Escono dalla porta e si fermano fuori.', act: all(sq => { leaveBuilding(sq); sq.order = { t: 'hold' }; say(sq.name, 'Usciamo!'); }) });
+    items.push({ key: 'O', keep: true, label: 'Formazione: ' + fo.name + ' → ' + nf.name, col: nf.col, desc: nf.name + ': ' + nf.desc, act: () => { for (const sq of sel) setForm(sq, nf.k); } });
+    items.push({ key: 'X', keep: true, label: 'Seguendo il carro: ' + tf.name + ' → ' + ntf.name, col: ntf.col, desc: 'Come si dispongono attorno al carro le squadre col Seguimi (non muove nessuno da sola). ' + ntf.name + ': ' + ntf.desc, act: () => setTankForm(ntf.k) }); }
   const rv = !g.tgt ? rideAt(p) : null; // a transport under the mouse: climb on it (the squad's own too)
   if (rv && ms.some(m => canRide(m) && !m.inside)) items.unshift({ key: 'J', label: 'Sali su ' + UT[rv.kind].name + ' (' + Math.max(0, rideFree(rv)) + ' posti liberi)', col: '#4fe3e0', desc: DESC.ride, off: rideFree(rv) <= 0, act: all(sq => { if (alive(sq).some(m => canRide(m))) orderRide(sq, rv); }) });
   const rodeV = sel.flatMap(sq => alive(sq)).filter(m => seatsOf(m) > 0 && ridersOf(m).length);
-  if (ms.some(m => m.rideOn) || rodeV.length) items.push({ key: 'U', label: 'Scendi dal mezzo', col: '#4fe3e0', desc: DESC.getoff, act: all(sq => { dismountSquad(sq); for (const v of alive(sq)) if (seatsOf(v) > 0) unloadVehicle(v); }) });
+  { const inB = ms.some(m => m.garrison), onV = ms.some(m => m.rideOn) || rodeV.length > 0; // U: out of the building, off the vehicle, or both
+    if (inB || onV) items.push({ key: 'U', label: inB && onV ? 'Esci e scendi' : inB ? 'Esci dall\'edificio' : 'Scendi dal mezzo', col: '#4fe3e0', desc: inB && !onV ? 'Escono dalla porta e si fermano fuori.' : DESC.getoff, act: all(quickOut) }); }
   if (ms.some(m => m.inside)) items.push({ key: 'B', label: 'Scendi dal mezzo', desc: 'Chi è a bordo scende accanto al carro comando.', act: () => unloadSelected() });
   return items;
 }
@@ -95,7 +95,7 @@ function openMenu(g, append) {
   const h = MENU.head + items.length * MENU.row + MENU.pad + foot;
   const x = Math.min(MS.x + 6, W - MENU.w - 8), y = Math.max(8, Math.min(MS.y + 6, H - h - 8));
   const n = selectedSquads().length;
-  state.menu = { x, y, h, foot, lines, items, p: g.p, face: g.face, title: append && g.tgt && g.tgt.alive ? 'Percorso → ' + UT[g.tgt.kind].name.toLowerCase() : (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
+  state.menu = { g, append, x, y, h, foot, lines, items, p: g.p, face: g.face, title: append && g.tgt && g.tgt.alive ? 'Percorso → ' + UT[g.tgt.kind].name.toLowerCase() : (append ? 'Percorso · ' : '') + (n > 1 ? n + ' squadre' : selectedSquads()[0].name), sel: -1, mx: MS.x, my: MS.y };
 }
 /** The next order row that can be picked from row k, going dir (1 down, -1 up), wrapping round. */
 function menuStep(m, k, dir) {
@@ -128,9 +128,12 @@ function menuInput() {
   }
   if (MS.lr) MS.lr = false;
   if (pressed('Escape')) { state.menu = null; return; }
-  if (pick && !pick.off && pick.act) { state.menu = null; pick.act(); }
+  if (pick && !pick.off && pick.act) {
+    if (pick.keep) { pick.act(); const k = m.items.indexOf(pick); m.items = menuItems(m.g, m.append); m.sel = Math.min(k, m.items.length - 1); return; } // a setting: the next one, and the menu stays
+    state.menu = null; pick.act();
+  }
 }
-/** The order the next click gives, armed with a hotkey (V, F, C). */
+/** The order the next click gives, armed with a hotkey (V, F, R, T: iteration 69). */
 const ARM = { move: 'VAI', attack: 'ATTACCA / ASSALTO', cover: 'AL RIPARO', ambush: 'AGGUATO' };
 /** WASD (or the arrows) slide the view over the map, at a speed that follows the zoom. */
 function panCamera(dt) {

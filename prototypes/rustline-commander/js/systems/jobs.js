@@ -45,6 +45,31 @@ function xpFactor(m, e) { return Math.max(0, 1 - Math.max(0, soldierLevel(m) - f
 /** XP for killing e. */
 function killXp(m, e) { return tune.xp_kill * foePower(e) * xpFactor(m, e); }
 
+// ---- Level and XP on the card (iteration 69) -------------------------------------------------------------------
+/**
+ * Where soldier m stands on his Job's levels: f the share of the way to the next level (0-1), line the text for the
+ * card ("Fuciliere Esperto · XP 22/40 → Veterano"), ready when a new Job or specialisation waits for him.
+ */
+function xpProgress(m) {
+  const J = JOBS[m.kind]; if (!J || m.veh) return null;
+  const r = m.rank || 0, xp = Math.floor(m.xp || 0), top = J.stage === 0 ? 1 : 3, name = UT[m.kind].name + ' ' + JOB_LEVELS[r];
+  const ready = jobOptions(m).length > 0, wait = ready ? (J.stage === 0 ? ' · pronto per un incarico' : ' · può specializzarsi') : '';
+  if (r >= top) return { f: 1, ready, line: name + ' · XP ' + xp + (J.stage === 0 ? '' : ' · livello massimo') + wait };
+  const lo = r ? tune['rank_xp_' + r] : 0, hi = tune['rank_xp_' + (r + 1)];
+  return { f: Math.max(0, Math.min(1, (xp - lo) / Math.max(1, hi - lo))), ready, line: name + ' · XP ' + xp + '/' + hi + ' → ' + JOB_LEVELS[r + 1] + wait };
+}
+/** The line of the soldier icon under the mouse, beside the cards. */
+function drawXpTip() {
+  for (const c of UI.cards || []) for (const ic of c.icons || []) {
+    if (!ic.m || !ic.m.alive || Math.abs(MS.x - ic.x) > 10 || Math.abs(MS.y - ic.y) > 11) continue;
+    const xp = xpProgress(ic.m), line = xp ? xp.line : UT[ic.m.kind].name + ' · ' + Math.ceil(ic.m.hp) + '/' + Math.ceil(ic.m.maxhp);
+    ctx.font = '12px ' + FONT; const w = ctx.measureText(line).width + 20, y = ic.y - 12;
+    rrect(252, y, w, 24, 5, 'rgba(24,18,14,0.94)', xp && xp.ready ? '#ffd36a' : '#8a7050');
+    text(line, 262, y + 12, 12, HC.text, 'left');
+    return;
+  }
+}
+
 // ---- The choice on the squad card (hud.js draws the cards, squads.js cardInput takes their clicks) -----------------
 /** Opens soldier m's choice beside his icon at (x,y) on the card. */
 function openJobPick(m, x, y) { state.jobPick = { m, x, y }; }

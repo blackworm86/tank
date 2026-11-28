@@ -94,7 +94,7 @@ function buyAmmo(type, n) {
 
 // ---- Advanced systems (3 slots on the modular APC, up to 5 with its frame) --------------------------------------
 /**
- * Systems: passive ones work while mounted; active ones fire with their key (R T F G C V, iteration 60) while
+ * Systems: passive ones work while mounted; active ones fire with their key (R T F G V B, iterations 60 and 69) while
  * driving, then recharge (cd seconds). Bought at garages (each sells a couple) or found in rare crates.
  */
 const SYSTEMS = adopt('system', {});
@@ -188,12 +188,12 @@ function smokeBlocks(a, b) {
   return false;
 }
 /**
- * The keys of the active systems (iteration 60): R T F G C V, left to right and top to bottom, given in the
+ * The keys of the active systems (iterations 60, 69): R T F G V B, left to right and top to bottom, given in the
  * order the active systems sit in their slots (passive ones take none). sysKey(id): the code, or null.
  */
-const SYS_KEYS = ['KeyR', 'KeyT', 'KeyF', 'KeyG', 'KeyC', 'KeyV'];
+const SYS_KEYS = ['KeyR', 'KeyT', 'KeyF', 'KeyG', 'KeyV', 'KeyB']; // iteration 69: Z X C are the quick orders
 function sysKey(id) { const k = state.systems.filter(s => SYSTEMS[s].active).indexOf(id); return k >= 0 ? SYS_KEYS[k] || null : null; }
-/** The tank's systems each step: coax on the right button, the active systems on R T F G C V, Tab for rounds, repairs, salvos, the field hospital. */
+/** The tank's systems each step: coax on the right button, the active systems on R T F G V B, Tab for rounds, repairs, salvos, the field hospital. */
 function tankSystems(tk, dt) {
   tk.reload2 = Math.max(0, (tk.reload2 || 0) - dt);
   const driving = state.mode === 'tank' && !state.tpause && !state.menu && !state.menuBlock;
@@ -567,7 +567,7 @@ registerShopTab('systems', {
   draw(x0, y0, w, h, cy) {
     // advanced systems: the slots, the store, this garage's stock
     const n = sysSlots(), cw = Math.floor((w - 48 - 4 * 10) / 5);
-    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti R T F G C V usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
+    text('Sistemi avanzati montati (' + state.systems.length + ' / ' + n + ')  ·  click per smontare  ·  in marcia i tasti R T F G V B usano quelli attivi', x0 + 24, cy + 6, 15, '#ffd9a0', 'left');
     const card = (bx0, by, id, label, fn, opts) => {
       button(bx0, by, cw, 78, '', fn, opts);
       const S0 = SYSTEMS[id];
